@@ -383,7 +383,12 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
   CHECK_NOTNULL(frontend_pipeline_);
   CHECK_NOTNULL(frontend_output_registra);
   // register output queue to send the front-end output to the viz
-  frontend_output_registra->registerQueue(&frontend_viz_input_queue_);
+  // frontend_output_registra->registerQueue(&frontend_viz_input_queue_);
+  auto& frontend_viz_input_queue = frontend_viz_input_queue_;
+  frontend->setVizCallback(
+      [&frontend_viz_input_queue](const auto& frontend_output) {
+        frontend_viz_input_queue.push(frontend_output);
+      });
 
   if (backend) {
     backend_pipeline_ = std::make_unique<BackendPipeline>(

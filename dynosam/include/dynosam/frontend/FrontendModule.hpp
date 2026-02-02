@@ -84,6 +84,13 @@ class FrontendModule
   virtual void onBackendUpdateCallback(const FrameId /*frame_id*/,
                                        const Timestamp /*timestamp*/) {}
 
+  // TODO: semi-hack for now
+  using VizCallback = std::function<void(const VisionImuPacket::ConstPtr&)>;
+
+  void setVizCallback(const VizCallback& viz_callback) {
+    viz_callback_ = viz_callback;
+  }
+
  protected:
   /**
    * @brief Defines the result of checking the image container which is a done
@@ -129,6 +136,7 @@ class FrontendModule
                       //! for (viz) and drawn everytime
   //! Accessor for the backend (i.e optimized values)
   Accessor::Ptr accessor_{nullptr};
+  VizCallback viz_callback_;
 };
 
 }  // namespace dyno

@@ -91,6 +91,9 @@ class RGBDInstanceFrontendModule : public FrontendModule {
                                   const ObjectPoseMap& object_poses,
                                   bool force_camera_kf = false) const;
 
+  VisionImuPacket::Ptr createKeyFramedOnlyPacket(
+      VisionImuPacket::Ptr vision_imu_packet, bool force_camera_kf = false);
+
   void sendToFrontendLogger(const Frame::Ptr& frame,
                             const VisionImuPacket::Ptr& vision_imu_packet);
 
