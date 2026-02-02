@@ -144,7 +144,7 @@ RegularBackendModule::SpinReturn RegularBackendModule::boostrapSpinImpl(
 
   LOG(INFO) << "Starting any updates";
 
-  // updateAndOptimize(frame_k, new_values, new_factors, post_update_data);
+  updateAndOptimize(frame_k, new_values, new_factors, post_update_data);
   LOG(INFO) << "Done any udpates";
 
   // Should be no need to update after opt as we just added the initial state!?
@@ -202,7 +202,7 @@ RegularBackendModule::SpinReturn RegularBackendModule::nominalSpinImpl(
 
   LOG(INFO) << "Starting any updates";
 
-  // updateAndOptimize(frame_k, new_values, new_factors, post_update_data);
+  updateAndOptimize(frame_k, new_values, new_factors, post_update_data);
   LOG(INFO) << "Done any udpates";
 
   auto accessor = formulation_->accessorFromTheta();

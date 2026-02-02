@@ -1560,6 +1560,10 @@ class HybridFormulationKeyFrame : public HybridFormulation {
   struct KeyFrameMetaData {
     bool is_regular{true};
     bool is_anchor{false};
+
+    //! Measured object motion from the frontend
+    //! Taking us from last RKF to most recent KF (ie. k)
+    Motion3ReferenceFrame H_W_lRKF_KF;
   };
 
   // we may have object measurements at non-keyframes depending on how the

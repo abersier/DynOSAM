@@ -244,6 +244,8 @@ DSDTransport::Publisher::Publisher(
           motions, poses, frame_id, timestamp, frame_id_link)),
       object_paths_(DSDTransport::constructMultiObjectOdometryPaths(
           motions, poses, timestamp, frame_timestamp_map, frame_id_link)) {}
+// object_odometries_(),
+// object_paths_() {}
 
 DSDTransport::Publisher DSDTransport::addObjectInfo(
     const ObjectMotionMap& motions, const ObjectPoseMap& poses,

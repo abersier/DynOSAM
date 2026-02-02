@@ -99,6 +99,7 @@ void BackendDSDRos::spinOnceImpl(
   LOG(INFO) << ss.str();
 
   // // publish objects
+  // TODO: convert all dsd transport to using Trajectories!!!!!
 
   // OKAY: this freezes somehow with the curreny keyframeing thing!!!
   DSDTransport::Publisher object_poses_publisher = dsd_transport_.addObjectInfo(

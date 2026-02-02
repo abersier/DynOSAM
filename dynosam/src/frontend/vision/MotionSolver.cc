@@ -1129,8 +1129,11 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
                                 frame_k->retracked_objects_.end(),
                                 object_id) != frame_k->retracked_objects_.end();
 
-  const ObjectTrackingStatus& previous_tracking_state =
+  const ObjectTrackingStatus previous_tracking_state =
       object_statuses_[object_id];
+
+  LOG(INFO) << "Previous tracking state " << to_string(previous_tracking_state)
+            << " " << info_string(frame_k->getFrameId(), object_id);
 
   // get the corresponding feature pairs
   AbsolutePoseCorrespondences dynamic_correspondences;
@@ -1156,7 +1159,8 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
   const size_t num_inliers =
       inlier_tracklets.size();  // after outlier rejection
 
-  if (inlier_tracklets.size() < 4) {
+  if (inlier_tracklets.size() < 4 ||
+      geometric_result.status != TrackingStatus::VALID) {
     LOG(WARNING) << "Could not make initial frame for object " << object_id
                  << " as not enough inlier tracks!";
     object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
@@ -1166,13 +1170,44 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
   const gtsam::Pose3 G_w_inv_pnp = geometric_result.best_result.inverse();
   const gtsam::Pose3 H_w_km1_k_pnp = frame_k->getPose() * G_w_inv_pnp;
 
+  auto should_object_KF = [&](ObjectId object_id) -> bool {
+    bool temporal_kf = false;
+    if (!is_new) {
+      auto filter = filters_.at(object_id);
+      FrameId last_kf_id = filter->getKeyFrameId();
+
+      // TODO: right now force object KF to happen at some frequency for testing
+      if (frame_k->getFrameId() > 5 &&
+          frame_k->getFrameId() - last_kf_id > 5u) {
+        VLOG(5) << "Long time since last KF for j=" << object_id;
+        temporal_kf = true;
+      }
+    }
+    // TODO: making temporal kf proves problems - show interaction between
+    // "should reset" and not actually needing a reset is maybe problematic?
+
+    return is_resampled || temporal_kf;
+    // return is_resampled;
+  };
+
+  // includes the isa_resampled logic
+  const bool should_kf = should_object_KF(object_id);
+
   if (is_new) {
     object_statuses_[object_id] = ObjectTrackingStatus::New;
     LOG(INFO) << "Object " << object_id << " initialized as New at frame "
               << frame_k->getFrameId();
     // dont update keyframe status to anchor yet - only do so if object
     // successfully created
-  } else if (is_resampled) {
+  }
+  // else if (is_resampled) {
+  else if (should_kf) {
+    // TODO: do we always want to RKF if resampled?
+    // idea NO - depending on how many correspondences we had on the resampled
+    // frame! ie if the tracking was actually still good (dont need to KF at
+    // all!)
+    // TODO: currently not right logic as inliers must always be > 4 to even get
+    // here!!
     if (num_inliers > 4) {
       object_statuses_[object_id] = ObjectTrackingStatus::WellTracked;
       LOG(INFO) << "Object " << object_id
@@ -1190,6 +1225,8 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
                 << "resampled & WellTracked  at frame " << frame_k->getFrameId()
                 << ", set to AnchorKeyFrame";
     }
+  } else {
+    object_statuses_[object_id] = ObjectTrackingStatus::WellTracked;
   }
 
   bool new_or_reset_object = false;
@@ -1197,25 +1234,60 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
   // bool new_object = false;
   // bool object_reset = false;
   if (!is_new) {
+    // should only get here if well tracked!
+    // what is actual logic here -> needs reset separate to should KF in this
+    // condition but somehow couplied in should_kf decision logic?
     if (filterNeedsReset(object_id)) {
       LOG(INFO) << object_id << " needs retting from last frame! current k="
                 << frame_k->getFrameId();
       filter_needs_reset_[object_id] = false;
 
       auto filter = filters_.at(object_id);
-      // this is the pose as the last frame (ie k-1) which will serve as the new
-      // keyframe pose
-      gtsam::Pose3 pose = filter->getPose();
-      // assert that the last filter update was at k-1 and therefore the pose
-      // should be L_w_km1
-      CHECK_EQ(filter->getFrameId(), frame_k_1->getFrameId());
-      filter->resetState(pose, frame_k_1->getFrameId());
+
+      gtsam::Pose3 new_KF_pose;
+      // ie. could not solve motion from the frame before
+      if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
+        LOG(INFO) << "Object was poorly tracked previously. Creating new KF "
+                     "from centroid "
+                  << info_string(frame_k_1->getFrameId(), object_id);
+        // must create new initial frame
+        // TODO: here would be to check somehow that we dont have features
+        // between the last well tracked state
+        new_KF_pose = constructPoseFromCentroid(frame_k_1, inlier_tracklets);
+        // alert to new KF that has connection with previous KF
+        object_keyframe_statuses_[object_id] =
+            ObjectKeyFrameStatus::AnchorKeyFrame;
+
+        // TODO: if only one frame dropped maybe use constant motion model?
+      }
+      // in this case 'New' also means well tracked since it can only be set if
+      // PnP was good!
+      else if (previous_tracking_state == ObjectTrackingStatus::WellTracked ||
+               previous_tracking_state == ObjectTrackingStatus::New) {
+        // if well tracked than the previous update should be from the immediate
+        // previous frame!
+        CHECK_EQ(filter->getFrameId(), frame_k_1->getFrameId())
+            << "j=" << object_id << " k=" << filter->getFrameId();
+        // this is the pose as the last frame (ie k-1) which will serve as the
+        // new keyframe pose
+        new_KF_pose = filter->getPose();
+      } else {
+        LOG(FATAL) << "Should not get here! Previous track state "
+                   << to_string(previous_tracking_state)
+                   << " Curent track state "
+                   << to_string(object_statuses_[object_id])
+                   << " j=" << object_id;
+      }
+
+      // NOTE: from motion at k-1
+      filter->resetState(new_KF_pose, frame_k_1->getFrameId());
       new_or_reset_object = true;
       // stable_frame_counts_[object_id] = 0;
       LOG(INFO) << "Object " << object_id << " reset, stable count reset to 0";
     }
 
-    if (is_resampled) {
+    // if (is_resampled) {
+    if (should_kf) {
       LOG(INFO) << object_id
                 << " retracked - resetting filter k=" << frame_k->getFrameId();
 

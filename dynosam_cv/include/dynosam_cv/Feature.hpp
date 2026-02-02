@@ -38,8 +38,8 @@
 #include "dynosam_common/StructuredContainers.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/GtsamUtils.hpp"
-#include "dynosam_common/utils/OpenCVUtils.hpp"
 #include "dynosam_common/utils/Numerical.hpp"
+#include "dynosam_common/utils/OpenCVUtils.hpp"
 #include "dynosam_cv/ImageContainer.hpp"
 
 namespace dyno {
@@ -60,9 +60,10 @@ struct functional_keypoint {
     const int x = functional_keypoint::u<int>(kp);
     const int y = functional_keypoint::v<int>(kp);
 
-    if(!utils::matContains(img, x, y)) {
-      DYNO_THROW_MSG(DynosamException) 
-        << "Keypoint x: " << x  << ", y: " << y << " out of bounds for image of size " << to_string(img.size());
+    if (!utils::matContains(img, x, y)) {
+      DYNO_THROW_MSG(DynosamException)
+          << "Keypoint x: " << x << ", y: " << y
+          << " out of bounds for image of size " << to_string(img.size());
       throw;
     }
 
@@ -338,45 +339,6 @@ class FeatureContainer {
 
   using ObjectToFeatureMap =
       FastUnorderedMap<ObjectId, std::unordered_set<TrackletId>>;
-
-  /**
-   * @brief Internal iterator type allowing iteration over the features directly
-   * e.g for(Feature::Ptr : container). This type satisfies constraints for a
-   * filter_iterator_base as well as an std::iterator
-   *
-   * @tparam MapIterator The internal iterator to use
-   * @tparam MappedType The type we are iterating over (either Feature::Ptr or
-   * const Feature::Ptr )
-   */
-  template <typename MapIterator, typename MappedType>
-  struct vector_iterator_base {
-    using iterator_type = MapIterator;
-
-    using value_type = MappedType;
-    using reference = value_type&;
-    using pointer = value_type*;
-
-    iterator_type it_;
-    vector_iterator_base(iterator_type it) : it_(it) {}
-
-    reference operator*() { return it_->second; }
-    reference operator->() { return it_->second; }
-
-    bool operator==(const vector_iterator_base& other) const {
-      return it_ == other.it_;
-    }
-    bool operator!=(const vector_iterator_base& other) const {
-      return it_ != other.it_;
-    }
-
-    bool operator==(const iterator_type& other) const { return it_ == other; }
-    bool operator!=(const iterator_type& other) const { return it_ != other; }
-
-    vector_iterator_base& operator++() {
-      ++it_;
-      return *this;
-    }
-  };
 
   /// @brief Vector-style iterator definition
   using vector_iterator =

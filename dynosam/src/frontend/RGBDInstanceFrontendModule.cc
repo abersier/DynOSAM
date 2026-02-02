@@ -526,9 +526,14 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
 
   camera_tracks.is_keyframe = false;
   // for now hack!
-  if (frame_id % 4 == 0 || force_camera_kf) {
-    camera_tracks.is_keyframe = true;
-  }
+  // if (frame_id % 4 == 0 || force_camera_kf) {
+  //   camera_tracks.is_keyframe = true;
+  // }
+  // TODO: for now, a motion involves two frames and sometimes the "from" frame
+  // is not a Camera KF
+  // in the past and therefore does not eixst
+  // HACK - all frames are camera keyframes!
+  camera_tracks.is_keyframe = true;
 
   auto* static_measurements = &camera_tracks.measurements;
   fill_camera_measurements(frame.usableStaticFeaturesBegin(),
@@ -552,22 +557,6 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
   MotionEstimateMap motion_estimates = object_motions.toEstimateMap(frame_id);
   auto pose_estimates = object_poses.toEstimateMap(frame_id);
 
-  // update local map first
-  // CameraMeasurementStatusVector new_dynamic_measurements;
-  // for(const auto& dm : dynamic_measurements) {
-  //   const TrackletId tracklet_id = dm.trackletId();
-  //   const ObjectId object_id = dm.objectId();
-  //   if(!full_local_map_->landmarkExists(tracklet_id)) {
-  //     new_dynamic_measurements.push_back(dm);
-  //   }
-  //   else {
-  //     auto lmk_node = full_local_map_->getLandmark(tracklet_id);
-  //     //TODO: hacky way to avoid duplicated measuements!!
-  //     if(!lmk_node->seenAtFrame(frame_id)) {
-  //       new_dynamic_measurements.push_back(dm);
-  //     }
-  //   }
-  // }
   full_local_map_->updateObservations(dynamic_measurements);
 
   // TODO: for now hack:
@@ -594,11 +583,6 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
       CHECK(object_track.hybrid_info);
     }
 
-    // will be true in the case that we are not using HybridInfo
-    // TODO: for now - no objects!!
-    // TODO: we only add object track to full tracks if it is a KF -> then the
-    // frontend will not get the frame to frame motion
-    // every frame just the KF (for now this is okay!)
     if (object_track.isKeyFrame()) {
       object_tracks.insert2(object_id, object_track);
 

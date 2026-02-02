@@ -1229,13 +1229,13 @@ void HybridFormulationKeyFrame::updateObject(
   const auto frame_id_kf = context.getFrameId();
   const auto object_id = context.getObjectId();
 
-  const gtsam::Key object_motion_key =
+  const gtsam::Key object_motion_key_kf =
       frame_node_kf->makeObjectMotionKey(object_id);
-  const gtsam::Key pose_key = frame_node_kf->makePoseKey();
+  const gtsam::Key pose_key_kf = frame_node_kf->makePoseKey();
 
   auto seen_lmks_k = object_node->getLandmarksSeenAtFrame(frame_id_kf);
 
-  CHECK(!is_other_values_in_map.exists(object_motion_key));
+  CHECK(!is_other_values_in_map.exists(object_motion_key_kf));
   CHECK(initial_H_W_AKF_k_.exists(object_id, frame_id_kf));
 
   const KeyFrameRange::ConstPtr kf_range =
@@ -1247,23 +1247,51 @@ void HybridFormulationKeyFrame::updateObject(
 
   Motion3ReferenceFrame H_W_AKF_k =
       initial_H_W_AKF_k_.at(object_id, frame_id_kf);
-
   CHECK_EQ(H_W_AKF_k.from(), AKF_id);
   CHECK_EQ(H_W_AKF_k.to(), frame_id_kf);
-
   // Must add measurements at both AKF and KF (ie. multi view)
   // since the motion is constructed between these two frames
   const FrameId frame_id_akf = AKF_id;
+
+  CHECK(key_frames_per_object_.exists(object_id, frame_id_kf));
+  const KeyFrameMetaData& kf_meta_data =
+      key_frames_per_object_.at(object_id, frame_id_kf);
+  // measured motion from the frontend.
+  const Motion3ReferenceFrame& H_W_lRKF_KF = kf_meta_data.H_W_lRKF_KF;
+  CHECK_EQ(H_W_lRKF_KF.to(), frame_id_kf);
+  // measured from frame
+  const auto& lRKF_id = H_W_lRKF_KF.from();
 
   typename Map::Ptr map = this->map();
   auto frame_node_akf = map->getFrame(frame_id_akf);
   CHECK(frame_node_akf);
 
-  new_values.insert(object_motion_key, H_W_AKF_k.estimate());
-  is_other_values_in_map.insert2(object_motion_key, true);
+  // frame node for last regular KF
+  auto frame_node_lrkf = map->getFrame(lRKF_id);
+  CHECK(frame_node_lrkf);
+
+  new_values.insert(object_motion_key_kf, H_W_AKF_k.estimate());
+  is_other_values_in_map.insert2(object_motion_key_kf, true);
 
   result.updateAffectedObject(frame_id_kf, object_id);
 
+  // add zero motion at AKF
+  // TODO: assumes that at least SOME points were seen at AKF!
+  // TODO: should only add this if weve seen some points AKF -> should enforce
+  // this actually happens!!!
+  const gtsam::Key object_motion_key_akf =
+      frame_node_akf->makeObjectMotionKey(object_id);
+  if (!is_other_values_in_map.exists(object_motion_key_akf)) {
+    new_values.insert(object_motion_key_akf, gtsam::Pose3::Identity());
+    is_other_values_in_map.insert2(object_motion_key_akf, true);
+
+    // add strong prior on initaion motion (which is just identity)
+    new_factors.addPrior<gtsam::Pose3>(object_motion_key_akf,
+                                       gtsam::Pose3::Identity(),
+                                       noise_models_.initial_pose_prior);
+  }
+
+  size_t num_points_seen_akf = 0;
   for (const auto& obj_lmk_node : seen_lmks_k) {
     CHECK_EQ(obj_lmk_node->getObjectId(), object_id);
     const TrackletId tracklet_id = obj_lmk_node->tracklet_id;
@@ -1308,6 +1336,40 @@ void HybridFormulationKeyFrame::updateObject(
         result.debug_info->getObjectInfo(object_id).num_new_dynamic_points++;
       }
 
+      // at measurements of point if also seen at AKF
+      // most measurements wont actually be seen at the AFK
+      // since this is the first frame!
+      // what we really want to do is make sure we add measurements for the
+      // "from" -> "to"
+      // frame of the original motion (ie. the one from the frontend)
+      // if(obj_lmk_node->seenAtFrame(frame_id_akf)) {
+      //   addHybridMotionFactor(new_factors, pose_key_akf,
+      //   object_motion_key_akf, point_key,
+      //                     AKF_pose, obj_lmk_node, frame_node_akf);
+      //   if (result.debug_info) {
+      //     result.debug_info->getObjectInfo(context.getObjectId())
+      //         .num_dynamic_factors++;
+      //   }
+      //   num_points_seen_akf++;
+      // }
+
+      // add measurements at both Keyframes a point is seen at
+      // only needed if a point is new (I think!)
+      if (obj_lmk_node->seenAtFrame(lRKF_id)) {
+        const gtsam::Key object_motion_key_lrkf =
+            frame_node_lrkf->makeObjectMotionKey(object_id);
+        const gtsam::Key pose_key_lrkf = frame_node_lrkf->makePoseKey();
+
+        addHybridMotionFactor(new_factors, pose_key_lrkf,
+                              object_motion_key_lrkf, point_key, AKF_pose,
+                              obj_lmk_node, frame_node_lrkf);
+        if (result.debug_info) {
+          result.debug_info->getObjectInfo(context.getObjectId())
+              .num_dynamic_factors++;
+        }
+        num_points_seen_akf++;
+      }
+
       // add at from frame if point is new
       //  assume that once we have seen it we only need to add measurements
       //  at the newest KF, since we will have added measurements
@@ -1316,15 +1378,17 @@ void HybridFormulationKeyFrame::updateObject(
       // point_key,
       //                       AKF_pose, obj_lmk_node, frame_node_akf);
     }
-
-    addHybridMotionFactor(new_factors, pose_key, object_motion_key, point_key,
-                          AKF_pose, obj_lmk_node, frame_node_kf);
+    addHybridMotionFactor(new_factors, pose_key_kf, object_motion_key_kf,
+                          point_key, AKF_pose, obj_lmk_node, frame_node_kf);
 
     if (result.debug_info) {
       result.debug_info->getObjectInfo(context.getObjectId())
           .num_dynamic_factors++;
     }
   }
+
+  LOG(INFO) << "Num factors added for measuemenets at AKF "
+            << num_points_seen_akf;
 }
 
 void HybridFormulationKeyFrame::addHybridMotionFactor(
@@ -1379,9 +1443,14 @@ void HybridFormulationKeyFrame::preUpdate(const PreUpdateData& data) {
     const ObjectTrackingStatus& object_motion_tracking_status =
         object_track.motion_track_status;
 
+    // estimated keyframe motioa from the frontend
+    // in this case k is the current but will now also be the latest KF
+    const Motion3ReferenceFrame& H_W_RKF_k = hybrid_info.H_W_KF_k;
+
     KeyFrameMetaData kf_data;
     kf_data.is_regular = regular_keyframe;
     kf_data.is_anchor = anchor_keyframe;
+    kf_data.H_W_lRKF_KF = H_W_RKF_k;
 
     key_frames_per_object_.insert22(object_id, frame_id, kf_data);
 
@@ -1393,10 +1462,6 @@ void HybridFormulationKeyFrame::preUpdate(const PreUpdateData& data) {
               << to_string(object_motion_tracking_status);
 
     const bool is_only_regular_keyframe = regular_keyframe && !anchor_keyframe;
-
-    // estimated keyframe motioa from the frontend
-    // in this case k is the current but will now also be the latest KF
-    const Motion3ReferenceFrame& H_W_RKF_k = hybrid_info.H_W_KF_k;
 
     CHECK(object_motion_tracking_status != ObjectTrackingStatus::PoorlyTracked);
 
@@ -1420,9 +1485,18 @@ void HybridFormulationKeyFrame::preUpdate(const PreUpdateData& data) {
       }
     }
 
+    // if anchor (then also must be regular) then make both KF's
+    // if only regular, compute compsed motion
+    // this should correspond somewhat with the tracking status
+    // ie. if Anchor KF then we expect the object to be new (or - re-tracking
+    // but currently dont actually use this) otherwise expect to be
+    // well-tracked! an object can be well-tracked but also be a AKF (i guess)
+    // if decied upon on the fronted
+
     // sanity check
-    if (object_motion_tracking_status == ObjectTrackingStatus::New ||
-        object_motion_tracking_status == ObjectTrackingStatus::ReTracked) {
+    // if (object_motion_tracking_status == ObjectTrackingStatus::New ||
+    //     object_motion_tracking_status == ObjectTrackingStatus::ReTracked) {
+    if (!is_only_regular_keyframe) {
       // no previous keyframes should exist
       // CHECK(!front_end_keyframes_.exists(object_id));
       // if(object_motion_tracking_status == ObjectTrackingStatus::New)
@@ -1441,9 +1515,12 @@ void HybridFormulationKeyFrame::preUpdate(const PreUpdateData& data) {
                 << info_string(H_W_RKF_k.from(), object_id) << " with motion "
                 << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
       initial_H_W_AKF_k_.insert22(object_id, H_W_RKF_k.to(), H_W_RKF_k);
-    } else if (object_motion_tracking_status ==
-               ObjectTrackingStatus::WellTracked) {
+      // } else if (object_motion_tracking_status ==
+      //            ObjectTrackingStatus::WellTracked) {
+    } else {
       CHECK(regular_keyframe);
+      CHECK(object_motion_tracking_status == ObjectTrackingStatus::WellTracked);
+      //
       CHECK(!anchor_keyframe);
 
       const KeyFrameRange::ConstPtr last_frontend_range =
