@@ -39,7 +39,6 @@
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/ParallelObjectISAM.hpp"
 #include "dynosam/backend/RegularBackendDefinitions.hpp"
-#include "dynosam/backend/VisionImuBackendModule.hpp"
 #include "dynosam_common/Flags.hpp"
 #include "dynosam_opt/Map.hpp"
 
@@ -138,11 +137,11 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
 };
 
 class ParallelHybridBackendModule
-    : public VisionImuBackendModule<RegularBackendModuleTraits> {
+    : public BackendModuleType<RegularBackendModuleTraits> {
  public:
   DYNO_POINTER_TYPEDEFS(ParallelHybridBackendModule)
 
-  using Base = VisionImuBackendModule<RegularBackendModuleTraits>;
+  using Base = BackendModuleType<RegularBackendModuleTraits>;
   using RGBDMap = Base::MapType;
 
   ParallelHybridBackendModule(const BackendParams& backend_params,

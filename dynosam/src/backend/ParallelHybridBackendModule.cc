@@ -359,21 +359,23 @@ Pose3Measurement ParallelHybridBackendModule::bootstrapUpdateStaticEstimator(
   // update formulation with initial states
   // TODO: I think exactly the same as RegularBackendModule so could put into
   // base class?
-  gtsam::NavState nav_state;
-  if (input->pim()) {
-    LOG(INFO) << "Initialising backend with IMU states!";
-    nav_state = this->addInitialVisualInertialState(
-        frame_k, timestamp_k, static_formulation_.get(), new_values,
-        new_factors, static_formulation_->noiseModels(),
-        gtsam::NavState(X_k_initial, gtsam::Vector3(0, 0, 0)),
-        gtsam::imuBias::ConstantBias{});
+  const gtsam::NavState nav_state = static_formulation_->addStatesInitalise(
+      new_values, new_factors, frame_k, timestamp_k, X_k_initial,
+      gtsam::Vector3(0, 0, 0));
+  // if (input->pim()) {
+  //   LOG(INFO) << "Initialising backend with IMU states!";
+  //   nav_state = this->addInitialVisualInertialState(
+  //       frame_k, timestamp_k, static_formulation_.get(), new_values,
+  //       new_factors, static_formulation_->noiseModels(),
+  //       gtsam::NavState(X_k_initial, gtsam::Vector3(0, 0, 0)),
+  //       gtsam::imuBias::ConstantBias{});
 
-  } else {
-    LOG(INFO) << "Initialising backend with VO only states!";
-    nav_state = this->addInitialVisualState(
-        frame_k, timestamp_k, static_formulation_.get(), new_values,
-        new_factors, static_formulation_->noiseModels(), X_k_initial);
-  }
+  // } else {
+  //   LOG(INFO) << "Initialising backend with VO only states!";
+  //   nav_state = this->addInitialVisualState(
+  //       frame_k, timestamp_k, static_formulation_.get(), new_values,
+  //       new_factors, static_formulation_->noiseModels(), X_k_initial);
+  // }
 
   // marginalise all values
   std::map<gtsam::Key, double> timestamps;
@@ -413,9 +415,11 @@ Pose3Measurement ParallelHybridBackendModule::nominalUpdateStaticEstimator(
   gtsam::Values new_values;
   gtsam::NonlinearFactorGraph new_factors;
 
-  const gtsam::NavState predicted_nav_state = this->addVisualInertialStates(
-      frame_k, timestamp_k, static_formulation_.get(), new_values, new_factors,
-      noise_models_, input->relativeCameraTransform(), input->pim());
+  const gtsam::NavState predicted_nav_state =
+      static_formulation_->addStatesPropogate(
+          new_values, new_factors, frame_k, timestamp_k,
+          input->relativeCameraTransform(), input->pim());
+
   // we dont have an uncertainty from the frontend
   map->updateSensorPoseMeasurement(
       frame_k, Pose3Measurement(predicted_nav_state.pose()));
@@ -465,16 +469,17 @@ Pose3Measurement ParallelHybridBackendModule::nominalUpdateStaticEstimator(
   gtsam::Values optimised_values = static_estimator_.calculateEstimate();
   static_formulation_->updateTheta(optimised_values);
 
-  const gtsam::NavState& updated_nav_state = updateNavStateFromFormulation(
-      frame_k, timestamp_k, static_formulation_.get());
+  const gtsam::NavState& updated_nav_state =
+      DYNO_GET_QUERY_DEBUG(static_formulation_->getNavState(frame_k));
 
   auto accessor = static_formulation_->accessorFromTheta();
+
+  // Nav State should already have this!!!
   StateQuery<gtsam::Pose3> X_w_k_opt_query = accessor->getSensorPose(frame_k);
   CHECK(X_w_k_opt_query);
   // TODO: should check that X_w_k_opt_query and updated_nav_state are close!!
 
   LOG(INFO) << "Nav state after estimation " << updated_nav_state;
-  LOG(INFO) << "Bias after estimation " << imu_bias_;
 
   if (should_calculate_covariance) {
     if (FLAGS_use_marginal_covariance) {

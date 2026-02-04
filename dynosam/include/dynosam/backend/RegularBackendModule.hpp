@@ -36,7 +36,7 @@
 #include "dynosam/backend/BackendModule.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/RegularBackendDefinitions.hpp"
-#include "dynosam/backend/VisionImuBackendModule.hpp"
+#include "dynosam/backend/rgbd/VIOFormulation.hpp"
 #include "dynosam/visualizer/Visualizer-Definitions.hpp"  //for ImageDisplayQueueOptional,
 #include "dynosam_common/Flags.hpp"
 #include "dynosam_opt/ISAM2.hpp"
@@ -47,11 +47,11 @@
 namespace dyno {
 
 class RegularBackendModule
-    : public VisionImuBackendModule<RegularBackendModuleTraits> {
+    : public BackendModuleType<RegularBackendModuleTraits> {
  public:
   DYNO_POINTER_TYPEDEFS(RegularBackendModule)
 
-  using Base = VisionImuBackendModule<RegularBackendModuleTraits>;
+  using Base = BackendModuleType<RegularBackendModuleTraits>;
   using RGBDMap = Base::MapType;
   using FormulationType = Base::FormulationType;
 
@@ -82,9 +82,7 @@ class RegularBackendModule
 
   // also provide non-const access (this should only be used with caution and is
   // really only there to enable specific unit-tests!)
-  const typename FormulationType::Ptr formulation() const {
-    return formulation_;
-  }
+  const VIOFormulation::Ptr formulation() const { return formulation_; }
   BackendModuleDisplay::Ptr formulationDisplay() const {
     return formulation_display_;
   }
@@ -127,10 +125,10 @@ class RegularBackendModule
   SpinReturn nominalSpinImpl(VisionImuPacket::ConstPtr input) override;
 
   void addInitialStates(const VisionImuPacket::ConstPtr& input,
-                        FormulationType* formulation, gtsam::Values& new_values,
+                        gtsam::Values& new_values,
                         gtsam::NonlinearFactorGraph& new_factors);
   void addStates(const VisionImuPacket::ConstPtr& input,
-                 FormulationType* formulation, gtsam::Values& new_values,
+                 gtsam::Values& new_values,
                  gtsam::NonlinearFactorGraph& new_factors);
 
   /**
@@ -165,7 +163,8 @@ class RegularBackendModule
                                                  Timestamp timestamp) const;
 
   Camera::Ptr camera_;
-  Formulation<RGBDMap>::Ptr formulation_;
+  // Formulation<RGBDMap>::Ptr formulation_;
+  VIOFormulation::Ptr formulation_;
   BackendModuleDisplay::Ptr formulation_display_;
 
   // new calibration every time

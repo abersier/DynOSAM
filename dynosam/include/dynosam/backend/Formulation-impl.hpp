@@ -514,67 +514,6 @@ void Formulation<MAP>::addValue(gtsam::Values& new_values, const V& value,
 }
 
 template <typename MAP>
-void Formulation<MAP>::addSensorPoseValue(const gtsam::Pose3& X_W_k,
-                                          FrameId frame_id_k,
-                                          gtsam::Values& new_values) {
-  gtsam::Values values;
-  values.insert(CameraPoseSymbol(frame_id_k), X_W_k);
-
-  new_values.insert_or_assign(values);
-  theta_.insert_or_assign(values);
-}
-
-template <typename MAP>
-void Formulation<MAP>::addValuesFunctional(
-    std::function<void(gtsam::Values&)> callback, gtsam::Values& new_values) {
-  gtsam::Values internal_new_values;
-  callback(internal_new_values);
-
-  new_values.insert_or_assign(internal_new_values);
-  theta_.insert_or_assign(internal_new_values);
-}
-
-template <typename MAP>
-void Formulation<MAP>::addFactorsFunctional(
-    std::function<void(gtsam::NonlinearFactorGraph&)> callback,
-    gtsam::NonlinearFactorGraph& new_factors) {
-  gtsam::NonlinearFactorGraph internal_new_factors;
-  callback(internal_new_factors);
-
-  new_factors += internal_new_factors;
-  factors_ += internal_new_factors;
-}
-
-template <typename MAP>
-void Formulation<MAP>::addSensorPosePriorFactor(
-    const gtsam::Pose3& X_W_k, gtsam::SharedNoiseModel noise_model,
-    FrameId frame_id_k, gtsam::NonlinearFactorGraph& new_factors) {
-  // keep track of the new factors added in this function
-  // these are then appended to the internal factors_ and new_factors
-  gtsam::NonlinearFactorGraph internal_new_factors;
-  internal_new_factors.addPrior(CameraPoseSymbol(frame_id_k), X_W_k,
-                                noise_model);
-  new_factors += internal_new_factors;
-  factors_ += internal_new_factors;
-}
-
-template <typename MAP>
-void Formulation<MAP>::setInitialPose(const gtsam::Pose3& T_world_camera,
-                                      FrameId frame_id_k,
-                                      gtsam::Values& new_values) {
-  this->addSensorPoseValue(T_world_camera, frame_id_k, new_values);
-}
-
-template <typename MAP>
-void Formulation<MAP>::setInitialPosePrior(
-    const gtsam::Pose3& T_world_camera, FrameId frame_id_k,
-    gtsam::NonlinearFactorGraph& new_factors) {
-  auto initial_pose_prior = noise_models_.initial_pose_prior;
-  this->addSensorPosePriorFactor(T_world_camera, initial_pose_prior, frame_id_k,
-                                 new_factors);
-}
-
-template <typename MAP>
 UpdateObservationResult Formulation<MAP>::updateStaticObservations(
     FrameId frame_id_k, gtsam::Values& new_values,
     gtsam::NonlinearFactorGraph& new_factors,

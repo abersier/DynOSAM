@@ -37,6 +37,7 @@
 #include "dynosam/backend/Accessor.hpp"
 #include "dynosam/backend/BackendDefinitions.hpp"
 #include "dynosam/backend/Formulation.hpp"
+#include "dynosam/backend/rgbd/VIOFormulation.hpp"
 #include "dynosam/factors/HybridFormulationFactors.hpp"
 #include "dynosam_common/StructuredContainers.hpp"  //for FrameRange
 #include "dynosam_common/Types.hpp"                 //only needed for factors
@@ -1178,15 +1179,16 @@ struct SharedHybridFormulationData {
 };
 
 /**
- * @brief Accesor class that extends the basic functionlity of the Accessor
- * with additional getter functions that are specific to the Hybrid formualtion.
+ * @brief Accesor class that extends the basic functionlity of the (VIO)
+ * Accessor with additional getter functions that are specific to the Hybrid
+ * formualtion.
  *
  * This will then form the base class for the HybridAccessor as well as the
- * ParallelHybridAccessor. It must inherit from Acessor to allow it to be used
- * within AccessorT
+ * ParallelHybridAccessor. It must inherit from VIOAccessor to allow it to be
+ * used within AccessorT as VIOAccessor inherits from Accessor.
  *
  */
-class HybridAccessorCommon : public Accessor {
+class HybridAccessorCommon : public VIOAccessor {
  public:
   DYNO_POINTER_TYPEDEFS(HybridAccessorCommon)
   HybridAccessorCommon() = default;
@@ -1349,10 +1351,10 @@ class HybridAccessor : public AccessorT<MapVision, HybridAccessorCommon>,
 //  measurements care about so it can be measurement generic... eventually need
 //  way to define (AND CHECK, becuase we cannot assume all types have the same
 //  compile-time properties) and get the measurement we are interested in
-class HybridFormulation : public Formulation<MapVision>,
+class HybridFormulation : public VIOFormulation,
                           public HybridFormulationProperties {
  public:
-  using Base = Formulation<MapVision>;
+  using Base = VIOFormulation;
   using Base::AccessorTypePointer;
   using Base::MapTraitsType;
   using Base::ObjectUpdateContextType;

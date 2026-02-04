@@ -150,10 +150,10 @@ void ParallelObjectISAM::updateFormulation(
       CHECK(T_W_cam_km1.hasModel());
       const gtsam::SharedGaussian& uncertainty_X_W_km1 = T_W_cam_km1.model();
 
-      decoupled_formulation_->addSensorPoseValue(initial_X_W_km1, frame_km1,
-                                                 new_values);
-      decoupled_formulation_->addSensorPosePriorFactor(
-          initial_X_W_km1, uncertainty_X_W_km1, frame_km1, new_factors);
+      decoupled_formulation_->addSensorPose(new_values, frame_km1,
+                                            initial_X_W_km1);
+      decoupled_formulation_->addSensorPosePrior(
+          new_factors, frame_km1, initial_X_W_km1, uncertainty_X_W_km1);
     }
   }
 
@@ -161,10 +161,10 @@ void ParallelObjectISAM::updateFormulation(
   CHECK(X_W_k.hasModel());
   const gtsam::SharedGaussian& uncertainty_X_W_k = X_W_k.model();
 
-  decoupled_formulation_->addSensorPoseValue(initial_X_W_k, frame_k,
-                                             new_values);
-  decoupled_formulation_->addSensorPosePriorFactor(
-      initial_X_W_k, uncertainty_X_W_k, frame_k, new_factors);
+  decoupled_formulation_->addSensorPose(new_values, frame_k, initial_X_W_k);
+
+  decoupled_formulation_->addSensorPosePrior(new_factors, frame_k,
+                                             initial_X_W_k, uncertainty_X_W_k);
 
   UpdateObservationParams update_params;
   // TODO: setting this to true breaks the formulation as it does not understand

@@ -416,6 +416,7 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
       LOG(INFO) << "Setting frontend accessor";
       // set frontend accessor
       frontend->setAccessor(backend->getAccessor());
+      // frontend->formulation_ = backend->formulation();
     }
 
     // set backend display (if any!)

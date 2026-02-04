@@ -147,6 +147,11 @@ VIOAccessor::Ptr VIOFormulation::getAsVIOAccessor() const {
   return vio_accessor;
 }
 
+StateQuery<gtsam::NavState> VIOFormulation::getNavState(FrameId frame_id) {
+  VIOAccessor::Ptr accessor = this->getAsVIOAccessor();
+  return accessor->getNavState(frame_id);
+};
+
 gtsam::NavState VIOFormulation::predictAndAddFactorsVO(
     gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors,
     FrameId frame_id_k, Timestamp timestamp_k, const gtsam::Pose3& T_k_1_k) {
@@ -182,6 +187,16 @@ gtsam::NavState VIOFormulation::predictAndAddFactorsVO(
     VLOG(30) << "Added Between factor frames " << from_frame << " -> "
              << to_frame << " using VO";
   }
+
+  const gtsam::imuBias::ConstantBias imu_bias_prev =
+      DYNO_GET_QUERY_DEBUG(accessor->getImuBias(from_frame));
+
+  addSensorPose(new_values, to_frame, nav_state_k.pose());
+  // add predicted velocity value
+  this->addValue(new_values, nav_state_k.velocity(),
+                 CameraVelocitySymbol(to_frame));
+  // initalise imu bias
+  this->addValue(new_values, imu_bias_prev, ImuBiasSymbol(to_frame));
 
   return nav_state_k;
 }

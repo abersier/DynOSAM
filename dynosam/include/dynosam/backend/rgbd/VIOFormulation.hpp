@@ -13,6 +13,9 @@ class VIOAccessor : public Accessor {
   VIOAccessor() {}
   virtual ~VIOAccessor() {}
 
+  // in these cases we rely mostly on the derived accessor functions for look up
+  // these cases should have access to the map rather than just doing a raw
+  // query with the key
   StateQuery<gtsam::NavState> getNavState(FrameId frame_id) const;
   StateQuery<gtsam::imuBias::ConstantBias> getImuBias(FrameId frame_id) const;
 };
@@ -23,6 +26,8 @@ class VIOFormulation : public Formulation<MapVision> {
   using Base = Formulation<MapVision>;
   using Base::AccessorTypePointer;
   using Base::MapTraitsType;
+  using Base::ObjectUpdateContextType;
+  using Base::PointUpdateContextType;
 
   DYNO_POINTER_TYPEDEFS(VIOFormulation)
 
@@ -57,6 +62,8 @@ class VIOFormulation : public Formulation<MapVision> {
   VIOAccessor::Ptr getAsVIOAccessor() const;
 
   bool isImuInitalized() const { return imu_states_initalise_; };
+
+  StateQuery<gtsam::NavState> getNavState(FrameId frame_id);
 
  private:
   gtsam::NavState predictAndAddFactorsVO(

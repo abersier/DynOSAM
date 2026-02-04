@@ -31,6 +31,7 @@
 #pragma once
 
 #include "dynosam/backend/Accessor.hpp"
+#include "dynosam/backend/rgbd/VIOFormulation.hpp"
 #include "dynosam/frontend/FrontendParams.hpp"
 #include "dynosam/frontend/VisionImuOutputPacket.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
@@ -80,6 +81,9 @@ class FrontendModule
     CHECK_NOTNULL(accessor);
     accessor_ = accessor;
   }
+
+  // HACK for now!!
+  VIOFormulation::Ptr formulation_;
 
   virtual void onBackendUpdateCallback(const FrameId /*frame_id*/,
                                        const Timestamp /*timestamp*/) {}

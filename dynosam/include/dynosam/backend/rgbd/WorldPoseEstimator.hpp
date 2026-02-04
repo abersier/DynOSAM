@@ -31,16 +31,16 @@
 #pragma once
 
 #include "dynosam/backend/Accessor.hpp"
-#include "dynosam/backend/Formulation.hpp"
+#include "dynosam/backend/rgbd/VIOFormulation.hpp"
 #include "dynosam_opt/Map.hpp"
 
 namespace dyno {
 
-class WorldPoseAccessor : public AccessorT<MapVision> {
+class WorldPoseAccessor : public AccessorT<MapVision, VIOAccessor> {
  public:
   WorldPoseAccessor(const SharedFormulationData& shared_data,
                     MapVision::Ptr map)
-      : AccessorT<MapVision>(shared_data, map) {}
+      : AccessorT<MapVision, VIOAccessor>(shared_data, map) {}
   virtual ~WorldPoseAccessor() {}
 
   StateQuery<gtsam::Pose3> getSensorPose(FrameId frame_id) const override;
@@ -52,9 +52,9 @@ class WorldPoseAccessor : public AccessorT<MapVision> {
       FrameId frame_id, TrackletId tracklet_id) const override;
 };
 
-class WorldPoseFormulation : public Formulation<MapVision> {
+class WorldPoseFormulation : public VIOFormulation {
  public:
-  using Base = Formulation<MapVision>;
+  using Base = VIOFormulation;
   using Base::AccessorTypePointer;
   using Base::MapTraitsType;
   using Base::ObjectUpdateContextType;

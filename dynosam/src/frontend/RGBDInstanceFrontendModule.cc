@@ -646,24 +646,25 @@ VisionImuPacket::Ptr RGBDInstanceFrontendModule::createKeyFramedOnlyPacket(
 
   VisionImuPacket::ObjectTrackMap KF_object_tracks;
 
-  if (FLAGS_use_object_motion_filtering) {
-    // VLOG(10) << "Adding hybrid info for object tracks";
-    auto motion_filter = std::dynamic_pointer_cast<ObjectMotionSolverFilter>(
-        object_motion_solver_);
-    // doesnt really hold because sometimes a object can be marked as KF but
-    // poorly tracked so we dont't actually know if we need a KF for the from
-    // motion yet!
-    CHECK_NOTNULL(motion_filter);
-    if (motion_filter->anyObjectsKF()) {
-      force_camera_kf = true;
-      LOG(INFO) << "Making KF true for camera as objects had KF's at "
-                << vision_imu_packet->frameId();
-    }
-  }
+  // if (FLAGS_use_object_motion_filtering) {
+  //   // VLOG(10) << "Adding hybrid info for object tracks";
+  //   auto motion_filter = std::dynamic_pointer_cast<ObjectMotionSolverFilter>(
+  //       object_motion_solver_);
+  //   // doesnt really hold because sometimes a object can be marked as KF but
+  //   // poorly tracked so we dont't actually know if we need a KF for the from
+  //   // motion yet!
+  //   CHECK_NOTNULL(motion_filter);
+  //   if (motion_filter->anyObjectsKF()) {
+  //     force_camera_kf = true;
+  //     LOG(INFO) << "Making KF true for camera as objects had KF's at "
+  //               << vision_imu_packet->frameId();
+  //   }
+  // }
 
-  if (force_camera_kf || vision_imu_packet->frameId() % 10 == 0) {
-    camera_tracks.is_keyframe = true;
-  }
+  // if (force_camera_kf || vision_imu_packet->frameId() % 10 == 0) {
+  //   camera_tracks.is_keyframe = true;
+  // }
+  camera_tracks.is_keyframe = true;
   KF_output->cameraTracks(camera_tracks);
 
   // VisionImuPacket::Ptr KF_output_additional = nullptr;

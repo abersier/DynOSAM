@@ -124,7 +124,7 @@ RegularBackendModule::SpinReturn RegularBackendModule::boostrapSpinImpl(
   gtsam::Values new_values;
   gtsam::NonlinearFactorGraph new_factors;
 
-  addInitialStates(input, formulation_.get(), new_values, new_factors);
+  addInitialStates(input, new_values, new_factors);
 
   CHECK(formulation_);
 
@@ -185,7 +185,7 @@ RegularBackendModule::SpinReturn RegularBackendModule::nominalSpinImpl(
   gtsam::Values new_values;
   gtsam::NonlinearFactorGraph new_factors;
 
-  addStates(input, formulation_.get(), new_values, new_factors);
+  addStates(input, new_values, new_factors);
 
   PreUpdateData pre_update_data(frame_k);
   pre_update_data.input = input;
@@ -209,7 +209,7 @@ RegularBackendModule::SpinReturn RegularBackendModule::nominalSpinImpl(
   // update internal nav state based on the initial/optimised estimated in the
   // formulation this is also necessary to update the internal timestamp/frameid
   // variables within the VisionImuBackendModule
-  updateNavStateFromFormulation(frame_k, timestamp, formulation_.get());
+  // updateNavStateFromFormulation(frame_k, timestamp, formulation_.get());
 
   // TODO: sanity checks that vision states are inline with the other frame idss
   // etc
@@ -526,10 +526,8 @@ void RegularBackendModule::logIncrementalStats(
 }
 
 void RegularBackendModule::addInitialStates(
-    const VisionImuPacket::ConstPtr& input, FormulationType* formulation,
-    gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors) {
-  CHECK(formulation);
-
+    const VisionImuPacket::ConstPtr& input, gtsam::Values& new_values,
+    gtsam::NonlinearFactorGraph& new_factors) {
   const FrameId frame_k = input->frameId();
   const Timestamp timestamp_k = input->timestamp();
   const auto& X_k_initial = input->cameraPose();
@@ -537,34 +535,23 @@ void RegularBackendModule::addInitialStates(
   // update map
   updateMapWithMeasurements(frame_k, input, X_k_initial);
 
-  // update formulation with initial states
-  if (input->pim()) {
-    LOG(INFO) << "Initialising backend with IMU states!";
-    this->addInitialVisualInertialState(
-        frame_k, timestamp_k, formulation, new_values, new_factors,
-        noise_models_, gtsam::NavState(X_k_initial, gtsam::Vector3(0, 0, 0)),
-        gtsam::imuBias::ConstantBias{});
-
-  } else {
-    LOG(INFO) << "Initialising backend with VO only states!";
-    this->addInitialVisualState(frame_k, timestamp_k, formulation, new_values,
-                                new_factors, noise_models_, X_k_initial);
-  }
+  formulation_->addStatesInitalise(new_values, new_factors, frame_k,
+                                   timestamp_k, X_k_initial,
+                                   gtsam::Vector3(0, 0, 0));
 
   LOG(INFO) << "Done!";
 }
 void RegularBackendModule::addStates(const VisionImuPacket::ConstPtr& input,
-                                     FormulationType* formulation,
                                      gtsam::Values& new_values,
                                      gtsam::NonlinearFactorGraph& new_factors) {
-  CHECK(formulation);
-
   const FrameId frame_k = input->frameId();
   const Timestamp timestamp_k = input->timestamp();
 
-  const gtsam::NavState predicted_nav_state = this->addVisualInertialStates(
-      frame_k, timestamp_k, formulation, new_values, new_factors, noise_models_,
+  const gtsam::NavState predicted_nav_state = formulation_->addStatesPropogate(
+      new_values, new_factors, frame_k, timestamp_k,
       input->relativeCameraTransform(), input->pim());
+  //     frame_k, timestamp_k, formulation, new_values, new_factors,
+  //     noise_models_, input->relativeCameraTransform(), input->pim());
 
   updateMapWithMeasurements(frame_k, input, predicted_nav_state.pose());
 }
@@ -659,10 +646,16 @@ void RegularBackendModule::setFormulation(
   FormulationVizWrapper<RGBDMap> wrapper = factory->createFormulation(
       formulation_params, map, noise_models_, sensors, formulation_hooks);
 
-  formulation_ = wrapper.formulation;
-  formulation_display_ = wrapper.display;
+  if (!wrapper.formulation) {
+    throw DynosamException("Loaded formulation is null!");
+  }
+  formulation_ = std::dynamic_pointer_cast<VIOFormulation>(wrapper.formulation);
 
-  CHECK_NOTNULL(formulation_);
+  if (!formulation_) {
+    throw DynosamException(
+        "Formulation loaded but does not inherit from VIOFormulation!");
+  }
+  formulation_display_ = wrapper.display;
   // add additional error handling for incremental based on formulation
   // TODO: removed for KF testing
   // should eventually merge with the add custom hooks function (I think this is
