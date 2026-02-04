@@ -33,6 +33,8 @@
 #include <gtsam/nonlinear/ISAM2Result.h>
 #include <gtsam/nonlinear/ISAM2UpdateParams.h>
 
+#include <mutex>
+
 #include "dynosam/backend/Accessor.hpp"
 #include "dynosam/backend/BackendDefinitions.hpp"
 #include "dynosam/backend/BackendParams.hpp"
@@ -630,6 +632,8 @@ class Formulation {
   //! Current linearisation that will be associated with the current graph
   gtsam::Values theta_;
   gtsam::NonlinearFactorGraph factors_;
+
+  mutable std::mutex mutex_;
 
  private:
   mutable typename AccessorType::Ptr accessor_theta_;

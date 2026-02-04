@@ -118,6 +118,13 @@ ImuFrontend::ImuFrontend(const ImuParams& imu_params) : params_(imu_params) {
       pim_params, gtsam::imuBias::ConstantBias{});
 }
 
+ImuFrontend::ImuFrontend(const ImuFrontend& other)
+    : ImuFrontend(other.params_) {
+  if (other.pim_) {
+    pim_ = std::move(other.copyPimUnique());
+  }
+}
+
 ImuFrontend::PimPtr ImuFrontend::preintegrateImuMeasurements(
     const ImuMeasurements& imu_measurements) {
   const Timestamps& stamps = imu_measurements.timestamps_;
@@ -138,6 +145,15 @@ ImuFrontend::PimPtr ImuFrontend::preintegrateImuMeasurements(
     pim_->integrateMeasurement(measured_acc, measured_omega, delta_t);
   }
 
+  return copyPimShared();
+}
+
+ImuFrontend::PimPtr ImuFrontend::copyPimShared() const {
+  return std::make_shared<gtsam::PreintegratedCombinedMeasurements>(
+      safeCastToPreintegratedCombinedImuMeasurements(*pim_));
+}
+
+ImuFrontend::PimUniquePtr ImuFrontend::copyPimUnique() const {
   return std::make_unique<gtsam::PreintegratedCombinedMeasurements>(
       safeCastToPreintegratedCombinedImuMeasurements(*pim_));
 }

@@ -587,7 +587,20 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
 
   void fillHybridInfo(ObjectId object_id,
                       VisionImuPacket::ObjectTracks& object_track);
+
+  // TODO: depricate
   void markObjectAsLost(ObjectId object_id) { filters_.erase(object_id); }
+
+  // any objects reset this frame and therefore will (is this guaranteed?
+  // otherwise we're making additional KF's) be KF in the next frame!
+  bool anyObjectsKF() const {
+    for (const auto& [_, result] : filter_needs_reset_) {
+      if (result) {
+        return true;
+      }
+    }
+    return false;
+  }
 
  protected:
   bool solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1, ObjectId object_id,

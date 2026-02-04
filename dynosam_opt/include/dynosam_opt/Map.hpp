@@ -33,6 +33,7 @@
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/Values.h>
 
+#include <mutex>
 #include <type_traits>
 
 #include "dynosam_common/DynamicObjects.hpp"
@@ -145,6 +146,7 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
       const FrameId frame_id = status.frameId();
       const ObjectId object_id = status.objectId();
       const bool is_static = status.isStatic();
+      // thread safe update
       addOrUpdateMapStructures(update_result, measurement, tracklet_id,
                                frame_id, object_id, is_static);
     }
@@ -158,6 +160,9 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
   //  properties as they will be shared
   //  otherwise do we need t worry?
   MapUpdateResult updateFromMap(const Map& other) {
+    // Course lock
+    const std::lock_guard<std::mutex> lock(mutex_);
+
     MapUpdateResult update_result;
     // update frame
     for (const auto& [frame_id, other_frame_node] : other.frames_) {
@@ -495,9 +500,6 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
    */
   FrameId firstFrameId() const { return this->firstFrame()->frame_id; }
 
-  // TODO: depricate
-  inline FrameId lastEstimateUpdate() const { return last_estimate_update_; }
-
   /**
    * @brief Get the (by output-argument) object id for some tracked point.
    * Function returns false if the landmark does not exist.
@@ -550,6 +552,9 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
                                 const Measurement& measurement,
                                 TrackletId tracklet_id, FrameId frame_id,
                                 ObjectId object_id, bool is_static) {
+    // Course lock
+    const std::lock_guard<std::mutex> lock(mutex_);
+
     typename LandmarkNodeM::Ptr landmark_node = nullptr;
     typename FrameNodeM::Ptr frame_node = nullptr;
 
@@ -625,7 +630,7 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
   gtsam::FastMap<TrackletId, typename LandmarkNodeM::Ptr> landmarks_;
   gtsam::FastMap<ObjectId, typename ObjectNodeM::Ptr> objects_;
 
-  FrameId last_estimate_update_{0};
+  mutable std::mutex mutex_;
 };
 
 // TODO: can depricate most of these...

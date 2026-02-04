@@ -85,10 +85,10 @@ class FrontendModule
                                        const Timestamp /*timestamp*/) {}
 
   // TODO: semi-hack for now
-  using VizCallback = std::function<void(const VisionImuPacket::ConstPtr&)>;
+  using BackendUpdate = std::function<void(const VisionImuPacket::ConstPtr&)>;
 
-  void setVizCallback(const VizCallback& viz_callback) {
-    viz_callback_ = viz_callback;
+  void setBackendUpdateCallback(const BackendUpdate& backend_callback) {
+    backend_callback_ = backend_callback;
   }
 
  protected:
@@ -136,7 +136,7 @@ class FrontendModule
                       //! for (viz) and drawn everytime
   //! Accessor for the backend (i.e optimized values)
   Accessor::Ptr accessor_{nullptr};
-  VizCallback viz_callback_;
+  BackendUpdate backend_callback_;
 };
 
 }  // namespace dyno

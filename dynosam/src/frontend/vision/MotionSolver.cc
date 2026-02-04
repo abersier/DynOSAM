@@ -1291,8 +1291,8 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
       LOG(INFO) << object_id
                 << " retracked - resetting filter k=" << frame_k->getFrameId();
 
-      // with current logic will trigger a keyframe at k
-      // filter->was_reset_this_update = true;
+      // actually indicates that we will have a KF motion (as long as tracking
+      // was good???) in the next frame
       filter_needs_reset_[object_id] = true;
       LOG(INFO) << "Object " << object_id << " resampled, marked for reset";
     }
@@ -1328,6 +1328,7 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
         H_w_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
         frame_k_1->getFrameId(), frame_k->getFrameId());
 
+    // TODO: make thread safe!
     frame_k->dynamic_features_.markOutliers(motion_result.outliers);
     motion_estimates.insert({object_id, motion_result.best_result});
 

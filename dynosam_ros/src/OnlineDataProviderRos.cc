@@ -343,8 +343,8 @@ void RGBDOnlineProviderRos::subscribeImages() {
           return;
         }
 
-        cv::Mat rgb = readRgbRosImage(rgb_msg);
-        cv::Mat depth = readDepthRosImage(depth_msg);
+        cv::Mat rgb = readRgbRosImage(rgb_msg).clone();
+        cv::Mat depth = readDepthRosImage(depth_msg).clone();
 
         calibration_helper_->processRGB(rgb, rgb);
         calibration_helper_->processDepth(depth, depth);

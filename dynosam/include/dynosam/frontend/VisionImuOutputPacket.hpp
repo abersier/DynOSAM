@@ -208,7 +208,7 @@ class VisionImuPacket {
   FrameId frame_id_;
 
   //! Possible PIM going from last frame to this frame
-  ImuFrontend::PimPtr pim_;
+  ImuFrontend::PimPtr pim_{nullptr};
 
   //! Possible camera
   Camera::Ptr camera_;

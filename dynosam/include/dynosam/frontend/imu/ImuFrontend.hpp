@@ -48,10 +48,22 @@ class ImuFrontend {
   DYNO_POINTER_TYPEDEFS(ImuFrontend)
 
   ImuFrontend(const ImuParams& imu_params);
+  ImuFrontend& operator=(const ImuFrontend&) = delete;
+  ImuFrontend(ImuFrontend&&) noexcept = default;
+  ImuFrontend& operator=(ImuFrontend&&) noexcept = default;
+
+  ImuFrontend(const ImuFrontend& other);
 
   PimPtr preintegrateImuMeasurements(const ImuMeasurements& imu_measurements);
 
   inline void resetIntegration() { pim_->resetIntegration(); }
+
+  // Returns a copy of the interal pim
+  PimPtr getPim() const { return copyPimShared(); }
+
+ private:
+  PimPtr copyPimShared() const;
+  PimUniquePtr copyPimUnique() const;
 
  private:
   ImuParams params_;

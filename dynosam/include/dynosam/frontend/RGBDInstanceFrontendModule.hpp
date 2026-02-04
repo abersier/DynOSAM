@@ -65,6 +65,45 @@ class RGBDInstanceFrontendModule : public FrontendModule {
   SpinReturn boostrapSpin(FrontendInputPacketBase::ConstPtr input) override;
   SpinReturn nominalSpin(FrontendInputPacketBase::ConstPtr input) override;
 
+  struct EgoMotionState {
+    FrameId from{0};
+    FrameId to{0};
+    // Timestamp at to frame
+    Timestamp timestamp{0};
+    // Relate camera motion
+    gtsam::Pose3 T_from_to;
+    // Imu measurements spanning from -> to
+    ImuFrontend::UniquePtr imu_propogator;
+
+    // TODO: and pose
+
+    EgoMotionState() = default;
+    EgoMotionState(EgoMotionState&&) noexcept = default;
+    EgoMotionState& operator=(EgoMotionState&&) noexcept = default;
+
+    // copies all properties of imu frontend leavving other in a valid state
+    EgoMotionState(const EgoMotionState& other)
+        : from(other.from),
+          to(other.to),
+          timestamp(other.timestamp),
+          T_from_to(other.T_from_to) {
+      if (other.imu_propogator) {
+        imu_propogator = std::make_unique<ImuFrontend>(*other.imu_propogator);
+      }
+    }
+
+    void reset(FrameId frame_id, Timestamp t) {
+      from = frame_id;
+      to = frame_id;
+      timestamp = t;
+      T_from_to = gtsam::Pose3::Identity();
+
+      if (imu_propogator) {
+        imu_propogator->resetIntegration();
+      }
+    }
+  };
+
   /**
    * @brief Solves PnP between frame_k-1 and frame_k using the tracked
    * correspondances to estimate the frame of the current camera
@@ -101,6 +140,10 @@ class RGBDInstanceFrontendModule : public FrontendModule {
                               const Frame::Ptr& frame_k_1,
                               const ObjectPoseMap& object_poses) const;
 
+  void updateEgoMotionState(EgoMotionState& ego_motion_state, FrameId to_frame,
+                            Timestamp to_timestamp, const gtsam::Pose3& T,
+                            ImuMeasurements::Optional z_imu);
+
   // used when we want to seralize the output to json via the
   // FLAGS_save_frontend_json flag
   //   std::map<FrameId, RGBDInstanceOutputPacket::Ptr> output_packet_record_;
@@ -135,6 +178,12 @@ class RGBDInstanceFrontendModule : public FrontendModule {
   // should not share nodes!!
   MapVision::Ptr full_local_map_;
   MapVision::Ptr kf_local_map_;
+
+  EgoMotionState camera_T_lkf_k_;
+  EgoMotionState camera_T_lkf_km1_;
+  EgoMotionState camera_T_km1_k_;
+
+  gtsam::FastMap<FrameId, EgoMotionState> keyframed_states_;
 };
 
 }  // namespace dyno

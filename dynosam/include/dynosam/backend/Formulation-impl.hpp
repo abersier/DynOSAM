@@ -315,6 +315,12 @@ class StaticFormulationUpdater : public StaticFormulationUpdaterImpl<MAP> {
           CHECK(this->formulation_->map()->hasInitialSensorPose(frame_id_i,
                                                                 &X_W_i))
               << "Missing initial pose at k=" << frame_id_i;
+          // TODO: hack for now - in the KF case, we sometimes need to add
+          // KF in the past so we already have measurements at k+1 but not yet
+          //  an initial pose measurement as the frontend has not send it
+          //  for now just skip!
+          //  if(!this->formulation_->map()->hasInitialSensorPose(
+          //    frame_id_i, &X_W_i)) { continue; }
 
           const gtsam::Pose3 leftPose = X_W_i;
           const gtsam::Cal3_S2 monoCal = K_stereo_->calibration();

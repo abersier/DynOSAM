@@ -64,8 +64,6 @@ FrontendInputPacketBase::ConstPtr DataInterfacePipeline::getInputPacket() {
   }
 
   if (!queue_state) {
-    //  LOG_EVERY_N(WARNING, 10)
-    //     << "Module: " << MIMO::module_name_ << " - queue is down";
     return nullptr;
   }
 

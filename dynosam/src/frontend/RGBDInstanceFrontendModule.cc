@@ -131,17 +131,25 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::boostrapSpin(
                              gtsam::Pose3::Identity(), ObjectMotionMap{},
                              ObjectPoseMap{}, true);
 
-  vision_imu_packet->local_map = kf_local_map_;
+  vision_imu_packet->local_map = full_local_map_;
 
   VisionImuPacket::Ptr key_fame_output =
       createKeyFramedOnlyPacket(vision_imu_packet, true);
   key_fame_output->local_map = kf_local_map_;
 
-  if (viz_callback_) {
-    viz_callback_(vision_imu_packet);
+  if (backend_callback_) {
+    backend_callback_(key_fame_output);
   }
 
-  return {State::Nominal, key_fame_output};
+  camera_T_lkf_k_.reset(frame->getFrameId(), frame->getTimestamp());
+  camera_T_lkf_km1_.reset(frame->getFrameId(), frame->getTimestamp());
+  camera_T_km1_k_.reset(frame->getFrameId(), frame->getTimestamp());
+
+  if (key_fame_output->isKeyFrame()) {
+    keyframed_states_.insert2(frame->getFrameId(), camera_T_lkf_k_);
+  }
+
+  return {State::Nominal, vision_imu_packet};
 }
 
 FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
@@ -235,9 +243,13 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
   // will be wrong (currently!!)
   nav_state_prev_ = best_nav_state;
 
-  // if (R_curr_ref) {
-  //   imu_frontend_.resetIntegration();
-  // }
+  updateEgoMotionState(camera_T_lkf_k_, input->getFrameId(),
+                       input->getTimestamp(), T_lkf_k, input->imu_measurements);
+
+  camera_T_km1_k_.from = previous_frame->getFrameId();
+  updateEgoMotionState(camera_T_km1_k_, input->getFrameId(),
+                       input->getTimestamp(), T_k_1_k_,
+                       input->imu_measurements);
 
   const auto [object_motions, object_poses] =
       object_motion_solver_->solve(frame, previous_frame);
@@ -264,11 +276,10 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
   fillOutputPacketWithTracks(vision_imu_packet, *frame, T_lkf_k, object_motions,
                              object_poses);
 
-  vision_imu_packet->local_map = kf_local_map_;
+  vision_imu_packet->local_map = full_local_map_;
 
   VisionImuPacket::Ptr key_fame_output =
       createKeyFramedOnlyPacket(vision_imu_packet);
-  key_fame_output->local_map = kf_local_map_;
 
   // if (R_curr_ref) {
   //   imu_frontend_.resetIntegration();
@@ -278,8 +289,15 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
     nav_state_lkf_ = best_nav_state;
     frame_lkf_ = frame;
 
+    keyframed_states_.insert2(frame->getFrameId(), camera_T_lkf_k_);
+
+    camera_T_lkf_k_.reset(frame->getFrameId(), frame->getTimestamp());
+
     if (has_imu) {
       imu_frontend_.resetIntegration();
+      CHECK(key_fame_output->pim());
+    } else {
+      CHECK(key_fame_output->pim() == nullptr);
     }
   }
 
@@ -318,11 +336,14 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
     vision_imu_packet->denseLabelledCloud(dense_labelled_cloud);
   }
 
-  if (viz_callback_) {
-    viz_callback_(vision_imu_packet);
+  if (backend_callback_) {
+    backend_callback_(key_fame_output);
   }
   // if (FLAGS_save_frontend_json)
   //   output_packet_record_.insert({output->getFrameId(), output});
+
+  // copy and move
+  camera_T_lkf_km1_ = std::move(EgoMotionState(camera_T_lkf_k_));
 
   sendToFrontendLogger(frame, vision_imu_packet);
 
@@ -332,7 +353,7 @@ FrontendModule::SpinReturn RGBDInstanceFrontendModule::nominalSpin(
   //       frame->image_container_.objectMotionMask(), *frame->getCamera(),
   //       frame->getFrameId());
 
-  return {State::Nominal, key_fame_output};
+  return {State::Nominal, vision_imu_packet};
 }
 
 bool RGBDInstanceFrontendModule::solveCameraMotion(
@@ -548,7 +569,7 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
   // is not a Camera KF
   // in the past and therefore does not eixst
   // HACK - all frames are camera keyframes!
-  camera_tracks.is_keyframe = true;
+  // camera_tracks.is_keyframe = true;
 
   auto* static_measurements = &camera_tracks.measurements;
   fill_camera_measurements(frame.usableStaticFeaturesBegin(),
@@ -599,64 +620,6 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
     }
 
     object_tracks.insert2(object_id, object_track);
-
-    // if (object_track.isKeyFrame()) {
-    //   object_tracks.insert2(object_id, object_track);
-
-    //   // if keyframe then we know we must have Hybrid
-    //   const FrameId lkf_j = object_track.hybrid_info->H_W_KF_k.from();
-    //   LOG(INFO) << "Frontend from frame " << lkf_j;
-    //   auto object_node = full_local_map_->getObject(object_id);
-    //   // add measurements for the landmark seen at the last keyframe if they
-    //   // dont already exist
-    //   for (const auto& lmk_node :
-    //   object_node->getLandmarksSeenAtFrame(lkf_j)) {
-    //     const TrackletId tracklet_id = lmk_node->tracklet_id;
-    //     const auto camera_measurement = lmk_node->getMeasurement(lkf_j);
-
-    //     // add new measurements from the last keyframe if that are not in the
-    //     KF
-    //     // map!! this represents measurements that are involved in the motion
-    //     // observations
-    //     if (!kf_local_map_->landmarkExists(tracklet_id)) {
-    //       new_dynamic_KF_measurements.push_back(
-    //           CameraMeasurementStatus(camera_measurement, lkf_j, tracklet_id,
-    //                                   object_id, ReferenceFrame::LOCAL));
-    //       // LOG(INFO) << "Adding frontend C measurement j=" << object_id <<
-    //       "
-    //       // i=" << tracklet_id << " k=" << lkf_j;
-    //     } else {
-    //       auto lmk_node = kf_local_map_->getLandmark(tracklet_id);
-    //       // TODO: hacky way to avoid duplicated measuements!!
-    //       if (!lmk_node->seenAtFrame(lkf_j)) {
-    //         new_dynamic_KF_measurements.push_back(
-    //             CameraMeasurementStatus(camera_measurement, lkf_j,
-    //             tracklet_id,
-    //                                     object_id, ReferenceFrame::LOCAL));
-    //         // LOG(INFO) << "Adding frontend C measurement j=" << object_id
-    //         << "
-    //         // i=" << tracklet_id << " k=" << lkf_j;
-    //       }
-    //     }
-    //   }
-    //   // measurements should already be in the local map so just take this
-    //   // TODO: would be more efficient to take them from the
-    //   // dynamic_measurements set directly but for now re-look up!
-    //   for (const auto& lmk_node :
-    //        object_node->getLandmarksSeenAtFrame(frame_id)) {
-    //     const TrackletId tracklet_id = lmk_node->tracklet_id;
-    //     const auto camera_measurement = lmk_node->getMeasurement(frame_id);
-
-    //     // should always be new measurements!!
-    //     new_dynamic_KF_measurements.push_back(
-    //         CameraMeasurementStatus(camera_measurement, frame_id,
-    //         tracklet_id,
-    //                                 object_id, ReferenceFrame::LOCAL));
-    //     // LOG(INFO) << "Adding frontend C measurement j=" << object_id << "
-    //     i="
-    //     // << tracklet_id << " k=" << frame_id;
-    //   }
-    // }
   }
 
   for (const auto& dm : dynamic_measurements) {
@@ -670,27 +633,43 @@ void RGBDInstanceFrontendModule::fillOutputPacketWithTracks(
 
   // add object tracks first so isKeyFrame functions work
   vision_imu_packet->objectTracks(object_tracks);
-
-  // // must add camera measurement for any keyframe
-  // if (vision_imu_packet->isKeyFrame()) {
-  //   kf_local_map_->updateObservations(vision_imu_packet->staticMeasurements());
-  // }
-
-  // // should be empty if no object keyframes
-  // kf_local_map_->updateObservations(new_dynamic_KF_measurements);
 }
 
 VisionImuPacket::Ptr RGBDInstanceFrontendModule::createKeyFramedOnlyPacket(
     VisionImuPacket::Ptr vision_imu_packet, bool force_camera_kf) {
   VisionImuPacket::Ptr KF_output =
       std::make_shared<VisionImuPacket>(*vision_imu_packet);
+  KF_output->local_map = kf_local_map_;
+
   VisionImuPacket::CameraTracks camera_tracks = KF_output->cameraTracks();
   VisionImuPacket::ObjectTrackMap all_object_tracks = KF_output->objectTracks();
 
   VisionImuPacket::ObjectTrackMap KF_object_tracks;
 
-  camera_tracks.is_keyframe = true;
+  if (FLAGS_use_object_motion_filtering) {
+    // VLOG(10) << "Adding hybrid info for object tracks";
+    auto motion_filter = std::dynamic_pointer_cast<ObjectMotionSolverFilter>(
+        object_motion_solver_);
+    // doesnt really hold because sometimes a object can be marked as KF but
+    // poorly tracked so we dont't actually know if we need a KF for the from
+    // motion yet!
+    CHECK_NOTNULL(motion_filter);
+    if (motion_filter->anyObjectsKF()) {
+      force_camera_kf = true;
+      LOG(INFO) << "Making KF true for camera as objects had KF's at "
+                << vision_imu_packet->frameId();
+    }
+  }
 
+  if (force_camera_kf || vision_imu_packet->frameId() % 10 == 0) {
+    camera_tracks.is_keyframe = true;
+  }
+  KF_output->cameraTracks(camera_tracks);
+
+  // VisionImuPacket::Ptr KF_output_additional = nullptr;
+
+  // usually from additional frame!
+  // CameraMeasurementStatusVector new_static_KF_measurements;
   CameraMeasurementStatusVector new_dynamic_KF_measurements;
   for (const auto& [object_id, object_track] : all_object_tracks) {
     if (object_track.isKeyFrame()) {
@@ -698,8 +677,119 @@ VisionImuPacket::Ptr RGBDInstanceFrontendModule::createKeyFramedOnlyPacket(
       KF_object_tracks.insert2(object_id, object_track);
 
       // if keyframe then we know we must have Hybrid
+      // TODO: beffore variale name is from_frame or something
+      // in some causes this should coincide with the last actual kf but not
+      // always
       const FrameId lkf_j = object_track.hybrid_info->H_W_KF_k.from();
+
       LOG(INFO) << "Frontend from frame " << lkf_j;
+      // TODO: now dont need this kF stat
+      // TODO: now dont need the ego motion states?
+      // if the from motion frame also happened to be a KF
+      bool was_from_motion_frame_kf = keyframed_states_.exists(lkf_j);
+      // if(!was_from_motion_frame_kf) {
+      //   LOG(INFO) << "From motion frame " << lkf_j << " was not a KF.
+      //   Including as additional KF"; const FrameId actual_lkf =
+      //   keyframed_states_.rbegin()->first; CHECK_GT(lkf_j, actual_lkf) <<
+      //   "Cannot add KF before last actual KF as the backend constructs values
+      //   incrementall!"; CHECK_EQ(actual_lkf+1, lkf_j) << "Should only eve be
+      //   one apart!";
+
+      //   // check motion state data is correct
+      //   CHECK_EQ(camera_T_lkf_k_.from, actual_lkf);
+      //   CHECK_EQ(camera_T_lkf_km1_.from, actual_lkf);
+      //   CHECK_EQ(camera_T_km1_k_.from, lkf_j);
+
+      //   CHECK_EQ(camera_T_lkf_k_.to, vision_imu_packet->frameId());
+      //   CHECK_EQ(camera_T_lkf_km1_.to, vision_imu_packet->frameId() - 1u);
+      //   CHECK_EQ(camera_T_km1_k_.to, vision_imu_packet->frameId());
+
+      //   // should only happen on an anchor KF
+      //   CHECK_EQ(object_track.hybrid_info->anchor_keyframe, true);
+
+      //   //TODO: better name!!!
+      //   // right now ONLY the VO data should be used as camera and objects
+      //   tracks
+      //   // are contained with the map
+      //   // the motion information will be wrong (ie not included)
+      //   // but this should be fine as we only need an additioanl static
+      //   keyframe
+      //   // when we have a motion k-1 to k where k-1 needs a static KF and it
+      //   is an object
+      //   // anchor KF. Therefore, the motion at k-1 is identity!
+      //   KF_output_additional =
+      //       std::make_shared<VisionImuPacket>();
+      //   KF_output_additional->local_map = kf_local_map_;
+      //   KF_output_additional->frameId(lkf_j);
+      //   KF_output_additional->timestamp(camera_T_lkf_km1_.timestamp);
+      //   // KF_output_additional->pim(pim);
+      //   // KF_output_additional->groundTruthPacket(input->optional_gt_);
+
+      //   VisionImuPacket::CameraTracks camera_tracks_from = camera_tracks;
+      //   camera_tracks_from.is_keyframe = true;
+
+      //   // could take pose from many places
+      //   // eventually nav states should go in EgoMotionStyate
+      //   camera_tracks_from.X_W_k = nav_state_prev_.pose();
+      //   camera_tracks_from.T_k_1_k = camera_T_lkf_km1_.T_from_to;
+
+      //   //TODO: if this is the case we need to update the visom imu packet
+      //   realtive motion
+      //   // with k-1 to k as it currently will be lkf to k
+      //   //TODO: and PIM!
+
+      //   KF_output_additional->cameraTracks(camera_tracks_from);
+      //   // no object tracks as we only include the motion in the next frame
+      //   // featuees will be included in the map!
+      //   KF_output_additional->objectTracks(
+      //   VisionImuPacket::ObjectTrackMap{});
+
+      //   keyframed_states_.insert2(KF_output->frameId(), camera_T_lkf_k_);
+
+      //   // last Kf actually becomes lkf_j!
+      //   // must update things like
+      //   // nav_state_lkf_
+      //   // frame_lkf_
+      //   // handl IMU properly!
+      //   auto frame_node = full_local_map_->getFrame(lkf_j);
+      //   CHECK(frame_node);
+
+      //   for(const auto& lmk_node : frame_node->static_landmarks) {
+      //     const TrackletId tracklet_id = lmk_node->tracklet_id;
+      //     const auto camera_measurement = lmk_node->getMeasurement(lkf_j);
+
+      //     // add new measurements from the last keyframe if that are not in
+      //     the KF
+      //     // map!! this represents measurements that are involved in the
+      //     motion
+      //     // observations
+      //     if (!kf_local_map_->landmarkExists(tracklet_id)) {
+      //       new_static_KF_measurements.push_back(
+      //           CameraMeasurementStatus(camera_measurement, lkf_j,
+      //           tracklet_id,
+      //                                   background_label,
+      //                                   ReferenceFrame::LOCAL));
+      //       // LOG(INFO) << "Adding frontend C measurement j=" << object_id
+      //       << "
+      //       // i=" << tracklet_id << " k=" << lkf_j;
+      //     } else {
+      //       auto lmk_node = kf_local_map_->getLandmark(tracklet_id);
+      //       // TODO: hacky way to avoid duplicated measuements!!
+      //       if (!lmk_node->seenAtFrame(lkf_j)) {
+      //         new_static_KF_measurements.push_back(
+      //             CameraMeasurementStatus(camera_measurement, lkf_j,
+      //             tracklet_id,
+      //                                     background_label,
+      //                                     ReferenceFrame::LOCAL));
+      //         // LOG(INFO) << "Adding frontend C measurement j=" << object_id
+      //         << "
+      //         // i=" << tracklet_id << " k=" << lkf_j;
+      //       }
+      //     }
+      //   }
+
+      // }
+
       auto object_node = full_local_map_->getObject(object_id);
       // add measurements for the landmark seen at the last keyframe if they
       // dont already exist
@@ -755,6 +845,17 @@ VisionImuPacket::Ptr RGBDInstanceFrontendModule::createKeyFramedOnlyPacket(
 
   // should be empty if no object keyframes
   kf_local_map_->updateObservations(new_dynamic_KF_measurements);
+  // will be empty unless additional KF is needed
+  // kf_local_map_->updateObservations(new_static_KF_measurements);
+
+  // // must be after the map is updated which is shared
+  // if(KF_output_additional) {
+  //    if (backend_callback_) {
+  //     LOG(INFO) << "Sending KF k=" <<  KF_output_additional->frameId();
+  //     backend_callback_(KF_output_additional);
+  //   }
+  // }
+
   return KF_output;
 }
 
@@ -802,6 +903,22 @@ cv::Mat RGBDInstanceFrontendModule::createTrackingImage(
   // TODO: bring back when visualisation is unified with incremental solver!!
   //  utils::drawObjectPoseAxes(tracking_image, K, D, poses_k_vec);
   return tracking_image;
+}
+
+void RGBDInstanceFrontendModule::updateEgoMotionState(
+    EgoMotionState& ego_motion_state, FrameId to_frame, Timestamp to_timestamp,
+    const gtsam::Pose3& T, ImuMeasurements::Optional z_imu) {
+  ego_motion_state.to = to_frame;
+  ego_motion_state.T_from_to = T;
+  ego_motion_state.timestamp = to_timestamp;
+
+  if (z_imu) {
+    if (!ego_motion_state.imu_propogator) {
+      ego_motion_state.imu_propogator =
+          std::make_unique<ImuFrontend>(getFrontendParams().imu_params);
+    }
+    ego_motion_state.imu_propogator->preintegrateImuMeasurements(z_imu.value());
+  }
 }
 
 }  // namespace dyno
