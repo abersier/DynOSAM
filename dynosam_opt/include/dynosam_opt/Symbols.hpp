@@ -150,4 +150,12 @@ inline gtsam::Key ObjectPoseSymbol(ObjectId object_label, FrameId frame_id) {
   return L(label, static_cast<std::uint64_t>(frame_id));
 }
 
+inline gtsam::Key ImuBiasSymbol(FrameId frame_id) {
+  return gtsam::Symbol(kImuBiasSymbolChar, frame_id);
+}
+
+inline gtsam::Key CameraVelocitySymbol(FrameId frame_id) {
+  return gtsam::Symbol(kVelocitySymbolChar, frame_id);
+}
+
 }  // namespace dyno

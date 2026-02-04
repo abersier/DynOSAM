@@ -517,20 +517,33 @@ class Formulation {
    */
   BackendLogger::UniquePtr makeFullyQualifiedLogger() const;
 
+  void addFactor(gtsam::NonlinearFactorGraph& new_factors,
+                 gtsam::NonlinearFactor::shared_ptr factor);
+
+  template <typename V>
+  void addValue(gtsam::Values& new_values, const V& value, gtsam::Key key);
+
+  // TODO: delete
   void addValuesFunctional(std::function<void(gtsam::Values&)> callback,
                            gtsam::Values& new_values);
+
+  // TODO: delete
   void addFactorsFunctional(
       std::function<void(gtsam::NonlinearFactorGraph&)> callback,
       gtsam::NonlinearFactorGraph& new_factors);
 
   // Factor Graph build functions.
+  // TODO: move to VIOFOrmulation
   void addSensorPoseValue(const gtsam::Pose3& X_W_k, FrameId frame_id_k,
                           gtsam::Values& new_values);
+
+  // TODO: move to VIOFOrmulation
   void addSensorPosePriorFactor(const gtsam::Pose3& X_W_k,
                                 gtsam::SharedNoiseModel noise_model,
                                 FrameId frame_id_k,
                                 gtsam::NonlinearFactorGraph& new_factors);
 
+  // TODO: delete
   /**
    * @brief Adds a gtsam::Pose3 as a value in the graph at frame k.
    *
@@ -540,6 +553,8 @@ class Formulation {
    */
   void setInitialPose(const gtsam::Pose3& T_world_camera, FrameId frame_id_k,
                       gtsam::Values& new_values);
+
+  // TODO: del
   /**
    * @brief Adds a pose prior on a value in the graph at frame k using the given
    * pose value as the prior's mean.
@@ -551,6 +566,8 @@ class Formulation {
   void setInitialPosePrior(const gtsam::Pose3& T_world_camera,
                            FrameId frame_id_k,
                            gtsam::NonlinearFactorGraph& new_factors);
+
+  // TODO: make virtual and move to VIOFormulation
 
   /**
    * @brief Updates the static-point part of the factor graph for frame k.

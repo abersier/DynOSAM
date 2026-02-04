@@ -850,6 +850,23 @@ class LandmarkNode : public MapNodeBase<MEASUREMENT> {
   friend class Map<MEASUREMENT>;
 };
 
+namespace internal {
+
+template <typename T>
+T getStateQueryDebugHelper(const StateQuery<T> query, const char* file,
+                           int line) {
+  try {
+    return query.value();
+  } catch (const DynosamException& e) {
+    throw DynosamExceptionDebug(e.what(), file, line);
+  }
+}
+
+}  // namespace internal
+
 }  // namespace dyno
+
+#define DYNO_GET_QUERY_DEBUG(state_query) \
+  dyno::internal::getStateQueryDebugHelper(state_query, __FILE__, __LINE__)
 
 #include "dynosam_opt/MapNodes-inl.hpp"

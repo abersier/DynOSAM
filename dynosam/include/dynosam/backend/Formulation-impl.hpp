@@ -495,6 +495,25 @@ BackendLogger::UniquePtr Formulation<MAP>::makeFullyQualifiedLogger() const {
 }
 
 template <typename MAP>
+void Formulation<MAP>::addFactor(gtsam::NonlinearFactorGraph& new_factors,
+                                 gtsam::NonlinearFactor::shared_ptr factor) {
+  CHECK_NOTNULL(factor);
+  factors_ += factor;
+  new_factors += factor;
+}
+
+template <typename MAP>
+template <typename V>
+void Formulation<MAP>::addValue(gtsam::Values& new_values, const V& value,
+                                gtsam::Key key) {
+  gtsam::Values values;
+  values.insert(key, value);
+
+  new_values.insert_or_assign(values);
+  theta_.insert_or_assign(values);
+}
+
+template <typename MAP>
 void Formulation<MAP>::addSensorPoseValue(const gtsam::Pose3& X_W_k,
                                           FrameId frame_id_k,
                                           gtsam::Values& new_values) {

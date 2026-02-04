@@ -50,6 +50,7 @@ gtsam::SharedNoiseModel robustifyHuber(double k,
       gtsam::noiseModel::mEstimator::Huber::Create(k), model);
 }
 
+// TODO: deprivate!!!
 void addBetweenFactor(FrameId from_frame, FrameId to_frame,
                       const gtsam::Pose3 from_pose_to,
                       gtsam::SharedNoiseModel noise_model,

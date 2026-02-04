@@ -42,6 +42,13 @@ struct DynosamException : public std::runtime_error {
   DynosamException(const std::string& what) : std::runtime_error(what) {}
 };
 
+struct DynosamExceptionDebug : public DynosamException {
+  DynosamExceptionDebug(const std::string& what, const char* file, int line)
+      : DynosamException("Exception:" + what + "thrown at + [" +
+                         std::string(file) + ":" + std::to_string(line) + "]") {
+  }
+};
+
 // Internal helper that builds and throws the exception immediately
 namespace {
 // Helper class for streaming exception messages
