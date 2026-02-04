@@ -66,6 +66,70 @@ struct BackendModuleTraits {
 using FrontendUpdateInterface =
     std::function<void(const FrameId, const Timestamp)>;
 
+class Backend {
+ public:
+  DYNO_POINTER_TYPEDEFS(Backend)
+
+  Backend() {}
+  virtual ~Backend() {}
+};
+
+struct State1 {
+  DYNO_POINTER_TYPEDEFS(State1)
+};
+
+// TODO: BackendOutput should become State
+template <typename INPUT>
+class BackendModuleV1 : public ModuleBase<INPUT, State1>, public Backend {
+ public:
+  BackendModuleV1(const BackendParams& params);
+  virtual ~BackendModuleV1() = default;
+
+  using Base = ModuleBase<INPUT, State1>;
+  using Base::SpinReturn;
+
+  // something about callback here too?
+
+  /**
+   * @brief Get the accessor the the underlying formulation, allowing the
+   * optimised values to be directly accessed
+   *
+   * @return Accessor::Ptr
+   */
+  virtual Accessor::Ptr getAccessor() = 0;
+  virtual std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
+  getActiveOptimisation() const = 0;
+
+ private:
+  // called in ModuleBase immediately before the spin function is called
+  virtual void validateInput(
+      const typename Base::InputConstPtr& input) const override;
+
+  void setFactorParams(const BackendParams& backend_params);
+
+ private:
+  // TODO: maybe put in Backend
+  const BackendParams base_params_;
+  NoiseModels noise_models_;
+};
+
+// For modules that have a single internal map
+// ie. not PH
+template <typename MAP, typename INPUT>
+class BackendModuleV1T : public BackendModuleV1<INPUT> {
+ public:
+  using MapT = MAP;
+  using FormulationT = Formulation<MapT>;
+
+  BackendModuleV1T(const BackendParams& params);
+  virtual ~BackendModuleV1T() = default;
+
+  const typename MapT::Ptr getMap() { return map_; }
+
+ protected:
+  typename MapT::Ptr map_;
+};
+
 /**
  * @brief Base class to actually do processing. Data passed to this module from
  * the frontend

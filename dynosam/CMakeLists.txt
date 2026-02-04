@@ -78,6 +78,7 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/FrontendModule.cc
   src/frontend/FrontendParams.cc
   src/frontend/RGBDInstanceFrontendModule.cc
+  src/frontend/VIFrontend.cc
   src/frontend/VisionImuOutputPacket.cc
   src/frontend/vision/ORBextractor.cc
   src/frontend/vision/FeatureTracker.cc
@@ -106,6 +107,7 @@ add_library(${PROJECT_NAME} SHARED
   src/backend/rgbd/impl/test_HybridFormulations.cc
   src/backend/ParallelObjectISAM.cc
   src/backend/ParallelHybridBackendModule.cc
+  src/backend/PoseChangeBackendModule.cc
 
   # src/backend/ISAM2Agent.cc
   #src/backend/rgbd/impl/ObjectTrackingIsamAgent.cc

@@ -46,6 +46,35 @@
 
 namespace dyno {
 
+// using RegularFormulationFactory =
+//     BackendFormulationFactory<RegularBackendModuleTraits::MapType>;
+
+// TODO: opt should go in base class if easy to abstract away?
+//  only regular has the getformulation display and the factory
+//  everything else should act as its own module
+class RegularVIBackendModule
+    : public BackendModuleV1T<MapVision, VisionImuPacket> {
+ public:
+  // TODO: factory
+  using Base = BackendModuleV1T<MapVision, VisionImuPacket>;
+  DYNO_POINTER_TYPEDEFS(RegularVIBackendModule)
+
+  std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
+      const override;
+
+  Accessor::Ptr getAccessor() override;
+  const VIOFormulation::Ptr formulation() const;
+  BackendModuleDisplay::Ptr formulationDisplay() const;
+
+ protected:
+  using SpinReturn = Base::SpinReturn;
+  SpinReturn boostrapSpin(VisionImuPacket::ConstPtr input) override;
+  SpinReturn nominalSpin(VisionImuPacket::ConstPtr input) override;
+
+  VIOFormulation::Ptr formulation_;
+  BackendModuleDisplay::Ptr formulation_display_;
+};
+
 class RegularBackendModule
     : public BackendModuleType<RegularBackendModuleTraits> {
  public:

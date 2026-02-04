@@ -31,9 +31,11 @@
 #pragma once
 
 #include "dynosam/backend/BackendModuleFactory.hpp"
+// TODO : try and delete
 #include "dynosam/backend/BackendPipeline.hpp"
 #include "dynosam/dataprovider/DataInterfacePipeline.hpp"
 #include "dynosam/dataprovider/DataProvider.hpp"
+// TODO: probably can delete
 #include "dynosam/frontend/FrontendPipeline.hpp"
 #include "dynosam/pipeline/PipelineHooks.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
@@ -41,7 +43,13 @@
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/Spinner.hpp"
 
+// NEW
+#include "dynosam/frontend/VIFrontend.hpp"
+
 namespace dyno {
+
+using FrontendPipelineV1 =
+    PipelineModuleProcessor<FrontendInputPacketBase, DynoState>;
 
 class DynoPipelineManager {
  public:
@@ -83,6 +91,16 @@ class DynoPipelineManager {
                      BackendDisplay::Ptr backend_display,
                      BackendModuleFactory::Ptr factory);
 
+  void loadPoseChangeModules(
+      Camera::Ptr camera, BackendModuleFactory::Ptr factory,
+      VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+      BackendModuleDisplay::Ptr& external_backend_display_out);
+
+  void loadRegularOrParallelHybridModules(
+      Camera::Ptr camera, BackendModuleFactory::Ptr factory,
+      VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+      BackendModuleDisplay::Ptr& external_backend_display_out);
+
  private:
   DynoParams params_;
   const bool use_offline_frontend_;
@@ -91,17 +109,20 @@ class DynoPipelineManager {
   //! This allows us to have different pipelines to provide data to the backend
   //! (e.g. load seralized data) which have different templates
   PipelineBase::UniquePtr frontend_pipeline_{nullptr};
-  FrontendPipeline::InputQueue frontend_input_queue_;
-  FrontendPipeline::OutputQueue frontend_viz_input_queue_;
+  // FrontendPipeline::InputQueue frontend_input_queue_;
+  // FrontendPipeline::OutputQueue frontend_viz_input_queue_;
+  FrontendPipelineV1::InputQueue frontend_input_queue_;
+  FrontendPipelineV1::OutputQueue frontend_viz_input_queue_;
 
   /// TODO: another hack to get the final size of the dataset
   // depending on use_offline_frontend_ this either gets the size from the
   // dataset of from the FrontendOfflinePipeline currently only works for RGB!!
   std::function<FrameId()> get_dataset_size_;
 
-  BackendPipeline::UniquePtr backend_pipeline_{nullptr};
-  FrontendPipeline::OutputQueue backend_input_queue_;
-  BackendPipeline::OutputQueue backend_output_queue_;
+  // BackendPipeline::UniquePtr backend_pipeline_{nullptr};
+  PipelineBase::UniquePtr backend_pipeline_{nullptr};
+  // FrontendPipeline::OutputQueue backend_input_queue_;
+  // BackendPipeline::OutputQueue backend_output_queue_;
 
   // Data-provider pointers
   DataInterfacePipeline::UniquePtr data_interface_;

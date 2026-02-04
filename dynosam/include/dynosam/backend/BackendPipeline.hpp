@@ -36,6 +36,8 @@
 
 namespace dyno {
 
+// TODO: delete and put pipeline manager since it has to include all these
+// things anyway!!
 using BackendPipeline =
     PipelineModuleProcessor<BackendInputPacket, BackendOutputPacket>;
 
