@@ -33,7 +33,9 @@
 #include <glog/logging.h>
 
 #include "dynosam/backend/BackendOutputPacket.hpp"
-#include "dynosam/frontend/VisionImuOutputPacket.hpp"
+// #include "dynosam/frontend/VisionImuOutputPacket.hpp"
+
+#include "dynosam/frontend/VIFrontend.hpp"
 #include "dynosam/pipeline/PipelineBase.hpp"
 #include "dynosam/pipeline/PipelinePayload.hpp"
 #include "dynosam/visualizer/Display.hpp"
@@ -72,7 +74,7 @@ class DisplayPipeline : public SIMOPipelineModule<INPUT, NullPipelinePayload> {
   typename Display::Ptr display_;
 };
 
-using FrontendVizPipeline = DisplayPipeline<VisionImuPacket>;
+using FrontendVizPipeline = DisplayPipeline<RealtimeOutput>;
 using BackendVizPipeline = DisplayPipeline<BackendOutputPacket>;
 
 /**

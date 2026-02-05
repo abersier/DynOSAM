@@ -100,6 +100,8 @@ class ModuleBase {
     return spin_return.second;
   }
 
+  inline const std::string& moduleName() const { return name_; }
+
   /**
    * @brief Registeres a function callback to be triggered prior to
    * nominal/bootstrapSpin being called.

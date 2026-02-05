@@ -33,6 +33,7 @@
 #include "dynamic_slam_interfaces/msg/multi_object_odometry_path.hpp"
 #include "dynamic_slam_interfaces/msg/object_odometry.hpp"
 #include "dynamic_slam_interfaces/msg/object_odometry_path.hpp"
+#include "dynosam/frontend/VIFrontend.hpp"  // only for DynoState! Should be in common!
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/Macros.hpp"
 #include "dynosam_ros/Display-Definitions.hpp"
@@ -210,6 +211,50 @@ class DSDTransport {
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };
 
+class DynoStatePublisher {
+ public:
+  DynoStatePublisher(const DisplayParams& params, rclcpp::Node::SharedPtr node);
+
+  void publish(const DynoState& state);
+
+  //   void publishVisualOdometry(const gtsam::Pose3& T_world_camera,
+  //                              Timestamp timestamp, const bool publish_tf);
+  //   void publishVisualOdometryPath(const gtsam::Pose3Vector& poses,
+  //                                  Timestamp latest_timestamp);
+
+  //   CloudPerObject publishStaticPointCloud(const StatusLandmarkVector&
+  //   landmarks,
+  //                                          const gtsam::Pose3&
+  //                                          T_world_camera);
+
+  //   //   struct PubDynamicCloudOptions {
+  //   //     bool publish_object_bounding_box{true};
+  //   //   };
+
+  //   CloudPerObject publishDynamicPointCloud(const StatusLandmarkVector&
+  //   landmarks,
+  //                                           const gtsam::Pose3&
+  //                                           T_world_camera);
+
+ private:
+ protected:
+  const DisplayParams params_;
+  rclcpp::Node::SharedPtr node_;
+  //! Dynamic SLAM display transport for estimated object odometry
+  DSDTransport dsd_transport_;
+  //! TF broadcaster for the odometry.
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+  OdometryPub::SharedPtr vo_publisher_;
+  PathPub::SharedPtr vo_path_publisher_;
+
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      static_points_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      dynamic_points_pub_;
+};
+
+// TODO: depricate!!
 /**
  * @brief Shorthand for Dynamic Slam Display ROS.
  *

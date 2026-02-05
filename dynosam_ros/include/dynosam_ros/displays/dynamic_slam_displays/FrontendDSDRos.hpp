@@ -42,25 +42,25 @@
 
 namespace dyno {
 
-class FrontendDSDRos : public FrontendDisplay, DSDRos {
+class FrontendDSDRos : public FrontendDisplay {
  public:
   FrontendDSDRos(const DisplayParams params, rclcpp::Node::SharedPtr node,
                  rclcpp::Node::SharedPtr ground_truth_node = nullptr);
   ~FrontendDSDRos() = default;
 
-  void spinOnceImpl(const VisionImuPacket::ConstPtr& frontend_output) override;
+  void spinOnceImpl(const RealtimeOutput::ConstPtr& frontend_output) override;
 
  private:
-  void tryPublishDebugImagery(const VisionImuPacket::ConstPtr& frontend_output);
-  void tryPublishGroundTruth(const VisionImuPacket::ConstPtr& frontend_output);
+  void tryPublishDebugImagery(const RealtimeOutput::ConstPtr& frontend_output);
+  void tryPublishGroundTruth(const RealtimeOutput::ConstPtr& frontend_output);
   void tryPublishVisualOdometry(
-      const VisionImuPacket::ConstPtr& frontend_output);
+      const RealtimeOutput::ConstPtr& frontend_output);
 
-  void tryPublishPointClouds(const VisionImuPacket::ConstPtr& frontend_output);
-  void tryPublishObjects(const VisionImuPacket::ConstPtr& frontend_output);
+  void tryPublishPointClouds(const RealtimeOutput::ConstPtr& frontend_output);
+  void tryPublishObjects(const RealtimeOutput::ConstPtr& frontend_output);
 
   void updateAccumulatedDataStructured(
-      const VisionImuPacket::ConstPtr& frontend_output);
+      const RealtimeOutput::ConstPtr& frontend_output);
 
  private:
   struct GroundTruthPublishers {
@@ -71,6 +71,7 @@ class FrontendDSDRos : public FrontendDisplay, DSDRos {
 
     GroundTruthPublishers(rclcpp::Node::SharedPtr ground_truth_node);
   };
+  DynoStatePublisher dyno_state_publisher_;
   //! Image Transport for tracking image
   image_transport::Publisher tracking_image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr

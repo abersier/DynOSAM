@@ -110,9 +110,9 @@ void declare_config(EgoMotionSolver::Params& config) {
   field(config.ransac_iterations, "ransac_iterations");
   field(config.ransac_probability, "ransac_probability");
 }
-void declare_config(ObjectMotionSovlerF2F::Params& config) {
+void declare_config(ConsecutiveFrameObjectMotionSolver::Params& config) {
   using namespace config;
-  name("ObjectMotionSovlerF2F::Params");
+  name("ConsecutiveFrameObjectMotionSolver::Params");
 
   base<EgoMotionSolver::Params>(config);
   field(config.refine_motion_with_joint_of, "refine_motion_with_joint_of");
@@ -472,8 +472,8 @@ Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d3d(
   return result;
 }
 
-ObjectMotionSolver::Result ObjectMotionSolver::solve(Frame::Ptr frame_k,
-                                                     Frame::Ptr frame_k_1) {
+MultiObjectTrajectories ObjectMotionSolver::solve(Frame::Ptr frame_k,
+                                                  Frame::Ptr frame_k_1) {
   ObjectIds failed_object_tracks;
   MotionEstimateMap motion_estimates;
 
@@ -515,24 +515,28 @@ ObjectMotionSolver::Result ObjectMotionSolver::solve(Frame::Ptr frame_k,
     frame_k->object_observations_.erase(object_id);
   }
 
-  ObjectPoseMap poses;
-  ObjectMotionMap motions;
+  // ObjectPoseMap poses;
+  // ObjectMotionMap motions;
+  MultiObjectTrajectories object_trajectories;
+  updateTrajectories(object_trajectories, motion_estimates, frame_k, frame_k_1);
 
-  updateMotions(motions, motion_estimates, frame_k, frame_k_1);
-  updatePoses(poses, motion_estimates, frame_k, frame_k_1);
-  return {motions, poses};
+  // updateMotions(motions, motion_estimates, frame_k, frame_k_1);
+  // updatePoses(poses, motion_estimates, frame_k, frame_k_1);
+  // return {motions, poses};
+  return object_trajectories;
 }
 
-ObjectMotionSovlerF2F::ObjectMotionSovlerF2F(
-    const ObjectMotionSovlerF2F::Params& params,
+ConsecutiveFrameObjectMotionSolver::ConsecutiveFrameObjectMotionSolver(
+    const ConsecutiveFrameObjectMotionSolver::Params& params,
     const CameraParams& camera_params)
     : EgoMotionSolver(static_cast<const EgoMotionSolver::Params&>(params),
                       camera_params),
       object_motion_params(params) {}
 
-void ObjectMotionSovlerF2F::updatePoses(
-    ObjectPoseMap& object_poses, const MotionEstimateMap& motion_estimates,
-    Frame::Ptr frame_k, Frame::Ptr frame_k_1) {
+void ConsecutiveFrameObjectMotionSolver::updateTrajectories(
+    MultiObjectTrajectories& object_trajectories,
+    const MotionEstimateMap& motion_estimates, Frame::Ptr frame_k,
+    Frame::Ptr frame_k_1) {
   gtsam::Point3Vector object_centroids_k_1, object_centroids_k;
 
   for (const auto& [object_id, motion_estimate] : motion_estimates) {
@@ -579,31 +583,42 @@ void ObjectMotionSovlerF2F::updatePoses(
         << "FLAGS_init_object_pose_from_gt but no ground truth provided! "
            "Object poses will be initalised using centroid!";
 
-    dyno::propogateObjectPoses(object_poses_, motion_estimates,
-                               object_centroids_k_1, object_centroids_k,
-                               frame_k->getFrameId(), ground_truth_packets);
+    // dyno::propogateObjectPoses(object_poses_, motion_estimates,
+    //                            object_centroids_k_1, object_centroids_k,
+    //                            frame_k->getFrameId(), ground_truth_packets);
+    dyno::propogateObjectTrajectory(
+        object_trajectories_, motion_estimates, object_centroids_k_1,
+        object_centroids_k, frame_k->getFrameId(), frame_k->getTimestamp(),
+        frame_k_1->getTimestamp(), ground_truth_packets);
   } else {
-    dyno::propogateObjectPoses(object_poses_, motion_estimates,
-                               object_centroids_k_1, object_centroids_k,
-                               frame_k->getFrameId());
+    // dyno::propogateObjectPoses(object_poses_, motion_estimates,
+    //                            object_centroids_k_1, object_centroids_k,
+    //                            frame_k->getFrameId());
+
+    dyno::propogateObjectTrajectory(
+        object_trajectories_, motion_estimates, object_centroids_k_1,
+        object_centroids_k, frame_k->getFrameId(), frame_k->getTimestamp(),
+        frame_k_1->getTimestamp());
   }
 
-  object_poses = object_poses_;
+  // TODO: these propogations should also update the motions
+  object_trajectories = object_trajectories_;
+  // object_poses = object_poses_;
 }
 
-void ObjectMotionSovlerF2F::updateMotions(
-    ObjectMotionMap& object_motions, const MotionEstimateMap& motion_estimates,
-    Frame::Ptr frame_k, Frame::Ptr) {
-  const FrameId frame_id_k = frame_k->getFrameId();
-  for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
-    object_motions_.insert22(object_id, frame_id_k, motion_reference_frame);
-  }
-  object_motions = object_motions_;
-}
+// void ConsecutiveFrameObjectMotionSolver::updateMotions(
+//     ObjectMotionMap& object_motions, const MotionEstimateMap&
+//     motion_estimates, Frame::Ptr frame_k, Frame::Ptr) {
+//   const FrameId frame_id_k = frame_k->getFrameId();
+//   for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
+//     object_motions_.insert22(object_id, frame_id_k, motion_reference_frame);
+//   }
+//   object_motions = object_motions_;
+// }
 
-bool ObjectMotionSovlerF2F::solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
-                                      ObjectId object_id,
-                                      MotionEstimateMap& motion_estimates) {
+bool ConsecutiveFrameObjectMotionSolver::solveImpl(
+    Frame::Ptr frame_k, Frame::Ptr frame_k_1, ObjectId object_id,
+    MotionEstimateMap& motion_estimates) {
   Motion3SolverResult result = geometricOutlierRejection3d2d(
       frame_k_1, frame_k, frame_k->getPose(), object_id);
 
@@ -629,7 +644,8 @@ bool ObjectMotionSovlerF2F::solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
   }
 }
 
-Motion3SolverResult ObjectMotionSovlerF2F::geometricOutlierRejection3d2d(
+Motion3SolverResult
+ConsecutiveFrameObjectMotionSolver::geometricOutlierRejection3d2d(
     Frame::Ptr frame_k_1, Frame::Ptr frame_k, const gtsam::Pose3& T_world_k,
     ObjectId object_id) {
   utils::ChronoTimingStats timer("motion_solver.object_solve3d2d");
@@ -1095,8 +1111,8 @@ ObjectMotionSolverFilter::ObjectMotionSolverFilter(
                       camera_params),
       filter_params_(params) {}
 
-ObjectMotionSolver::Result ObjectMotionSolverFilter::solve(
-    Frame::Ptr frame_k, Frame::Ptr frame_k_1) {
+MultiObjectTrajectories ObjectMotionSolverFilter::solve(Frame::Ptr frame_k,
+                                                        Frame::Ptr frame_k_1) {
   // Handle lost objects: objects in filters_ but not in current frame's
   // object_observations_
   std::set<ObjectId> current_objects;
@@ -1454,29 +1470,52 @@ void ObjectMotionSolverFilter::fillHybridInfo(
   object_track.hybrid_info = hybrid_info;
 }
 
-void ObjectMotionSolverFilter::updatePoses(
-    ObjectPoseMap& object_poses, const MotionEstimateMap& motion_estimates,
-    Frame::Ptr frame_k, Frame::Ptr /*frame_k_1*/) {
+void ObjectMotionSolverFilter::updateTrajectories(
+    MultiObjectTrajectories& object_trajectories,
+    const MotionEstimateMap& motion_estimates, Frame::Ptr frame_k,
+    Frame::Ptr frame_k_1) {
   const FrameId frame_id_k = frame_k->getFrameId();
-  for (const auto& [object_id, _] : motion_estimates) {
+  const Timestamp timestamp_k = frame_k->getTimestamp();
+
+  for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
     CHECK(filters_.exists(object_id));
+
+    CHECK_EQ(motion_reference_frame.from(), frame_id_k);
+    CHECK_EQ(motion_reference_frame.to(), frame_k->getFrameId());
 
     auto filter = filters_.at(object_id);
     gtsam::Pose3 L_k_j = filter->getPose();
-    object_poses_.insert22(object_id, frame_id_k, L_k_j);
+    // object_poses_.insert22(object_id, frame_id_k, L_k_j);
+    object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
+                                PoseWithMotion{L_k_j, motion_reference_frame});
   }
-  object_poses = object_poses_;
+
+  object_trajectories = object_trajectories_;
 }
 
-void ObjectMotionSolverFilter::updateMotions(
-    ObjectMotionMap& object_motions, const MotionEstimateMap& motion_estimates,
-    Frame::Ptr frame_k, Frame::Ptr frame_k_1) {
-  // same as ObjectMotionSovlerF2F
-  const FrameId frame_id_k = frame_k->getFrameId();
-  for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
-    object_motions_.insert22(object_id, frame_id_k, motion_reference_frame);
-  }
-  object_motions = object_motions_;
-}
+// void ObjectMotionSolverFilter::updatePoses(
+//     ObjectPoseMap& object_poses, const MotionEstimateMap& motion_estimates,
+//     Frame::Ptr frame_k, Frame::Ptr /*frame_k_1*/) {
+//   const FrameId frame_id_k = frame_k->getFrameId();
+//   for (const auto& [object_id, _] : motion_estimates) {
+//     CHECK(filters_.exists(object_id));
+
+//     auto filter = filters_.at(object_id);
+//     gtsam::Pose3 L_k_j = filter->getPose();
+//     object_poses_.insert22(object_id, frame_id_k, L_k_j);
+//   }
+//   object_poses = object_poses_;
+// }
+
+// void ObjectMotionSolverFilter::updateMotions(
+//     ObjectMotionMap& object_motions, const MotionEstimateMap&
+//     motion_estimates, Frame::Ptr frame_k, Frame::Ptr frame_k_1) {
+//   // same as ConsecutiveFrameObjectMotionSolver
+//   const FrameId frame_id_k = frame_k->getFrameId();
+//   for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
+//     object_motions_.insert22(object_id, frame_id_k, motion_reference_frame);
+//   }
+//   object_motions = object_motions_;
+// }
 
 }  // namespace dyno

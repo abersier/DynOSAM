@@ -49,7 +49,7 @@
 namespace dyno {
 
 using FrontendPipelineV1 =
-    PipelineModuleProcessor<FrontendInputPacketBase, DynoState>;
+    PipelineModuleProcessor<FrontendInputPacketBase, RealtimeOutput>;
 
 class DynoPipelineManager {
  public:

@@ -77,7 +77,7 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/FrontendPipeline.cc
   src/frontend/FrontendModule.cc
   src/frontend/FrontendParams.cc
-  src/frontend/RGBDInstanceFrontendModule.cc
+  # src/frontend/RGBDInstanceFrontendModule.cc
   src/frontend/VIFrontend.cc
   src/frontend/VisionImuOutputPacket.cc
   src/frontend/vision/ORBextractor.cc
@@ -125,7 +125,6 @@ add_library(${PROJECT_NAME} SHARED
   src/pipeline/PipelineSpinner.cc
 
   src/visualizer/VisualizerPipelines.cc
-  src/visualizer/OpenCVFrontendDisplay.cc
   src/visualizer/Visualizer-Definitions.cc
 )
 

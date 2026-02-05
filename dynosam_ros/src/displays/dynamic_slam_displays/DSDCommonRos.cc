@@ -258,6 +258,44 @@ DSDTransport::Publisher DSDTransport::addObjectInfo(
                    timestamp);
 }
 
+DynoStatePublisher::DynoStatePublisher(const DisplayParams& params,
+                                       rclcpp::Node::SharedPtr node)
+    : params_(params), node_(node), dsd_transport_(node) {
+  vo_publisher_ =
+      node_->create_publisher<nav_msgs::msg::Odometry>("odometry", 1);
+  vo_path_publisher_ =
+      node_->create_publisher<nav_msgs::msg::Path>("odometry_path", 1);
+  // tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*node_);
+
+  static_points_pub_ =
+      node->create_publisher<sensor_msgs::msg::PointCloud2>("static_cloud", 1);
+  dynamic_points_pub_ =
+      node->create_publisher<sensor_msgs::msg::PointCloud2>("dynamic_cloud", 1);
+}
+
+void DynoStatePublisher::publish(const DynoState& state) {
+  const FrameId frame_id = state.frame_id;
+  const Timestamp timestamp = state.timestamp;
+
+  const gtsam::Pose3 X_W_k = state.camera_trajectory.last().data;
+  DisplayCommon::publishOdometry(vo_publisher_, X_W_k, timestamp,
+                                 params_.world_frame_id,
+                                 params_.camera_frame_id);
+  // TODO : publish tf?
+
+  // publish trajectory
+  DisplayCommon::publishOdometryPath(vo_path_publisher_,
+                                     state.camera_trajectory.toDataVector(),
+                                     timestamp, params_.world_frame_id);
+
+  // publish local(?) static points
+  DisplayCommon::publishPointCloud(static_points_pub_, state.local_static_map,
+                                   X_W_k, params_.world_frame_id);
+
+  DisplayCommon::publishPointCloud(dynamic_points_pub_, state.dynamic_map,
+                                   X_W_k, params_.world_frame_id);
+}
+
 DSDRos::DSDRos(const DisplayParams& params, rclcpp::Node::SharedPtr node)
     : params_(params), node_(node), dsd_transport_(node) {
   vo_publisher_ =

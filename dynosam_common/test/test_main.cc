@@ -1,5 +1,5 @@
 /*
- *   Copyright (c) 2023 ACFR-RPG, University of Sydney, Jesse Morris
+ *   Copyright (c) 2025 ACFR-RPG, University of Sydney, Jesse Morris
  (jesse.morris@sydney.edu.au)
  *   All rights reserved.
 
@@ -28,14 +28,17 @@
  *   SOFTWARE.
  */
 
-#pragma once
+#include <glog/logging.h>
+#include <gtest/gtest.h>
 
-#include "dynosam/visualizer/Display.hpp"
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  google::InitGoogleLogging(argv[0]);
 
-namespace dyno {
-
-class OpenCVFrontendDisplay : public FrontendDisplay {
-  void spinOnceImpl(const VisionImuPacket::ConstPtr& frontend_output) override;
-};
-
-}  // namespace dyno
+  FLAGS_logtostderr = 1;
+  FLAGS_colorlogtostderr = 1;
+  FLAGS_log_prefix = 1;
+  FLAGS_v = 1;
+  google::ParseCommandLineFlags(&argc, &argv, true);
+  return RUN_ALL_TESTS();
+}

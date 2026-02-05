@@ -33,6 +33,7 @@
 #include <opencv4/opencv2/core.hpp>
 
 #include "dynosam_common/GroundTruthPacket.hpp"
+#include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 
 namespace dyno {
@@ -205,6 +206,18 @@ void propogateObjectPoses(
     ObjectPoseMap& object_poses, const MotionEstimateMap& object_motions_k,
     const gtsam::Point3Vector& object_centroids_k_1,
     const gtsam::Point3Vector& object_centroids_k, FrameId frame_id_k,
+    std::optional<GroundTruthPacketMap> gt_packet_map = {},
+    PropogatePoseResult* result = nullptr);
+
+// DUPLICATED FOR NOW
+// TODO: should be called propogateTrajectories becuase the object motion is
+// included
+void propogateObjectTrajectory(
+    MultiObjectTrajectories& object_trajectories,
+    const MotionEstimateMap& object_motions_k,
+    const gtsam::Point3Vector& object_centroids_k_1,
+    const gtsam::Point3Vector& object_centroids_k, FrameId frame_id_k,
+    Timestamp timestamp_k, Timestamp timestamp_km1,
     std::optional<GroundTruthPacketMap> gt_packet_map = {},
     PropogatePoseResult* result = nullptr);
 

@@ -43,7 +43,6 @@
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/pipeline/PipelineManager.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
-#include "dynosam/visualizer/OpenCVFrontendDisplay.hpp"
 #include "dynosam_common/viz/Colour.hpp"
 #include "dynosam_cv/Camera.hpp"
 #include "dynosam_cv/ImageContainer.hpp"

@@ -347,31 +347,33 @@ class ObjectMotionSolver {
   ObjectMotionSolver() = default;
   virtual ~ObjectMotionSolver() = default;
 
-  using Result = std::pair<ObjectMotionMap, ObjectPoseMap>;
+  // using Result = std::pair<ObjectMotionMap, ObjectPoseMap>;
 
-  virtual Result solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1);
+  virtual MultiObjectTrajectories solve(Frame::Ptr frame_k,
+                                        Frame::Ptr frame_k_1);
 
  protected:
   virtual bool solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
                          ObjectId object_id,
                          MotionEstimateMap& motion_estimates) = 0;
 
-  virtual void updatePoses(ObjectPoseMap& object_poses,
-                           const MotionEstimateMap& motion_estimates,
-                           Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
+  virtual void updateTrajectories(MultiObjectTrajectories& object_trajectories,
+                                  const MotionEstimateMap& motion_estimates,
+                                  Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
 
-  virtual void updateMotions(ObjectMotionMap& object_motions,
-                             const MotionEstimateMap& motion_estimates,
-                             Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
+  // virtual void updatePoses(ObjectPoseMap& object_poses,
+  //                          const MotionEstimateMap& motion_estimates,
+  //                          Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
+
+  // virtual void updateMotions(ObjectMotionMap& object_motions,
+  //                            const MotionEstimateMap& motion_estimates,
+  //                            Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
 };
 
-class ObjectMotionSovlerF2F : public ObjectMotionSolver,
-                              protected EgoMotionSolver {
+class ConsecutiveFrameObjectMotionSolver : public ObjectMotionSolver,
+                                           protected EgoMotionSolver {
  public:
-  DYNO_POINTER_TYPEDEFS(ObjectMotionSovlerF2F)
-
-  //! Result from solve including the object motions and poses
-  using ObjectMotionSolver::Result;
+  DYNO_POINTER_TYPEDEFS(ConsecutiveFrameObjectMotionSolver)
 
   struct Params : public EgoMotionSolver::Params {
     bool refine_motion_with_joint_of = true;
@@ -388,14 +390,14 @@ class ObjectMotionSovlerF2F : public ObjectMotionSolver,
         MotionOnlyRefinementOptimizer::Params();
   };
 
-  ObjectMotionSovlerF2F(const Params& params,
-                        const CameraParams& camera_params);
+  ConsecutiveFrameObjectMotionSolver(const Params& params,
+                                     const CameraParams& camera_params);
 
   Motion3SolverResult geometricOutlierRejection3d2d(
       Frame::Ptr frame_k_1, Frame::Ptr frame_k, const gtsam::Pose3& T_world_k,
       ObjectId object_id);
 
-  const ObjectMotionSovlerF2F::Params& objectMotionParams() const {
+  const ConsecutiveFrameObjectMotionSolver::Params& objectMotionParams() const {
     return object_motion_params;
   }
 
@@ -405,24 +407,15 @@ class ObjectMotionSovlerF2F : public ObjectMotionSolver,
                          MotionEstimateMap& motion_estimates) override;
 
  private:
-  void updatePoses(ObjectPoseMap& object_poses,
-                   const MotionEstimateMap& motion_estimates,
-                   Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
-
-  void updateMotions(ObjectMotionMap& object_motions,
-                     const MotionEstimateMap& motion_estimates,
-                     Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
+  void updateTrajectories(MultiObjectTrajectories& object_trajectories,
+                          const MotionEstimateMap& motion_estimates,
+                          Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
 
  private:
-  //! All object poses (from k to K) and updated by updatePoses at each
-  //! iteration of sovle
-  ObjectPoseMap object_poses_;
-  //! All object motions (from k to K) and updated by updatedMotions at each
-  //! iteration of sovle
-  ObjectMotionMap object_motions_;
+  MultiObjectTrajectories object_trajectories_;
 
  protected:
-  const ObjectMotionSovlerF2F::Params object_motion_params;
+  const ConsecutiveFrameObjectMotionSolver::Params object_motion_params;
 };
 
 /**
@@ -569,9 +562,6 @@ class HybridObjectMotionSRIF {
 class ObjectMotionSolverFilter : public ObjectMotionSolver,
                                  protected EgoMotionSolver {
  public:
-  //! Result from solve including the object motions and poses
-  using ObjectMotionSolver::Result;
-
   struct Params : public EgoMotionSolver::Params {
     // TODO: filter params!!
   };
@@ -579,7 +569,8 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
   ObjectMotionSolverFilter(const Params& params,
                            const CameraParams& camera_params);
 
-  Result solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
+  MultiObjectTrajectories solve(Frame::Ptr frame_k,
+                                Frame::Ptr frame_k_1) override;
 
   ObjectTrackingStatus getTrackingStatus(ObjectId object_id) const {
     return object_statuses_.at(object_id);
@@ -606,13 +597,16 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
   bool solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1, ObjectId object_id,
                  MotionEstimateMap& motion_estimates) override;
 
-  void updatePoses(ObjectPoseMap& object_poses,
-                   const MotionEstimateMap& motion_estimates,
-                   Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
+  // void updatePoses(ObjectPoseMap& object_poses,
+  //                  const MotionEstimateMap& motion_estimates,
+  //                  Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
 
-  void updateMotions(ObjectMotionMap& object_motions,
-                     const MotionEstimateMap& motion_estimates,
-                     Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
+  // void updateMotions(ObjectMotionMap& object_motions,
+  //                    const MotionEstimateMap& motion_estimates,
+  //                    Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
+  void updateTrajectories(MultiObjectTrajectories& object_trajectories,
+                          const MotionEstimateMap& motion_estimates,
+                          Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
 
  private:
   bool filterNeedsReset(ObjectId object_id);
@@ -625,12 +619,7 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
 
  private:
   const Params filter_params_;
-  //! All object poses (from k to K) and updated by updatePoses at each
-  //! iteration of sovled
-  ObjectPoseMap object_poses_;
-  //! All object motions (from k to K) and updated by updatedMotions at each
-  //! iteration of sovled
-  ObjectMotionMap object_motions_;
+  MultiObjectTrajectories object_trajectories_;
 
  public:  // TODO: for testing!
   gtsam::FastMap<ObjectId, std::shared_ptr<HybridObjectMotionSRIF>> filters_;
@@ -646,7 +635,7 @@ void declare_config(OpticalFlowAndPoseOptimizer::Params& config);
 void declare_config(MotionOnlyRefinementOptimizer::Params& config);
 
 void declare_config(EgoMotionSolver::Params& config);
-void declare_config(ObjectMotionSovlerF2F::Params& config);
+void declare_config(ConsecutiveFrameObjectMotionSolver::Params& config);
 
 }  // namespace dyno
 

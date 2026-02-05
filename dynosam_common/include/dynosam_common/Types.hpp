@@ -229,15 +229,44 @@ struct ReferenceFrameValue {
   }
 };
 
+/**
+ * @brief Struct representing the "Heavy" three-indexed notation represeting
+ * rigid-body motion used by Chirikjian et. al in "Pose Changes From a Different
+ * Point of View"
+ *
+ * @tparam E
+ */
+template <typename E>
+struct HeavyReferenceFrameValue : public ReferenceFrameValue<E> {
+  using Base = ReferenceFrameValue<E>;
+  using ConstEstimate = typename Base::ConstEstimate;
+  using Estimate = typename Base::Estimate;
+
+  HeavyReferenceFrameValue() {}
+  HeavyReferenceFrameValue(ConstEstimate& estimate, ReferenceFrame frame,
+                           FrameId from, FrameId to)
+      : Base(estimate, frame), from_(from), to_(to) {}
+
+  inline FrameId from() const { return from_; }
+  inline FrameId to() const { return to_; }
+  inline const ReferenceFrame& origin() const { return Base::frame_; }
+
+ private:
+  FrameId from_{0};
+  FrameId to_{0};
+};
+
+// TODO: get rid of style (we can just determine this from the from and to
+// frame!!!)
 enum MotionRepresentationStyle {
   F2F,  // frame-to-frame
   KF    // keyframe representation of motion
 };
 
 template <typename E>
-struct MotionReferenceFrame : public ReferenceFrameValue<E> {
+struct MotionReferenceFrame : public HeavyReferenceFrameValue<E> {
   using This = MotionReferenceFrame<E>;
-  using Base = ReferenceFrameValue<E>;
+  using Base = HeavyReferenceFrameValue<E>;
   using ConstEstimate = typename Base::ConstEstimate;
   using Estimate = typename Base::Estimate;
 
@@ -250,23 +279,17 @@ struct MotionReferenceFrame : public ReferenceFrameValue<E> {
   using Style = MotionRepresentationStyle;
 
   MotionRepresentationStyle style_;
-  FrameId from_{0};
-  FrameId to_{0};
-
-  inline FrameId from() const { return from_; }
-  inline FrameId to() const { return to_; }
   inline const MotionRepresentationStyle& style() const { return style_; }
-  inline const ReferenceFrame& origin() const { return Base::frame_; }
 
   MotionReferenceFrame() {}
   MotionReferenceFrame(ConstEstimate& estimate, const Style& style,
                        ReferenceFrame frame, FrameId from, FrameId to)
-      : Base(estimate, frame), style_(style), from_(from), to_(to) {}
+      : Base(estimate, frame, from, to), style_(style) {}
 
-  // really for seralization
-  MotionReferenceFrame(const Base& base, const Style& style, FrameId from,
-                       FrameId to)
-      : Base(base), style_(style), from_(from), to_(to) {}
+  // // really for seralization
+  // MotionReferenceFrame(const Base& base, const Style& style, FrameId from,
+  //                      FrameId to)
+  //     : Base(base), style_(style), from_(from), to_(to) {}
 
   friend std::ostream& operator<<(std::ostream& os, const This& t) {
     os << static_cast<const Base&>(t);

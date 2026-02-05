@@ -39,7 +39,6 @@
 #include "dynosam/dataprovider/DataProviderUtils.hpp"
 #include "dynosam/pipeline/PipelineHooks.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
-#include "dynosam/visualizer/OpenCVFrontendDisplay.hpp"
 #include "dynosam_ros/BackendDisplayPolicyRos.hpp"
 #include "dynosam_ros/Display-Definitions.hpp"
 #include "dynosam_ros/OnlineDataProviderRos.hpp"

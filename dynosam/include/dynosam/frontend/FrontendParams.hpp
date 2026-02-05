@@ -63,8 +63,8 @@ struct FrontendParams {
   // Refine the camera pose with oint optical flow optimisation
   bool refine_camera_pose_with_joint_of = true;
 
-  ObjectMotionSovlerF2F::Params object_motion_solver_params =
-      ObjectMotionSovlerF2F::Params();
+  ConsecutiveFrameObjectMotionSolver::Params object_motion_solver_params =
+      ConsecutiveFrameObjectMotionSolver::Params();
   EgoMotionSolver::Params ego_motion_solver_params = EgoMotionSolver::Params();
 
   TrackerParams tracker_params = TrackerParams();

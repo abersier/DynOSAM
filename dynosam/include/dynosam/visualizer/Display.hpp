@@ -31,7 +31,8 @@
 #pragma once
 
 #include "dynosam/backend/BackendOutputPacket.hpp"
-#include "dynosam/frontend/VisionImuOutputPacket.hpp"
+// #include "dynosam/frontend/VisionImuOutputPacket.hpp"
+#include "dynosam/frontend/VIFrontend.hpp"
 #include "dynosam_common/SharedModuleInfo.hpp"
 #include "dynosam_common/Types.hpp"
 
@@ -78,7 +79,7 @@ class DisplayBase : public SharedModuleInterface {
   virtual void spinOnceImpl(const InputConstPtr& input) = 0;
 };
 
-using FrontendDisplay = DisplayBase<VisionImuPacket>;
+using FrontendDisplay = DisplayBase<RealtimeOutput>;
 using BackendDisplay = DisplayBase<BackendOutputPacket>;
 
 }  // namespace dyno

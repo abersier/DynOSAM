@@ -485,6 +485,10 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
   if (!frontend) {
     throw DynosamException("Pipeline failure: no front-end could be loaded");
   }
+
+  frontend_viz_pipeline_ = std::make_unique<FrontendVizPipeline>(
+      "frontend-viz-pipeline", &frontend_viz_input_queue_, frontend_display);
+  frontend_viz_pipeline_->parallelRun(true);
 }
 
 void DynoPipelineManager::loadPoseChangeModules(
@@ -506,6 +510,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
 
   const auto parallel_run = params_.parallelRun();
   frontend_pipeline_derived->parallelRun(parallel_run);
+  frontend_pipeline_derived->registerOutputQueue(&frontend_viz_input_queue_);
   // conver pipeline to base type
   frontend_pipeline_ = std::move(frontend_pipeline_derived);
 

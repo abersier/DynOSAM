@@ -83,15 +83,16 @@ RGBDInstanceFrontendModule::RGBDInstanceFrontendModule(
     object_motion_solver_ = std::make_shared<ObjectMotionSolverFilter>(
         filter_params, camera->getParams());
   } else {
-    ObjectMotionSovlerF2F::Params object_motion_solver_params =
+    ConsecutiveFrameObjectMotionSolver::Params object_motion_solver_params =
         getFrontendParams().object_motion_solver_params;
     // add ground truth hook
     object_motion_solver_params.ground_truth_packets_request = [&]() {
       return this->shared_module_info.getGroundTruthPackets();
     };
     object_motion_solver_params.refine_motion_with_3d = false;
-    object_motion_solver_ = std::make_shared<ObjectMotionSovlerF2F>(
-        object_motion_solver_params, camera->getParams());
+    object_motion_solver_ =
+        std::make_shared<ConsecutiveFrameObjectMotionSolver>(
+            object_motion_solver_params, camera->getParams());
   }
 }
 

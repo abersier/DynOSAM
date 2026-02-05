@@ -85,6 +85,7 @@ add_library(${PROJECT_NAME} SHARED
     src/Algorithms.cc
     src/SharedModuleInfo.cc
     src/SensorModels.cc
+    src/Trajectories.cc
 
     src/utils/OpenCVUtils.cc
     src/utils/GtsamUtils.cc
@@ -187,7 +188,35 @@ install(
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include  ${GTSAM_INCLUDE_DIR} ${OPENGV_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
 
+if(BUILD_TESTING)
+  # find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_gmock REQUIRED)
+  find_package(ament_lint_auto REQUIRED)
+    find_package(ament_index_cpp REQUIRED)
 
+
+  ament_lint_auto_find_test_dependencies()
+
+  # Run all lint tests in package.xml except those listed above
+  ament_lint_auto_find_test_dependencies()
+  ament_add_gmock(${PROJECT_NAME}_test
+    test/test_main.cc
+    test/test_trajectories.cc
+)
+
+target_include_directories(${PROJECT_NAME}_test
+    PRIVATE
+     ${ament_index_cpp_INCLUDE_DIRS}
+  )
+
+target_link_libraries(${PROJECT_NAME}_test ${PROJECT_NAME} ${rclcpp_LIBRARIES} ${ament_index_cpp_TARGETS})
+
+
+  install(TARGETS
+  ${PROJECT_NAME}_test
+      DESTINATION test/)
+
+endif()
 
 
 ament_package()
