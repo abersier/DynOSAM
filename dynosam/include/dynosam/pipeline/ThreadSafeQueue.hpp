@@ -230,6 +230,37 @@ class ThreadsafeQueue : public ThreadsafeQueueBase<T> {
   const size_t queue_size;
 };
 
+/**
+ * @brief A generic holder for any threadsafe queue allowing a ThreadsafeQueue
+ * of type T to be stored in memeory without having to know the type T.
+ *
+ * Allows easier managing of queues as member variables.
+ *
+ */
+class GenericThreadSafeQueueHolder {
+ public:
+  GenericThreadSafeQueueHolder() = default;
+
+  template <typename T>
+  explicit GenericThreadSafeQueueHolder(
+      const std::shared_ptr<ThreadsafeQueue<T>>& q)
+      : storage_(std::make_shared<HolderImpl<T>>(q)) {}
+
+ private:
+  struct HolderBase {
+    virtual ~HolderBase() = default;
+  };
+
+  template <typename T>
+  struct HolderImpl : public HolderBase {
+    explicit HolderImpl(const std::shared_ptr<ThreadsafeQueue<T>>& q)
+        : queue_(q) {}
+
+    std::shared_ptr<ThreadsafeQueue<T>> queue_;
+  };
+  std::shared_ptr<HolderBase> storage_;
+};
+
 template <typename T>
 ThreadsafeQueueBase<T>::ThreadsafeQueueBase()
     : mutex_(), data_queue_(), data_cond_(), shutdown_(false) {}

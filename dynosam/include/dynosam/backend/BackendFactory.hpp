@@ -119,30 +119,53 @@ class BackendFactory
     BackendWrapper wrapper;
 
     if (this->backend_type_ == BackendType::PARALLEL_HYBRID) {
-      std::shared_ptr<ParallelHybridBackendModule> backend =
-          std::make_shared<ParallelHybridBackendModule>(params.backend_params,
-                                                        params.sensors.camera,
-                                                        params.display_queue);
+      // std::shared_ptr<ParallelHybridBackendModule> backend =
+      //     std::make_shared<ParallelHybridBackendModule>(params.backend_params,
+      //                                                   params.sensors.camera,
+      //                                                   params.display_queue);
 
-      wrapper.backend = backend;
-      // Parallel Hybrid is a special case where we have a vizualiser over the
-      // whole module
-      wrapper.backend_viz = this->createDisplay(backend);
+      // wrapper.backend = backend;
+      // // Parallel Hybrid is a special case where we have a vizualiser over
+      // the
+      // // whole module
+      // wrapper.backend_viz = this->createDisplay(backend);
       VLOG(20) << "Creating ParallelHybridBackendModule"
                << (wrapper.backend_viz ? " with additional display"
                                        : " without additional display");
 
     } else {
+      // std::shared_ptr<BackendFormulationFactory<MAP>> formulation_factory =
+      //     std::dynamic_pointer_cast<BackendFormulationFactory<MAP>>(
+      //         this->getPtr());
+
+      // CHECK_NOTNULL(formulation_factory);
+
+      // std::shared_ptr<RegularBackendModule> backend =
+      //     std::make_shared<RegularBackendModule>(
+      //         params.backend_params, params.sensors.camera,
+      //         formulation_factory, params.display_queue);
+
+      // wrapper.backend = backend;
+
+      // // the formulation is tighly wrapper in the regular backend module and
+      // can
+      // // be any formulation (while the Parallel Hybrid has to be Hybrid) so
+      // we
+      // // now retrieve the visualiser
+      // wrapper.backend_viz = backend->formulationDisplay();
+      // VLOG(20) << "Creating RegularBackendModule"
+      //          << (wrapper.backend_viz ? " with additional display"
+      //                                  : " without additional display");
       std::shared_ptr<BackendFormulationFactory<MAP>> formulation_factory =
           std::dynamic_pointer_cast<BackendFormulationFactory<MAP>>(
               this->getPtr());
 
       CHECK_NOTNULL(formulation_factory);
 
-      std::shared_ptr<RegularBackendModule> backend =
-          std::make_shared<RegularBackendModule>(
-              params.backend_params, params.sensors.camera, formulation_factory,
-              params.display_queue);
+      std::shared_ptr<RegularVIBackendModule> backend =
+          std::make_shared<RegularVIBackendModule>(params.backend_params,
+                                                   params.sensors.camera,
+                                                   formulation_factory);
 
       wrapper.backend = backend;
 
@@ -150,7 +173,7 @@ class BackendFactory
       // be any formulation (while the Parallel Hybrid has to be Hybrid) so we
       // now retrieve the visualiser
       wrapper.backend_viz = backend->formulationDisplay();
-      VLOG(20) << "Creating RegularBackendModule"
+      VLOG(20) << "Creating RegularVIBackendModule"
                << (wrapper.backend_viz ? " with additional display"
                                        : " without additional display");
     }

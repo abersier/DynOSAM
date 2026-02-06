@@ -496,17 +496,23 @@ void DynoPipelineManager::loadPoseChangeModules(
     VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
     BackendModuleDisplay::Ptr& external_backend_display_out) {}
 
+// TODO: what we should get out are the two OutputReigstras for the frontend AND
+// the backend
+//  since we always know these types (i.e DynosamState/Realtime output)
+//  then register these with VIZ if necessary?
 void DynoPipelineManager::loadRegularOrParallelHybridModules(
     Camera::Ptr camera, BackendModuleFactory::Ptr factory,
     VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
     BackendModuleDisplay::Ptr& external_backend_display_out) {
-  frontend_out =
+  auto regular_vi_frontend =
       std::make_shared<RegularVIFrontend>(params_, camera, &display_queue_);
   LOG(INFO) << "Made RegularVIFrontend";
 
   FrontendPipelineV1::UniquePtr frontend_pipeline_derived =
       std::make_unique<FrontendPipelineV1>(
-          "frontend-pipeline", &frontend_input_queue_, frontend_out);
+          "frontend-pipeline", &frontend_input_queue_, regular_vi_frontend);
+
+  frontend_out = regular_vi_frontend;
 
   const auto parallel_run = params_.parallelRun();
   frontend_pipeline_derived->parallelRun(parallel_run);
@@ -517,17 +523,60 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
   if (FLAGS_use_backend) {
     LOG(INFO) << "Construcing Backend";
 
-    // params_.backend_params_.full_batch_frame = data_loader_->datasetSize();;
-    // Sensors sensors;
-    // sensors.camera = camera;
+    params_.backend_params_.full_batch_frame = data_loader_->datasetSize();
+    ;
+    Sensors sensors;
+    sensors.camera = camera;
 
-    // ModuleParams module_params;
-    // module_params.backend_params = params_.backend_params_;
-    // module_params.sensors = sensors;
-    // module_params.display_queue = &display_queue_;
+    // TODO: display queue not used anymore!!!
+    ModuleParams module_params;
+    module_params.backend_params = params_.backend_params_;
+    module_params.sensors = sensors;
+    module_params.display_queue = &display_queue_;
 
     // // this should be Backend::Ptr not backend module
-    // BackendWrapper backend_wrapper = factory->createModule(module_params);
+    BackendWrapper backend_wrapper = factory->createModule(module_params);
+
+    using VisionIMUBackendModule = BackendModuleV1T<MapVision, VisionImuPacket>;
+    auto vision_imu_backend_module =
+        std::dynamic_pointer_cast<VisionIMUBackendModule>(
+            backend_wrapper.backend);
+
+    if (vision_imu_backend_module) {
+      // TODO: better naming options for pipelines since they now all output
+      // DynosamState!!!
+      using VisionImuPipeline =
+          PipelineModuleProcessor<VisionImuPacket, State1>;
+      using VisionImuQueue = VisionImuPipeline::InputQueue;
+
+      // construct backend pipeline and connect from frontend!!
+      std::shared_ptr<VisionImuQueue> backend_input_queue =
+          std::make_shared<VisionImuQueue>();
+      std::unique_ptr<VisionImuPipeline> backend_pipeline =
+          std::make_unique<VisionImuPipeline>("regular-vi-pipeline",
+                                              backend_input_queue.get(),
+                                              vision_imu_backend_module);
+      backend_pipeline->parallelRun(parallel_run);
+
+      // register output function from frontend
+      regular_vi_frontend->addVIOutputSink(
+          [backend_input_queue](const VisionImuPacket::ConstPtr& vi_packet) {
+            CHECK(backend_input_queue);
+            backend_input_queue->push(vi_packet);
+          });
+
+      // create storage object for queue since we currently use raw-pointers!
+      // EEK!
+      backend_input_queue_ = GenericThreadSafeQueueHolder(backend_input_queue);
+      backend_pipeline_ = std::move(backend_pipeline);
+    } else {
+      // TODO: make exception!!
+      LOG(FATAL) << "IS BAD";
+    }
+
+    // LOG(FATAL) << "Testing";
+
+    // try cast to regular (it should be regular!!!)
 
     // backend_out = backend_wrapper.backend;
     // external_backend_display_out = backend_wrapper.backend_viz;

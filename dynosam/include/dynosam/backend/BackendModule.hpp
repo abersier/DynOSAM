@@ -74,6 +74,7 @@ class Backend {
   virtual ~Backend() {}
 };
 
+// What we mean is DynosamState (all!!!)
 struct State1 {
   DYNO_POINTER_TYPEDEFS(State1)
 };
@@ -82,13 +83,19 @@ struct State1 {
 template <typename INPUT>
 class BackendModuleV1 : public ModuleBase<INPUT, State1>, public Backend {
  public:
-  BackendModuleV1(const BackendParams& params);
-  virtual ~BackendModuleV1() = default;
-
   using Base = ModuleBase<INPUT, State1>;
   using Base::SpinReturn;
 
+  BackendModuleV1(const BackendParams& params)
+      : Base("backend"),
+        backend_params_(params),
+        noise_models_(NoiseModels::fromBackendParams(params)) {}
+  virtual ~BackendModuleV1() = default;
+
   // something about callback here too?
+  // and get noise models!
+  const BackendParams& getParams() const { return backend_params_; }
+  const NoiseModels& getNoiseModels() const { return noise_models_; }
 
   /**
    * @brief Get the accessor the the underlying formulation, allowing the
@@ -102,15 +109,13 @@ class BackendModuleV1 : public ModuleBase<INPUT, State1>, public Backend {
 
  private:
   // called in ModuleBase immediately before the spin function is called
-  virtual void validateInput(
-      const typename Base::InputConstPtr& input) const override;
-
-  void setFactorParams(const BackendParams& backend_params);
+  virtual inline void validateInput(
+      const typename Base::InputConstPtr& input) const override {}
 
  private:
   // TODO: maybe put in Backend
-  const BackendParams base_params_;
-  NoiseModels noise_models_;
+  const BackendParams backend_params_;
+  const NoiseModels noise_models_;
 };
 
 // For modules that have a single internal map
@@ -119,9 +124,11 @@ template <typename MAP, typename INPUT>
 class BackendModuleV1T : public BackendModuleV1<INPUT> {
  public:
   using MapT = MAP;
+  using Base = BackendModuleV1<INPUT>;
   using FormulationT = Formulation<MapT>;
 
-  BackendModuleV1T(const BackendParams& params);
+  BackendModuleV1T(const BackendParams& params)
+      : Base(params), map_(MapT::create()) {}
   virtual ~BackendModuleV1T() = default;
 
   const typename MapT::Ptr getMap() { return map_; }

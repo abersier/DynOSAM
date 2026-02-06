@@ -46,18 +46,32 @@
 
 namespace dyno {
 
+// VisionImuPacket is bascially "regular/sequenitial input..."
+// BackendModuleV1T<MapVision, VisionImuPacket> is a common "regular" layer
+// between PH and Regular Maybe we call it VisionImuModule?
+
 // using RegularFormulationFactory =
 //     BackendFormulationFactory<RegularBackendModuleTraits::MapType>;
 
 // TODO: opt should go in base class if easy to abstract away?
 //  only regular has the getformulation display and the factory
 //  everything else should act as its own module
+// Make
+
 class RegularVIBackendModule
     : public BackendModuleV1T<MapVision, VisionImuPacket> {
  public:
-  // TODO: factory
+  using Factory = BackendFormulationFactory<MapVision>;
+
   using Base = BackendModuleV1T<MapVision, VisionImuPacket>;
   DYNO_POINTER_TYPEDEFS(RegularVIBackendModule)
+
+  RegularVIBackendModule(const BackendParams& backend_params,
+                         Camera::Ptr camera, std::shared_ptr<Factory> factory);
+
+  // bring over comment!!
+  RegularVIBackendModule(const BackendParams& backend_params,
+                         Camera::Ptr camera, const BackendType& backend_type);
 
   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
       const override;
@@ -70,6 +84,10 @@ class RegularVIBackendModule
   using SpinReturn = Base::SpinReturn;
   SpinReturn boostrapSpin(VisionImuPacket::ConstPtr input) override;
   SpinReturn nominalSpin(VisionImuPacket::ConstPtr input) override;
+
+ private:
+  void setupOptimizers();
+  void setupFormulation(std::shared_ptr<Factory> factor);
 
   VIOFormulation::Ptr formulation_;
   BackendModuleDisplay::Ptr formulation_display_;

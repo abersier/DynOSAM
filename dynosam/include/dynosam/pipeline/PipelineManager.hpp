@@ -51,6 +51,8 @@ namespace dyno {
 using FrontendPipelineV1 =
     PipelineModuleProcessor<FrontendInputPacketBase, RealtimeOutput>;
 
+namespace internal {}
+
 class DynoPipelineManager {
  public:
   DYNO_POINTER_TYPEDEFS(DynoPipelineManager)
@@ -123,6 +125,8 @@ class DynoPipelineManager {
   PipelineBase::UniquePtr backend_pipeline_{nullptr};
   // FrontendPipeline::OutputQueue backend_input_queue_;
   // BackendPipeline::OutputQueue backend_output_queue_;
+
+  GenericThreadSafeQueueHolder backend_input_queue_;
 
   // Data-provider pointers
   DataInterfacePipeline::UniquePtr data_interface_;

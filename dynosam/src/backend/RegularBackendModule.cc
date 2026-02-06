@@ -78,6 +78,55 @@ DEFINE_bool(
 
 namespace dyno {
 
+RegularVIBackendModule::RegularVIBackendModule(
+    const BackendParams& backend_params, Camera::Ptr camera,
+    std::shared_ptr<RegularVIBackendModule::Factory> factory)
+    : Base(backend_params) {
+  setupOptimizers();
+  setupFormulation(factory);
+}
+
+RegularVIBackendModule::RegularVIBackendModule(
+    const BackendParams& backend_params, Camera::Ptr camera,
+    const BackendType& backend_type)
+    : RegularVIBackendModule(
+          backend_params, camera,
+          DefaultBackendFactory<MapVision>::Create(backend_type)) {}
+
+std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
+RegularVIBackendModule::getActiveOptimisation() const {
+  LOG(FATAL) << "TODO";
+}
+
+Accessor::Ptr RegularVIBackendModule::getAccessor() {
+  return formulation_->getAsVIOAccessor();
+}
+
+const VIOFormulation::Ptr RegularVIBackendModule::formulation() const {
+  return formulation_;
+}
+
+BackendModuleDisplay::Ptr RegularVIBackendModule::formulationDisplay() const {
+  return formulation_display_;
+}
+
+RegularVIBackendModule::SpinReturn RegularVIBackendModule::boostrapSpin(
+    VisionImuPacket::ConstPtr input) {
+  LOG(INFO) << "In RegularVIBackendModule boostrap " << input->frameId();
+  return {State::Nominal, nullptr};
+}
+
+RegularVIBackendModule::SpinReturn RegularVIBackendModule::nominalSpin(
+    VisionImuPacket::ConstPtr input) {
+  LOG(INFO) << "In RegularVIBackendModule nominal " << input->frameId();
+  return {State::Nominal, nullptr};
+}
+
+void RegularVIBackendModule::setupOptimizers() {}
+void RegularVIBackendModule::setupFormulation(std::shared_ptr<Factory> factor) {
+
+}
+
 RegularBackendModule::RegularBackendModule(
     const BackendParams& backend_params, Camera::Ptr camera,
     std::shared_ptr<RegularFormulationFactory> factory,

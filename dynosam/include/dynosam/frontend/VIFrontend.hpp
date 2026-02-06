@@ -131,6 +131,8 @@ class VIFrontend : public Frontend {
   FeatureTracker::UniquePtr tracker_;
 };
 
+// maybe a better name is VIModule or something? Depends on what we mean by
+// regular!!!
 using RegularBackendSink =
     std::function<void(const VisionImuPacket::ConstPtr&)>;
 
@@ -140,6 +142,10 @@ class RegularVIFrontend : public VIFrontend {
   DYNO_POINTER_TYPEDEFS(RegularVIFrontend)
   RegularVIFrontend(const DynoParams& params, Camera::Ptr camera,
                     ImageDisplayQueue* display_queue = nullptr);
+
+  void addVIOutputSink(const RegularBackendSink& func) {
+    regular_backend_output_sink_ = func;
+  };
 
  private:
   SpinReturn boostrapSpin(FrontendInputPacketBase::ConstPtr input) override;
@@ -161,6 +167,8 @@ class RegularVIFrontend : public VIFrontend {
 
   //! Current trajectories. Copied to the DynoState output
   DynoStateTrajectories dyno_state_;
+
+  RegularBackendSink regular_backend_output_sink_;
 };
 
 class PoseChangeVIFrontend : public VIFrontend {

@@ -263,6 +263,10 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::boostrapSpin(
   // TODO: fill measurements
   // TODO: send to backend
 
+  if (regular_backend_output_sink_) {
+    regular_backend_output_sink_(vision_imu_packet);
+  }
+
   dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
                                        gtsam::Pose3::Identity());
 
@@ -380,6 +384,10 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
   // }
 
   // TODO: log!
+
+  if (regular_backend_output_sink_) {
+    regular_backend_output_sink_(vision_imu_packet);
+  }
 
   return {State::Nominal, realtime_output};
 }
