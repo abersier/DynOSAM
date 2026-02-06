@@ -48,9 +48,6 @@ class WorldMotionAccessor : public WorldPoseAccessor {
   StateQuery<gtsam::Pose3> getObjectPose(FrameId frame_id,
                                          ObjectId object_id) const override;
 
-  inline ObjectPoseMap getObjectPoses() const override {
-    return object_pose_cache_;
-  }
   EstimateMap<ObjectId, gtsam::Pose3> getObjectPoses(
       FrameId frame_id) const override;
 
@@ -64,8 +61,7 @@ class WorldMotionAccessor : public WorldPoseAccessor {
   void refreshPoseCache();
 
  private:
-  ObjectPoseMap object_pose_cache_;  //! Updated every time set/update theta is
-                                     //! called via the postUpdateCallback
+  MultiObjectTrajectories object_trajectory_cache_;
 };
 
 class WorldMotionFormulation : public WorldPoseFormulation {

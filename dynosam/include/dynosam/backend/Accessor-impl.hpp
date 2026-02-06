@@ -101,45 +101,45 @@ AccessorT<MAP, DerivedAccessor>::getObjectPoses(FrameId frame_id) const {
   return pose_estimates;
 }
 
-template <class MAP, class DerivedAccessor>
-ObjectPoseMap AccessorT<MAP, DerivedAccessor>::getObjectPoses() const {
-  ObjectPoseMap object_poses;
-  for (FrameId frame_id : map()->getFrameIds()) {
-    EstimateMap<ObjectId, gtsam::Pose3> per_object_pose =
-        this->getObjectPoses(frame_id);
+// template <class MAP, class DerivedAccessor>
+// ObjectPoseMap AccessorT<MAP, DerivedAccessor>::getObjectPoses() const {
+//   ObjectPoseMap object_poses;
+//   for (FrameId frame_id : map()->getFrameIds()) {
+//     EstimateMap<ObjectId, gtsam::Pose3> per_object_pose =
+//         this->getObjectPoses(frame_id);
 
-    for (const auto& [object_id, pose] : per_object_pose) {
-      object_poses.insert22(object_id, frame_id, pose);
-      // if (!object_poses.exists(object_id)) {
-      //   object_poses.insert2(object_id,
-      //                        gtsam::FastMap<FrameId, gtsam::Pose3>{});
-      // }
+//     for (const auto& [object_id, pose] : per_object_pose) {
+//       object_poses.insert22(object_id, frame_id, pose);
+//       // if (!object_poses.exists(object_id)) {
+//       //   object_poses.insert2(object_id,
+//       //                        gtsam::FastMap<FrameId, gtsam::Pose3>{});
+//       // }
 
-      // auto& per_frame_pose = object_poses.at(object_id);
-      // per_frame_pose.insert2(frame_id, pose);
-    }
-  }
-  return object_poses;
-}
+//       // auto& per_frame_pose = object_poses.at(object_id);
+//       // per_frame_pose.insert2(frame_id, pose);
+//     }
+//   }
+//   return object_poses;
+// }
 
-template <class MAP, class DerivedAccessor>
-ObjectMotionMap AccessorT<MAP, DerivedAccessor>::getObjectMotions() const {
-  ObjectMotionMap object_motions;
-  for (FrameId frame_id : map()->getFrameIds()) {
-    MotionEstimateMap per_object_motions = this->getObjectMotions(frame_id);
+// template <class MAP, class DerivedAccessor>
+// ObjectMotionMap AccessorT<MAP, DerivedAccessor>::getObjectMotions() const {
+//   ObjectMotionMap object_motions;
+//   for (FrameId frame_id : map()->getFrameIds()) {
+//     MotionEstimateMap per_object_motions = this->getObjectMotions(frame_id);
 
-    for (const auto& [object_id, motion] : per_object_motions) {
-      object_motions.insert22(object_id, frame_id, motion);
-      // if (!object_motions.exists(object_id)) {
-      //   object_motions.insert2(object_id, ObjectMotionMap::NestedBase{});
-      // }
+//     for (const auto& [object_id, motion] : per_object_motions) {
+//       object_motions.insert22(object_id, frame_id, motion);
+//       // if (!object_motions.exists(object_id)) {
+//       //   object_motions.insert2(object_id, ObjectMotionMap::NestedBase{});
+//       // }
 
-      // auto& per_frame_motion = object_motions.at(object_id);
-      // per_frame_motion.insert2(frame_id, motion);
-    }
-  }
-  return object_motions;
-}
+//       // auto& per_frame_motion = object_motions.at(object_id);
+//       // per_frame_motion.insert2(frame_id, motion);
+//     }
+//   }
+//   return object_motions;
+// }
 
 template <class MAP, class DerivedAccessor>
 StatusLandmarkVector
@@ -189,6 +189,71 @@ AccessorT<MAP, DerivedAccessor>::getDynamicLandmarkEstimates(
     }
   }
   return estimates;
+}
+
+template <class MAP, class DerivedAccessor>
+PoseTrajectory AccessorT<MAP, DerivedAccessor>::getCameraTrajectory() const {
+  PoseTrajectory pose_trajectory;
+
+  for (const auto& [frame_id, frame_node] : map()->getFrames()) {
+    const Timestamp timestamp = frame_node->timestamp;
+    const gtsam::Pose3 X_W_k =
+        DYNO_GET_QUERY_DEBUG(this->getSensorPose(frame_id));
+
+    pose_trajectory.insert(frame_id, timestamp, X_W_k);
+  }
+
+  return pose_trajectory;
+}
+
+template <class MAP, class DerivedAccessor>
+PoseTrajectory AccessorT<MAP, DerivedAccessor>::getObjectPoseTrajectory(
+    ObjectId object_id) const {
+  const auto object_node = map()->getObject(object_id);
+
+  if (!object_node) {
+    return PoseTrajectory{};
+  }
+
+  PoseTrajectory pose_trajectory;
+  for (const auto& frame_node : object_node->getSeenFrames()) {
+    const FrameId frame_id = frame_node->frame_id;
+    const Timestamp timestamp = frame_node->timestamp;
+
+    StateQuery<gtsam::Pose3> object_pose =
+        this->getObjectPose(frame_id, object_id);
+
+    if (object_pose) {
+      pose_trajectory.insert(frame_id, timestamp, object_pose.value());
+    }
+  }
+
+  return pose_trajectory;
+}
+
+template <class MAP, class DerivedAccessor>
+MotionTrajetory AccessorT<MAP, DerivedAccessor>::getObjectMotionTrajectory(
+    ObjectId object_id) const {
+  const auto object_node = map()->getObject(object_id);
+
+  if (!object_node) {
+    return MotionTrajetory{};
+  }
+
+  MotionTrajetory motion_trajectory;
+  for (const auto& frame_node : object_node->getSeenFrames()) {
+    const FrameId frame_id = frame_node->frame_id;
+    const Timestamp timestamp = frame_node->timestamp;
+
+    StateQuery<Motion3ReferenceFrame> object_motion =
+        this->getObjectMotionReferenceFrame(frame_id, object_id);
+
+    if (object_motion) {
+      motion_trajectory.insert(frame_id, timestamp, object_motion.value());
+    }
+  }
+
+  return motion_trajectory;
 }
 
 template <class MAP, class DerivedAccessor>

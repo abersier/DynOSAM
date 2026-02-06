@@ -71,6 +71,7 @@ enum BackendType : int {
 // TODO: this information is sort of duplicated when the ROS odometry messages
 // are constructed.
 //  streamline!!
+// TODO: can now get rid of this becuase we have trajectrorie!!
 struct TemporalObjectMetaData {
   //! ID of the object
   ObjectId object_id;

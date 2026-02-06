@@ -739,8 +739,8 @@ BackendOutputPacket::Ptr RegularBackendModule::constructOutputPacket(
     backend_output->temporal_object_data.push_back(temporal_object_info);
   }
 
-  backend_output->optimized_object_motions = accessor->getObjectMotions();
-  backend_output->optimized_object_poses = accessor->getObjectPoses();
+  // backend_output->optimized_object_motions = accessor->getObjectMotions();
+  // backend_output->optimized_object_poses = accessor->getObjectPoses();
 
   const auto [active_values, active_graph] = this->getActiveOptimisation();
   backend_output->active_values = active_values;

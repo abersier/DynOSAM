@@ -140,8 +140,13 @@ class ParallelObjectISAM {
   // guess....
   Motion3ReferenceFrame getKeyFramedMotion(FrameId frame_id) const;
 
-  // all frames
-  ObjectPoseMap getObjectPoses() const { return accessor_->getObjectPoses(); }
+  // // all frames
+  // ObjectPoseMap getObjectPoses() const { return accessor_->getObjectPoses();
+  // }
+  PoseTrajectory getObjectPoseTrajectory() const {
+    return accessor_->getObjectPoseTrajectory(object_id_);
+  }
+
   // all frames
   ObjectMotionMap getFrame2FrameMotions() const;
   ObjectMotionMap getKeyFramedMotions() const;

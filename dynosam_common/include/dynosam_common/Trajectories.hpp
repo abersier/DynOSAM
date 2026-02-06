@@ -249,6 +249,11 @@ class PoseTrajectory : public TrajectoryBase<gtsam::Pose3> {
   PoseTrajectory() : TrajectoryBase<gtsam::Pose3>() {}
 };
 
+class MotionTrajetory : public TrajectoryBase<Motion3ReferenceFrame> {
+ public:
+  MotionTrajetory() : TrajectoryBase<Motion3ReferenceFrame>() {}
+};
+
 struct PoseWithMotion {
   gtsam::Pose3 pose;
   Motion3ReferenceFrame motion;
@@ -298,6 +303,7 @@ class MultiObjectTrajectories
   Timestamp lastTimestamp() const;
 
   // Slow - mostly needed for backwards compatability
+  // TODO: actually not needed I think!!
   ObjectPoseMap toObjectPoseMap() const;
   ObjectMotionMap toObjectMotionMap() const;
 

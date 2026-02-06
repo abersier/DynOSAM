@@ -631,12 +631,12 @@ BackendOutputPacket::Ptr ParallelHybridBackendModule::constructOutputPacket(
       continue;
     }
 
-    const ObjectPoseMap per_object_poses = estimator->getObjectPoses();
-    const ObjectMotionMap per_object_motions =
-        estimator->getFrame2FrameMotions();
+    // const ObjectPoseMap per_object_poses = estimator->getObjectPoses();
+    // const ObjectMotionMap per_object_motions =
+    //     estimator->getFrame2FrameMotions();
 
-    backend_output->optimized_object_motions += per_object_motions;
-    backend_output->optimized_object_poses += per_object_poses;
+    // backend_output->optimized_object_motions += per_object_motions;
+    // backend_output->optimized_object_poses += per_object_poses;
 
     const auto& map = estimator->map();
     const auto& object_node = map->getObject(object_id);
@@ -861,24 +861,46 @@ MotionEstimateMap ParallelHybridAccessor::getObjectMotions(
   return all_motions;
 }
 
-ObjectPoseMap ParallelHybridAccessor::getObjectPoses() const {
-  ObjectPoseMap all_poses;
-  const auto& object_estimators = parallel_hybrid_module_->sam_estimators_;
-  for (const auto& [object_id, estimator] : object_estimators) {
-    auto poses = estimator->accessor()->getObjectPoses();
-    all_poses.insert(poses.begin(), poses.end());
-  }
-  return all_poses;
-}
+// ObjectPoseMap ParallelHybridAccessor::getObjectPoses() const {
+//   ObjectPoseMap all_poses;
+//   const auto& object_estimators = parallel_hybrid_module_->sam_estimators_;
+//   for (const auto& [object_id, estimator] : object_estimators) {
+//     auto poses = estimator->accessor()->getObjectPoses();
+//     all_poses.insert(poses.begin(), poses.end());
+//   }
+//   return all_poses;
+// }
 
-ObjectMotionMap ParallelHybridAccessor::getObjectMotions() const {
-  ObjectMotionMap all_motions;
-  const auto& object_estimators = parallel_hybrid_module_->sam_estimators_;
-  for (const auto& [object_id, estimator] : object_estimators) {
-    auto motions = estimator->accessor()->getObjectMotions();
-    all_motions.insert(motions.begin(), motions.end());
-  }
-  return all_motions;
+// ObjectMotionMap ParallelHybridAccessor::getObjectMotions() const {
+//   ObjectMotionMap all_motions;
+//   const auto& object_estimators = parallel_hybrid_module_->sam_estimators_;
+//   for (const auto& [object_id, estimator] : object_estimators) {
+//     auto motions = estimator->accessor()->getObjectMotions();
+//     all_motions.insert(motions.begin(), motions.end());
+//   }
+//   return all_motions;
+// }
+
+PoseTrajectory ParallelHybridAccessor::getCameraTrajectory() const {
+  return static_accessor_->getCameraTrajectory();
+}
+PoseTrajectory ParallelHybridAccessor::getObjectPoseTrajectory(
+    ObjectId object_id) const {
+  return withOr(
+      object_id,
+      [&object_id](ParallelObjectISAM::Ptr estimator) {
+        return estimator->accessor()->getObjectPoseTrajectory(object_id);
+      },
+      []() { return PoseTrajectory{}; });
+}
+MotionTrajetory ParallelHybridAccessor::getObjectMotionTrajectory(
+    ObjectId object_id) const {
+  return withOr(
+      object_id,
+      [&object_id](ParallelObjectISAM::Ptr estimator) {
+        return estimator->accessor()->getObjectMotionTrajectory(object_id);
+      },
+      []() { return MotionTrajetory{}; });
 }
 
 StatusLandmarkVector ParallelHybridAccessor::getDynamicLandmarkEstimates(

@@ -130,23 +130,27 @@ class Accessor {
    */
   virtual MotionEstimateMap getObjectMotions(FrameId frame_id) const = 0;
 
-  /**
-   * @brief Collects all object poses for frame 0 to K.
-   * (Non-pure)Virtual function that may be overwritten.
-   *
-   * @return ObjectPoseMap
-   */
-  virtual ObjectPoseMap getObjectPoses() const = 0;
+  //   //TODO: depricate
+  //   /**
+  //    * @brief Collects all object poses for frame 0 to K.
+  //    * (Non-pure)Virtual function that may be overwritten.
+  //    *
+  //    * @return ObjectPoseMap
+  //    */
+  //   virtual ObjectPoseMap getObjectPoses() const = 0;
 
-  /**
-   * @brief Collects all object motions from 1 to K (with the first motion being
-   * from k-1 to k). (Non-pure) Virtual function that may be overwritten -
-   * default implementation uses the pure-virtual getObjectPoses to collect all
-   * motions.
-   *
-   * @return ObjectMotionMap
-   */
-  virtual ObjectMotionMap getObjectMotions() const = 0;
+  //     //TODO: depricate
+  //   /**
+  //    * @brief Collects all object motions from 1 to K (with the first motion
+  //    being
+  //    * from k-1 to k). (Non-pure) Virtual function that may be overwritten -
+  //    * default implementation uses the pure-virtual getObjectPoses to collect
+  //    all
+  //    * motions.
+  //    *
+  //    * @return ObjectMotionMap
+  //    */
+  //   virtual ObjectMotionMap getObjectMotions() const = 0;
 
   /**
    * @brief Get all dynamic landmarks for all objects (\mathcal{J}_k) at
@@ -223,6 +227,15 @@ class Accessor {
    */
   virtual gtsam::FastMap<ObjectId, gtsam::Point3> computeObjectCentroids(
       FrameId frame_id) const = 0;
+
+  virtual PoseTrajectory getCameraTrajectory() const = 0;
+  virtual PoseTrajectory getObjectPoseTrajectory(ObjectId object_id) const = 0;
+  virtual MotionTrajetory getObjectMotionTrajectory(
+      ObjectId object_id) const = 0;
+
+  MultiObjectTrajectories getMultiObjectTrajectories() const;
+
+  // PoseEstimateMap getObjectPoses()
 
   /**
    * @brief Get all landmarks (static and dynamic) at time-step k.
@@ -406,25 +419,30 @@ class AccessorT : public DerivedAccessor {
    */
   MotionEstimateMap getObjectMotions(FrameId frame_id) const override;
 
-  /**
-   * @brief Collects all object poses for frame 0 to K.
-   * (Non-pure )Virtual function that may be overwritten - default
-   * implementation uses the pure-virtual getObjectPoses to collect all poses.
-   *
-   * @return ObjectPoseMap
-   */
-  virtual ObjectPoseMap getObjectPoses() const override;
+  //   // TODO: depricate
+  //   /**
+  //    * @brief Collects all object poses for frame 0 to K.
+  //    * (Non-pure )Virtual function that may be overwritten - default
+  //    * implementation uses the pure-virtual getObjectPoses to collect all
+  //    poses.
+  //    *
+  //    * @return ObjectPoseMap
+  //    */
+  //   virtual ObjectPoseMap getObjectPoses() const override;
 
-  /**
-   * @brief Collects all object motions from 1 to K (with the first motion being
-   * from k-1 to k).
-   *
-   * Default implementation uses the pure-virtual getObjectPoses to collect all
-   * motions.
-   *
-   * @return ObjectMotionMap
-   */
-  virtual ObjectMotionMap getObjectMotions() const override;
+  //   // TODO: depricate
+  //   /**
+  //    * @brief Collects all object motions from 1 to K (with the first motion
+  //    being
+  //    * from k-1 to k).
+  //    *
+  //    * Default implementation uses the pure-virtual getObjectPoses to collect
+  //    all
+  //    * motions.
+  //    *
+  //    * @return ObjectMotionMap
+  //    */
+  //   virtual ObjectMotionMap getObjectMotions() const override;
 
   /**
    * @brief Get all dynamic landmarks for all objects (\mathcal{J}_k) at
@@ -505,6 +523,10 @@ class AccessorT : public DerivedAccessor {
    */
   gtsam::FastMap<ObjectId, gtsam::Point3> computeObjectCentroids(
       FrameId frame_id) const override;
+
+  PoseTrajectory getCameraTrajectory() const override;
+  PoseTrajectory getObjectPoseTrajectory(ObjectId object_id) const override;
+  MotionTrajetory getObjectMotionTrajectory(ObjectId object_id) const override;
 
   boost::optional<const gtsam::Value&> getValueImpl(
       const gtsam::Key key) const override;

@@ -888,7 +888,7 @@ void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
   //  CHECK_NOTNULL(backend_info.backend_params);
   //  const auto& backend_params = *backend_info.backend_params;
 
-  const ObjectPoseMap object_pose_map = accessor->getObjectPoses();
+  // const ObjectPoseMap object_pose_map = accessor->getObjectPoses();
 
   for (FrameId frame_k : map->getFrameIds()) {
     // TODO: hack - only go up to frames < full batch so we actually only
@@ -923,7 +923,8 @@ void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
       LOG(WARNING) << "Could not log camera pose estimate at frame " << frame_k;
     }
 
-    logger->logObjectPose(object_pose_map, ground_truth_packets);
+    // TODO: log!!
+    //  logger->logObjectPose(object_pose_map, ground_truth_packets);
 
     if (map->frameExists(frame_k)) {
       auto static_map = accessor->getStaticLandmarkEstimates(frame_k);

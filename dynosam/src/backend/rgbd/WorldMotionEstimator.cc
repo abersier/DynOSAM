@@ -57,12 +57,21 @@ StateQuery<gtsam::Pose3> WorldMotionAccessor::getObjectPose(
 EstimateMap<ObjectId, gtsam::Pose3> WorldMotionAccessor::getObjectPoses(
     FrameId frame_id) const {
   EstimateMap<ObjectId, gtsam::Pose3> object_poses;
-  // for each object, go over the cached object poses and check if that object
-  // has a pose at the query frame
-  for (const auto& [object_id, pose] :
-       object_pose_cache_.collectByFrame(frame_id)) {
-    object_poses.insert2(object_id, ReferenceFrameValue<gtsam::Pose3>(
-                                        pose, ReferenceFrame::GLOBAL));
+  // // for each object, go over the cached object poses and check if that
+  // object
+  // // has a pose at the query frame
+  // for (const auto& [object_id, pose] :
+  //      object_pose_cache_.collectByFrame(frame_id)) {
+  //   object_poses.insert2(object_id, ReferenceFrameValue<gtsam::Pose3>(
+  //                                       pose, ReferenceFrame::GLOBAL));
+  // }
+  // return object_poses;
+
+  const auto entires = object_trajectory_cache_.entriesAtFrame(frame_id);
+  for (const auto& [object_id, entry] : entires) {
+    object_poses.insert2(
+        object_id, ReferenceFrameValue<gtsam::Pose3>(entry.data.pose,
+                                                     ReferenceFrame::GLOBAL));
   }
   return object_poses;
 }
@@ -72,12 +81,12 @@ void WorldMotionAccessor::refreshPoseCache() {
   // update object_pose_cache_ with new values
   // this means we have to start again at the first frame and update all the
   // poses!!
-  ObjectPoseMap object_poses;
   const auto frames = map()->getFrames();
   auto frame_itr = frames.begin();
 
   const auto& gt_packet_map = hooks().ground_truth_packets_request();
 
+  object_trajectory_cache_.clear();
   // advance itr one so we're now at the second frame
   std::advance(frame_itr, 1);
   for (auto itr = frame_itr; itr != frames.end(); itr++) {
@@ -88,6 +97,8 @@ void WorldMotionAccessor::refreshPoseCache() {
     const auto [frame_id_k, frame_k_ptr] = *itr;
     const auto [frame_id_k_1, frame_k_1_ptr] = *prev_itr;
     CHECK_EQ(frame_id_k_1 + 1, frame_id_k);
+
+    const Timestamp timestamp_k = frame_k_ptr->timestamp;
 
     // collect all object centoids from the latest estimate
     gtsam::FastMap<ObjectId, gtsam::Point3> centroids_k =
@@ -115,13 +126,24 @@ void WorldMotionAccessor::refreshPoseCache() {
       if (!gt_packet_map)
         LOG(WARNING) << "FLAGS_init_object_pose_from_gt is true but gt_packet "
                         "map not provided!";
-      dyno::propogateObjectPoses(
-          object_poses, motion_estimates, object_centroids_k_1,
-          object_centroids_k, frame_id_k, gt_packet_map, &propogation_result);
+      // dyno::propogateObjectPoses(
+      //     object_poses, motion_estimates, object_centroids_k_1,
+      //     object_centroids_k, frame_id_k, gt_packet_map,
+      //     &propogation_result);
+      dyno::propogateObjectTrajectory(
+          object_trajectory_cache_, motion_estimates, object_centroids_k_1,
+          object_centroids_k, frame_id_k, timestamp_k, frame_id_k_1,
+          gt_packet_map, &propogation_result);
+
     } else {
-      dyno::propogateObjectPoses(object_poses, motion_estimates,
-                                 object_centroids_k_1, object_centroids_k,
-                                 frame_id_k, std::nullopt, &propogation_result);
+      // dyno::propogateObjectPoses(object_poses, motion_estimates,
+      //                            object_centroids_k_1, object_centroids_k,
+      //                            frame_id_k, std::nullopt,
+      //                            &propogation_result);
+      dyno::propogateObjectTrajectory(
+          object_trajectory_cache_, motion_estimates, object_centroids_k_1,
+          object_centroids_k, frame_id_k, timestamp_k, frame_id_k_1,
+          std::nullopt, &propogation_result);
     }
 
     if (VLOG_IS_ON(20)) {
@@ -144,7 +166,6 @@ void WorldMotionAccessor::refreshPoseCache() {
   }
 
   VLOG(50) << "Updated object pose cache";
-  object_pose_cache_ = object_poses;
   LOG(INFO) << "ending MotionWorldAccessor::postUpdateCallback";
 }
 

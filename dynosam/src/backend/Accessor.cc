@@ -63,6 +63,8 @@ StateQuery<Motion3ReferenceFrame> Accessor::getObjectMotionReferenceFrame(
   }
 }
 
+MultiObjectTrajectories Accessor::getMultiObjectTrajectories() const {}
+
 bool Accessor::exists(gtsam::Key key) const {
   return (bool)this->getValueImpl(key);
 }
