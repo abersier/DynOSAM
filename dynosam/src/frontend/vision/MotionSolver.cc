@@ -1455,8 +1455,8 @@ void ObjectMotionSolverFilter::fillHybridInfo(
   for (const auto& [tracklet_id, m_L] : fixed_points) {
     hybrid_info.initial_object_points.push_back(LandmarkStatus::Dynamic(
         // currently no covariance!
-        Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, tracklet_id,
-        object_id, ReferenceFrame::OBJECT));
+        Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, NaN,
+        tracklet_id, object_id, ReferenceFrame::OBJECT));
   }
 
   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "

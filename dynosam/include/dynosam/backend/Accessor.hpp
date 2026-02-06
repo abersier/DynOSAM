@@ -33,6 +33,7 @@
 #include <mutex>
 
 #include "dynosam/backend/BackendDefinitions.hpp"
+#include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_opt/Map.hpp"
 

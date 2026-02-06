@@ -301,13 +301,13 @@ struct MotionReferenceFrame : public HeavyReferenceFrameValue<E> {
 };
 
 template <typename VALUE>
-class TrackedValueStatus {
+class GenericValueTrack {
  public:
   using Value = VALUE;
-  using This = TrackedValueStatus<Value>;
+  using This = GenericValueTrack<Value>;
 
   // Constexpr value used for the frame_id when it is NA (not applicable)
-  // this may be the case when the TrackedValueStatus object represents a
+  // this may be the case when the GenericValueTrack object represents a
   // time-invariant value (e.g a static point) and the value of the frame_id is
   // therefore meaingless NOTE:this is possibly dangerous if we are not careful
   // with casting (e.g. int to FrameId) since the overflow coulld land us at a
@@ -315,19 +315,20 @@ class TrackedValueStatus {
   static constexpr auto MeaninglessFrame = std::numeric_limits<FrameId>::max();
 
   // for IO
-  TrackedValueStatus() {}
+  GenericValueTrack() {}
 
   // not we will have implicit casting of all other frame_ids to int here which
   // could be dangerous
-  TrackedValueStatus(const Value& value, FrameId frame_id,
-                     TrackletId tracklet_id, ObjectId label,
-                     ReferenceFrame reference_frame)
+  GenericValueTrack(const Value& value, FrameId frame_id, Timestamp timestamp,
+                    TrackletId tracklet_id, ObjectId label,
+                    ReferenceFrame reference_frame)
       : value_(value, reference_frame),
         frame_id_(frame_id),
+        timestamp_(timestamp),
         tracklet_id_(tracklet_id),
         label_(label) {}
 
-  virtual ~TrackedValueStatus() = default;
+  virtual ~GenericValueTrack() = default;
 
   /**
    * @brief Allows the casting of the internal value type to another using
@@ -336,9 +337,9 @@ class TrackedValueStatus {
    * This allows sub measurements to be extracted if T has explict cast
    * operators. e.g. struct Foo { operator Bar&(); }
    *
-   * we can use as type to construct a TrackedValueStatus<Bar> from
-   * TrackedValueStatus<Foo>: TrackedValueStatus<Foo> foo(...);
-   * TrackedValueStatus<Bar> bar = foo.asType<Bar>();
+   * we can use as type to construct a GenericValueTrack<Bar> from
+   * GenericValueTrack<Foo>: GenericValueTrack<Foo> foo(...);
+   * GenericValueTrack<Bar> bar = foo.asType<Bar>();
    *
    * This will copy over all the meta-data (e.g. frame id, label etc) but
    * replace the value with the cast Boo type. This is only possible since Foo
@@ -349,14 +350,14 @@ class TrackedValueStatus {
    * operating works.
    *
    * @tparam U
-   * @return TrackedValueStatus<U>
+   * @return GenericValueTrack<U>
    */
   template <typename U>
-  TrackedValueStatus<U> asType() const {
+  GenericValueTrack<U> asType() const {
     const U& new_measurement = static_cast<const U&>(this->value());
-    return TrackedValueStatus<U>(new_measurement, this->frameId(),
-                                 this->trackletId(), this->objectId(),
-                                 this->referenceFrame());
+    return GenericValueTrack<U>(new_measurement, this->frameId(),
+                                this->timestamp(), this->trackletId(),
+                                this->objectId(), this->referenceFrame());
   }
 
   /**
@@ -393,6 +394,13 @@ class TrackedValueStatus {
    * @return FrameId
    */
   FrameId frameId() const { return frame_id_; }
+
+  /**
+   * @brief Get timestamp for this status
+   *
+   * @return Timestamp
+   */
+  Timestamp timestamp() const { return timestamp_; }
 
   /**
    * @brief Get the reference frame the value is in. Const version.
@@ -450,7 +458,7 @@ class TrackedValueStatus {
   /**
    * @brief Returns true if frame_id is equal to MeaninglessFrame (e.g.
    * std::numeric_limits<FrameId>::quiet_NaN) and should indicatate that the
-   * value represented by this TrackedValueStatus is time-invariant, e.g. for a
+   * value represented by this GenericValueTrack is time-invariant, e.g. for a
    * static point which does not change overtime.
    * @return true
    * @return false
@@ -460,6 +468,7 @@ class TrackedValueStatus {
  protected:
   ReferenceFrameValue<Value> value_;
   FrameId frame_id_;
+  Timestamp timestamp_;
   TrackletId tracklet_id_;
   ObjectId label_;  //! Will be 0 if background
 };
@@ -469,12 +478,12 @@ class TrackedValueStatus {
 /// @tparam DERIVEDSTATUS derived type
 /// @tparam VALUE expected value to templated base Status on
 template <typename DERIVEDSTATUS, typename VALUE>
-inline constexpr bool IsDerivedTrackedValueStatus =
-    std::is_base_of_v<TrackedValueStatus<VALUE>, DERIVEDSTATUS>;
+inline constexpr bool IsDerivedGenericValueTrack =
+    std::is_base_of_v<GenericValueTrack<VALUE>, DERIVEDSTATUS>;
 
 template <class DERIVEDSTATUS, typename VALUE = typename DERIVEDSTATUS::Value>
 struct IsStatus {
-  static_assert(IsDerivedTrackedValueStatus<DERIVEDSTATUS, VALUE>,
+  static_assert(IsDerivedGenericValueTrack<DERIVEDSTATUS, VALUE>,
                 "DERIVEDSTATUS does not derive from Status<Value>");
   using type = DERIVEDSTATUS;
   using value = VALUE;

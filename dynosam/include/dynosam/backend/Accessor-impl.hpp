@@ -168,6 +168,8 @@ AccessorT<MAP, DerivedAccessor>::getDynamicLandmarkEstimates(
     return StatusLandmarkVector{};
   }
 
+  const auto timestamp = frame_node->timestamp;
+
   StatusLandmarkVector estimates;
   const auto& dynamic_landmarks = frame_node->dynamic_landmarks;
   for (auto lmk_node : dynamic_landmarks) {
@@ -181,11 +183,9 @@ AccessorT<MAP, DerivedAccessor>::getDynamicLandmarkEstimates(
     StateQuery<gtsam::Point3> lmk_query =
         this->getDynamicLandmark(frame_id, tracklet_id);
     if (lmk_query) {
-      estimates.push_back(LandmarkStatus::DynamicInGLobal(
-          Point3Measurement(lmk_query.get()),  // estimate
-          frame_id, tracklet_id,
-          object_id)  // status
-      );
+      estimates.push_back(LandmarkStatus::DynamicInGlobal(
+          Point3Measurement(lmk_query.get()), frame_id, timestamp, tracklet_id,
+          object_id));
     }
   }
   return estimates;
@@ -203,17 +203,17 @@ AccessorT<MAP, DerivedAccessor>::getStaticLandmarkEstimates(
   const auto frame_node = map()->getFrame(frame_id);
   CHECK_NOTNULL(frame_node);
 
+  const auto timestamp = frame_node->timestamp;
+
   for (const auto& landmark_node : frame_node->static_landmarks) {
     if (landmark_node->isStatic()) {
       StateQuery<gtsam::Point3> lmk_query =
           getStaticLandmark(landmark_node->tracklet_id);
       if (lmk_query) {
-        estimates.push_back(LandmarkStatus::StaticInGlobal(
-            Point3Measurement(lmk_query.get()),  // estimate
-            LandmarkStatus::MeaninglessFrame,
-            landmark_node->getId()  // tracklet id
-            )                       // status
-        );
+        estimates.push_back(
+            LandmarkStatus::StaticInGlobal(Point3Measurement(lmk_query.get()),
+                                           LandmarkStatus::MeaninglessFrame,
+                                           timestamp, landmark_node->getId()));
       }
     }
   }
@@ -234,10 +234,7 @@ StatusLandmarkVector AccessorT<MAP, DerivedAccessor>::getFullStaticMap() const {
       if (lmk_query) {
         estimates.push_back(LandmarkStatus::StaticInGlobal(
             Point3Measurement(lmk_query.get()),  // estimate
-            LandmarkStatus::MeaninglessFrame,
-            landmark_node->getId()  // tracklet id
-            )                       // status
-        );
+            LandmarkStatus::MeaninglessFrame, NaN, landmark_node->getId()));
       }
     }
   }

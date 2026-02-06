@@ -780,7 +780,7 @@ TEST(JsonIO, MeasurementWithNoCov) {
   EXPECT_TRUE(gtsam::assert_equal(measurements_load, measurement));
 }
 
-TEST(JsonIO, TrackedValueStatusKp) {
+TEST(JsonIO, GenericValueTrackKp) {
   KeypointStatus kp =
       dyno_testing::makeStatusKeypointMeasurement(4, 3, 1, Keypoint(0, 1));
 
@@ -792,7 +792,7 @@ TEST(JsonIO, TrackedValueStatusKp) {
   EXPECT_EQ(kp_load, kp);
 }
 
-TEST(JsonIO, TrackedValueStatusKps) {
+TEST(JsonIO, GenericValueTrackKps) {
   StatusKeypointVector measurements;
   for (size_t i = 0; i < 10; i++) {
     measurements.push_back(
@@ -943,18 +943,18 @@ TEST_F(JsonIOWithFiles, testSimpleBison) {
   EXPECT_EQ(measurements_read, measurements);
 }
 
-TEST(TrackedValueStatus, testIsTimeInvariant) {
-  TrackedValueStatus<Keypoint> status_time_invariant(
+TEST(GenericValueTrack, testIsTimeInvariant) {
+  GenericValueTrack<Keypoint> status_time_invariant(
       MeasurementWithCovariance<Keypoint>{Keypoint()},
-      TrackedValueStatus<Keypoint>::MeaninglessFrame, 0, 0,
+      GenericValueTrack<Keypoint>::MeaninglessFrame, 0, 0.0, 0,
       ReferenceFrame::GLOBAL);
 
   EXPECT_TRUE(status_time_invariant.isTimeInvariant());
 
-  TrackedValueStatus<Keypoint> status_time_variant(
+  GenericValueTrack<Keypoint> status_time_variant(
       MeasurementWithCovariance<Keypoint>{Keypoint()},
-      0,  // use zero
-      0, 0, ReferenceFrame::GLOBAL);
+      0,  // use zero,
+      0.0, 0, 0, ReferenceFrame::GLOBAL);
   EXPECT_FALSE(status_time_variant.isTimeInvariant());
 }
 

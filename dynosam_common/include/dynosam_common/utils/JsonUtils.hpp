@@ -460,8 +460,8 @@ struct adl_serializer<dyno::MeasurementWithCovariance<T>> {
 };
 
 template <typename T>
-struct adl_serializer<dyno::TrackedValueStatus<T>> {
-  static void to_json(json& j, const dyno::TrackedValueStatus<T>& status) {
+struct adl_serializer<dyno::GenericValueTrack<T>> {
+  static void to_json(json& j, const dyno::GenericValueTrack<T>& status) {
     using nlohmann::to_json;
     // expect value to be seralizable
     j["value"] = (json)status.value();
@@ -470,41 +470,41 @@ struct adl_serializer<dyno::TrackedValueStatus<T>> {
     j["object_id"] = status.objectId();
     j["reference_frame"] = status.referenceFrame();
   }
-  static void from_json(const json& j, dyno::TrackedValueStatus<T>& status) {
-    typename dyno::TrackedValueStatus<T>::Value value =
-        j["value"].template get<typename dyno::TrackedValueStatus<T>::Value>();
+  static void from_json(const json& j, dyno::GenericValueTrack<T>& status) {
+    typename dyno::GenericValueTrack<T>::Value value =
+        j["value"].template get<typename dyno::GenericValueTrack<T>::Value>();
 
     using namespace dyno;
     FrameId frame_id = j["frame_id"].template get<FrameId>();
     TrackletId tracklet_id = j["tracklet_id"].template get<TrackletId>();
     ObjectId object_id = j["object_id"].template get<ObjectId>();
     ReferenceFrame rf = j["reference_frame"].template get<ReferenceFrame>();
-    status = dyno::TrackedValueStatus<T>(value, frame_id, tracklet_id,
-                                         object_id, rf);
+    status =
+        dyno::GenericValueTrack<T>(value, frame_id, tracklet_id, object_id, rf);
   }
 };
 
-// sinnce VisualMeasurementWithCovStatus is aliased it becomes its own type
+// sinnce GenericValueTrackWithCov is aliased it becomes its own type
 // so we need to specify the adl for this
 // we just specify the exact type and then cast to the known type
-// (TrackedValueStatus) which should allow the adl to find the right type I dont
+// (GenericValueTrack) which should allow the adl to find the right type I dont
 // know a better way of doing this expect for writing an adl_serializer for
 // every class which I dont want to do since the MeasurementStatis classes all
 // designed to be defined by typdef
 template <typename T>
-struct adl_serializer<dyno::VisualMeasurementWithCovStatus<T>> {
+struct adl_serializer<dyno::GenericValueTrackWithCov<T>> {
   static void to_json(json& j,
-                      const dyno::VisualMeasurementWithCovStatus<T>& status) {
-    using Type = typename dyno::VisualMeasurementWithCovStatus<T>::Value;
-    using TrackedStatusValue = dyno::TrackedValueStatus<Type>;
+                      const dyno::GenericValueTrackWithCov<T>& status) {
+    using Type = typename dyno::GenericValueTrackWithCov<T>::Value;
+    using TrackedStatusValue = dyno::GenericValueTrack<Type>;
 
     const auto& cast_status = static_cast<const TrackedStatusValue&>(status);
     j = cast_status;
   }
   static void from_json(const json& j,
-                        dyno::VisualMeasurementWithCovStatus<T>& status) {
-    using Type = typename dyno::VisualMeasurementWithCovStatus<T>::Value;
-    using TrackedStatusValue = dyno::TrackedValueStatus<Type>;
+                        dyno::GenericValueTrackWithCov<T>& status) {
+    using Type = typename dyno::GenericValueTrackWithCov<T>::Value;
+    using TrackedStatusValue = dyno::GenericValueTrack<Type>;
 
     status = j.template get<TrackedStatusValue>();
   }

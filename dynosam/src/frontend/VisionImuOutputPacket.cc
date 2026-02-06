@@ -211,8 +211,8 @@ void VisionImuPacket::fillLandmarkMeasurements(
     const CameraMeasurement& measurement = cms.value();
     if (measurement.hasLandmark()) {
       landmarks.push_back(LandmarkStatus(measurement.landmark(), cms.frameId(),
-                                         cms.trackletId(), cms.objectId(),
-                                         cms.referenceFrame()));
+                                         cms.timestamp(), cms.trackletId(),
+                                         cms.objectId(), cms.referenceFrame()));
     }
   }
 }

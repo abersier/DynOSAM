@@ -137,13 +137,13 @@ RGBDScenario::Output RGBDScenario::getOutput(FrameId frame_id) const {
         measurement.landmark(p_camera);
         measurement_noisy.landmark(p_camera_noisy);
 
-        object_track.measurements.push_back(
-            CameraMeasurementStatus(measurement, frame_id, tracklet_id,
-                                    object_id, ReferenceFrame::LOCAL));
+        object_track.measurements.push_back(CameraMeasurementStatus(
+            measurement, frame_id, frame_id, tracklet_id, object_id,
+            ReferenceFrame::LOCAL));
 
-        noisy_object_track.measurements.push_back(
-            CameraMeasurementStatus(measurement_noisy, frame_id, tracklet_id,
-                                    object_id, ReferenceFrame::LOCAL));
+        noisy_object_track.measurements.push_back(CameraMeasurementStatus(
+            measurement_noisy, frame_id, frame_id, tracklet_id, object_id,
+            ReferenceFrame::LOCAL));
       }
 
       object_tracks.insert2(object_id, object_track);
@@ -173,12 +173,12 @@ RGBDScenario::Output RGBDScenario::getOutput(FrameId frame_id) const {
     measurement_noisy.landmark(noisy_p_camera);
 
     camera_tracks.measurements.push_back(
-        CameraMeasurementStatus(measurement, frame_id, tracklet_id,
+        CameraMeasurementStatus(measurement, frame_id, frame_id, tracklet_id,
                                 background_label, ReferenceFrame::LOCAL));
 
-    noisy_camera_tracks.measurements.push_back(
-        CameraMeasurementStatus(measurement_noisy, frame_id, tracklet_id,
-                                background_label, ReferenceFrame::LOCAL));
+    noisy_camera_tracks.measurements.push_back(CameraMeasurementStatus(
+        measurement_noisy, frame_id, frame_id, tracklet_id, background_label,
+        ReferenceFrame::LOCAL));
   }
 
   VisionImuPacket::Ptr ground_truth_input = std::make_shared<VisionImuPacket>();

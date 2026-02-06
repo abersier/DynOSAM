@@ -410,6 +410,8 @@ class FrameNode : public MapNodeBase<MEASUREMENT> {
 
   /// @brief FrameId (k)
   FrameId frame_id;
+  /// @brief Timestamp (seconds)
+  Timestamp timestamp;
   /// @brief All dynamic landmarks observed at this frame
   LandmarkNodePtrSet<MEASUREMENT> dynamic_landmarks;
   /// @brief All static landmarks observed at this frame

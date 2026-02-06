@@ -45,142 +45,6 @@ template <typename M>
 struct measurement_traits {};
 
 /**
- * @brief Defines a single visual measurement with tracking label, object id,
- * frame id and measurement.
- *
- * @tparam T
- */
-template <typename T>
-struct VisualMeasurementStatus : public TrackedValueStatus<T> {
-  using Base = TrackedValueStatus<T>;
-  using Base::Value;
-  //! dimension of the measurement. Must have gtsam::dimension traits
-  constexpr static int dim = gtsam::traits<T>::dimension;
-
-  /// @brief Default constructor for IO
-  VisualMeasurementStatus() = default;
-
-  /**
-   * @brief Construct a new Visual Measurement Status from the Base type
-   *
-   * @param base TrackedValueStatus<T>
-   */
-  VisualMeasurementStatus(const Base& base)
-      : VisualMeasurementStatus(base.value(), base.frameId(), base.trackletId(),
-                                base.objectId(), base.referenceFrame()) {}
-
-  /**
-   * @brief Construct a new Visual Measurement Status object
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @param label ObjectId
-   * @param reference_frame ReferenceFrame
-   */
-  VisualMeasurementStatus(const T& m, FrameId frame_id, TrackletId tracklet_id,
-                          ObjectId label, ReferenceFrame reference_frame)
-      : Base(m, frame_id, tracklet_id, label, reference_frame) {}
-
-  /**
-   * @brief Constructs a static Visual Measurement Status.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @param reference_frame ReferenceFrame
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus Static(const T& m, FrameId frame_id,
-                                               TrackletId tracklet_id,
-                                               ReferenceFrame reference_frame) {
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, background_label,
-                                   reference_frame);
-  }
-
-  /**
-   * @brief Constructs a dynamic Visual Measurement Status.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @param reference_frame ReferenceFrame
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus Dynamic(
-      const T& m, FrameId frame_id, TrackletId tracklet_id, ObjectId label,
-      ReferenceFrame reference_frame) {
-    CHECK(label != background_label);
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, label,
-                                   reference_frame);
-  }
-
-  /**
-   * @brief Constructs a static Visual Measurement Status in the local frame.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus StaticInLocal(const T& m,
-                                                      FrameId frame_id,
-                                                      TrackletId tracklet_id) {
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, background_label,
-                                   ReferenceFrame::LOCAL);
-  }
-
-  /**
-   * @brief Constructs a dynamic Visual Measurement Status in the local frame.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus DynamicInLocal(const T& m,
-                                                       FrameId frame_id,
-                                                       TrackletId tracklet_id,
-                                                       ObjectId label) {
-    CHECK(label != background_label);
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, label,
-                                   ReferenceFrame::LOCAL);
-  }
-
-  /**
-   * @brief Constructs a static Visual Measurement Status in the global frame.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus StaticInGlobal(const T& m,
-                                                       FrameId frame_id,
-                                                       TrackletId tracklet_id) {
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, background_label,
-                                   ReferenceFrame::GLOBAL);
-  }
-
-  /**
-   * @brief Constructs a dynamic Visual Measurement Status in the global frame.
-   *
-   * @param m const T&
-   * @param frame_id FrameId
-   * @param tracklet_id TrackletId
-   * @return VisualMeasurementStatus
-   */
-  inline static VisualMeasurementStatus DynamicInGLobal(const T& m,
-                                                        FrameId frame_id,
-                                                        TrackletId tracklet_id,
-                                                        ObjectId label) {
-    CHECK(label != background_label);
-    return VisualMeasurementStatus(m, frame_id, tracklet_id, label,
-                                   ReferenceFrame::GLOBAL);
-  }
-};
-
-/**
  * @brief Defines a measurement/value with associated covariance matrix.
  *
  * Depending on the context, this model can either represent the uncertainty on
@@ -341,6 +205,51 @@ class MeasurementWithCovariance {
   gtsam::SharedGaussian model_{nullptr};
 };
 
+template <typename T>
+using GenericValueTrackWithCov =
+    GenericValueTrack<MeasurementWithCovariance<T>>;
+
+struct LandmarkStatus : public GenericValueTrackWithCov<Landmark> {
+  using Base = GenericValueTrackWithCov<Landmark>;
+  using Base::Base;
+
+  // Alias for MeasurementWithCovariance<Landmark>
+  using Base::Value;
+
+  static LandmarkStatus Static(const Value& lmk, FrameId frame_id,
+                               Timestamp timestamp, TrackletId tracklet_id,
+                               ReferenceFrame reference_frame);
+
+  static LandmarkStatus StaticInLocal(const Value& lmk, FrameId frame_id,
+                                      Timestamp timestamp,
+                                      TrackletId tracklet_id);
+
+  static LandmarkStatus StaticInGlobal(const Value& lmk, FrameId frame_id,
+                                       Timestamp timestamp,
+                                       TrackletId tracklet_id);
+
+  static LandmarkStatus Dynamic(const Value& lmk, FrameId frame_id,
+                                Timestamp timestamp, TrackletId tracklet_id,
+                                ObjectId object_id,
+                                ReferenceFrame reference_frame);
+
+  static LandmarkStatus DynamicInLocal(const Value& lmk, FrameId frame_id,
+                                       Timestamp timestamp,
+                                       TrackletId tracklet_id,
+                                       ObjectId object_id);
+
+  static LandmarkStatus DynamicInGlobal(const Value& lmk, FrameId frame_id,
+                                        Timestamp timestamp,
+                                        TrackletId tracklet_id,
+                                        ObjectId object_id);
+};
+/// @brief Alias for a keypoint measurement with 2x2 covariance.
+typedef GenericValueTrackWithCov<Keypoint> KeypointStatus;
+/// @brief Alias for a depth measurement with scalar covariance.
+typedef GenericValueTrackWithCov<Depth> DepthStatus;
+/// @brief Alias for a stereo measurement with 3x3 covariance.
+typedef GenericValueTrackWithCov<gtsam::StereoPoint2> StereoStatus;
+
 /// @brief (gtsam) Pose3 with covariance
 typedef MeasurementWithCovariance<gtsam::Pose3> Pose3Measurement;
 
@@ -407,20 +316,11 @@ class CameraMeasurement {
 
 /// @brief Alias to a visual measurement with a fixed-sized covariance matrix.
 /// @tparam T Measurement type (e.g. 2D keypoint, 3D landmark)
-template <typename T>
-using VisualMeasurementWithCovStatus =
-    VisualMeasurementStatus<MeasurementWithCovariance<T>>;
+// template <typename T>
+// using GenericValueTrackWithCov =
+//     VisualMeasurementStatus<MeasurementWithCovariance<T>>;
 
-/// @brief Alias for a landmark measurement with 3x3 covariance.
-typedef VisualMeasurementWithCovStatus<Landmark> LandmarkStatus;
-/// @brief Alias for a keypoint measurement with 2x2 covariance.
-typedef VisualMeasurementWithCovStatus<Keypoint> KeypointStatus;
-/// @brief Alias for a depth measurement with scalar covariance.
-typedef VisualMeasurementWithCovStatus<Depth> DepthStatus;
-/// @brief Alias for a stereo measurement with 3x3 covariance.
-typedef VisualMeasurementWithCovStatus<gtsam::StereoPoint2> StereoStatus;
-
-using CameraMeasurementStatus = TrackedValueStatus<CameraMeasurement>;
+using CameraMeasurementStatus = GenericValueTrack<CameraMeasurement>;
 
 /// @brief A vector of LandmarkStatus
 typedef GenericTrackedStatusVector<LandmarkStatus> StatusLandmarkVector;

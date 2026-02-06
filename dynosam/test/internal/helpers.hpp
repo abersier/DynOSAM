@@ -60,7 +60,7 @@ inline KeypointStatus makeStatusKeypointMeasurement(
   kp_sigmas << sigma, sigma;
   MeasurementWithCovariance<Keypoint> kp_measurement =
       MeasurementWithCovariance<Keypoint>::FromSigmas(keypoint, kp_sigmas);
-  return KeypointStatus(kp_measurement, frame_id, tracklet_id, object_id,
+  return KeypointStatus(kp_measurement, frame_id, 0.0, tracklet_id, object_id,
                         ReferenceFrame::LOCAL);
 }
 

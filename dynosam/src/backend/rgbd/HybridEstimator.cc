@@ -267,6 +267,8 @@ StatusLandmarkVector HybridAccessor::getDynamicLandmarkEstimates(
     return StatusLandmarkVector{};
   }
 
+  const auto timestamp = frame_node->timestamp;
+
   const auto object_node = map()->getObject(object_id);
   CHECK(frame_node) << "Frame Null at k=" << frame_id << " j=" << object_id;
   CHECK(object_node) << "Object Null at k=" << frame_id << " j=" << object_id;
@@ -288,9 +290,9 @@ StatusLandmarkVector HybridAccessor::getDynamicLandmarkEstimates(
     StateQuery<gtsam::Point3> lmk_query =
         this->getDynamicLandmark(frame_id, tracklet_id);
     if (lmk_query) {
-      estimates.push_back(LandmarkStatus::DynamicInGLobal(
-          Point3Measurement(lmk_query.get()),  // estimate
-          frame_id, tracklet_id, object_id));
+      estimates.push_back(LandmarkStatus::DynamicInGlobal(
+          Point3Measurement(lmk_query.get()), frame_id, timestamp, tracklet_id,
+          object_id));
     }
   }
   return estimates;
@@ -349,7 +351,7 @@ StatusLandmarkVector HybridAccessor::getLocalDynamicLandmarkEstimates(
       CHECK(query_m_L);
       estimates.push_back(LandmarkStatus::DynamicInLocal(
           Point3Measurement(query_m_L.get()), LandmarkStatus::MeaninglessFrame,
-          tracklet_id, object_id));
+          NaN, tracklet_id, object_id));
     }
   }
 
@@ -1123,6 +1125,8 @@ gtsam::Pose3 HybridFormulationV1::calculateObjectCentroid(
 
   StatusLandmarkVector dynamic_landmarks;
 
+  const auto timestamp = frame_node->timestamp;
+
   // TODO: could use computeObjectCentroid in accessor!!!?
 
   // measured/linearized camera pose at the first frame this object has been
@@ -1139,8 +1143,8 @@ gtsam::Pose3 HybridFormulationV1::calculateObjectCentroid(
     // const gtsam::Point3 landmark_measurement_world = X_world *
     // landmark_measurement_local;
 
-    dynamic_landmarks.push_back(LandmarkStatus::DynamicInGLobal(
-        Point3Measurement(landmark_measurement_local), frame_id,
+    dynamic_landmarks.push_back(LandmarkStatus::DynamicInGlobal(
+        Point3Measurement(landmark_measurement_local), frame_id, timestamp,
         lmk_node->tracklet_id, object_id));
   }
 

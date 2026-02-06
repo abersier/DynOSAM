@@ -389,7 +389,11 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
     const gtsam::Pose3 X_W_k, const gtsam::Pose3& T_k_1_k,
     const MultiObjectTrajectories& object_trajectories) const {
   CHECK(vision_imu_packet);
+
+  // assumes vision_imu_packet wil get set with the same values!
   const auto frame_id = frame.getFrameId();
+  const auto timestamp = frame.getTimestamp();
+
   // construct image tracks
   const double& static_pixel_sigma =
       dyno_params_.backend_params_.static_pixel_noise_sigma;
@@ -411,7 +415,8 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
   auto fill_camera_measurements =
       [&camera](FeatureFilterIterator it,
                 CameraMeasurementStatusVector* measurements, FrameId frame_id,
-                const gtsam::Vector2& pixel_sigmas, double depth_sigma) {
+                Timestamp timestamp, const gtsam::Vector2& pixel_sigmas,
+                double depth_sigma) {
         std::shared_ptr<RGBDCamera> rgbd_camera = camera.safeGetRGBDCamera();
 
         for (const Feature::Ptr& f : it) {
@@ -475,16 +480,16 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
             CHECK_NE(object_id, background_label);
           }
 
-          measurements->push_back(
-              CameraMeasurementStatus(camera_measurement, frame_id, tracklet_id,
-                                      object_id, ReferenceFrame::LOCAL));
+          measurements->push_back(CameraMeasurementStatus(
+              camera_measurement, frame_id, timestamp, tracklet_id, object_id,
+              ReferenceFrame::LOCAL));
         }
       };
   VisionImuPacket::CameraTracks camera_tracks;
   auto* static_measurements = &camera_tracks.measurements;
   fill_camera_measurements(frame.usableStaticFeaturesBegin(),
-                           static_measurements, frame_id, static_pixel_sigmas,
-                           static_point_sigma);
+                           static_measurements, frame_id, timestamp,
+                           static_pixel_sigmas, static_point_sigma);
   camera_tracks.X_W_k = X_W_k;
   camera_tracks.T_k_1_k = T_k_1_k;
   vision_imu_packet->cameraTracks(camera_tracks);
@@ -493,7 +498,7 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
   // This is a bit silly
   CameraMeasurementStatusVector dynamic_measurements;
   fill_camera_measurements(frame.usableDynamicFeaturesBegin(),
-                           &dynamic_measurements, frame_id,
+                           &dynamic_measurements, frame_id, timestamp,
                            dynamic_pixel_sigmas, dynamic_point_sigma);
 
   VisionImuPacket::ObjectTrackMap object_tracks;

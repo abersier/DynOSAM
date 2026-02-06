@@ -136,19 +136,20 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
 
     MapUpdateResult update_result;
     for (const DERIVEDSTATUS& status_measurement : measurements) {
-      const TrackedValueStatus<DerivedMeasurement>& derived_status =
-          static_cast<const TrackedValueStatus<DerivedMeasurement>&>(
+      const GenericValueTrack<DerivedMeasurement>& derived_status =
+          static_cast<const GenericValueTrack<DerivedMeasurement>&>(
               status_measurement);
-      const TrackedValueStatus<MEASUREMENT>& status =
+      const GenericValueTrack<MEASUREMENT>& status =
           derived_status.template asType<MEASUREMENT>();
       const MEASUREMENT& measurement = status_measurement.value();
       const TrackletId tracklet_id = status.trackletId();
       const FrameId frame_id = status.frameId();
+      const Timestamp timestamp = status.timestamp();
       const ObjectId object_id = status.objectId();
       const bool is_static = status.isStatic();
       // thread safe update
       addOrUpdateMapStructures(update_result, measurement, tracklet_id,
-                               frame_id, object_id, is_static);
+                               frame_id, timestamp, object_id, is_static);
     }
     return update_result;
   }
@@ -551,7 +552,8 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
   void addOrUpdateMapStructures(MapUpdateResult& update_result,
                                 const Measurement& measurement,
                                 TrackletId tracklet_id, FrameId frame_id,
-                                ObjectId object_id, bool is_static) {
+                                Timestamp timestamp, ObjectId object_id,
+                                bool is_static) {
     // Course lock
     const std::lock_guard<std::mutex> lock(mutex_);
 
@@ -575,6 +577,7 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
     if (!frameExists(frame_id)) {
       frame_node = std::make_shared<FrameNodeM>(getptr());
       frame_node->frame_id = frame_id;
+      frame_node->timestamp = timestamp;
       frames_.insert2(frame_id, frame_node);
 
       update_result.new_frames.push_back(frame_id);

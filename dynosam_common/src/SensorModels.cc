@@ -34,6 +34,59 @@
 
 namespace dyno {
 
+LandmarkStatus LandmarkStatus::Static(const Value& lmk, FrameId frame_id,
+                                      Timestamp timestamp,
+                                      TrackletId tracklet_id,
+                                      ReferenceFrame reference_frame) {
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, background_label,
+                        reference_frame);
+}
+
+LandmarkStatus LandmarkStatus::StaticInLocal(const Value& lmk, FrameId frame_id,
+                                             Timestamp timestamp,
+                                             TrackletId tracklet_id) {
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, background_label,
+                        ReferenceFrame::LOCAL);
+}
+
+LandmarkStatus LandmarkStatus::StaticInGlobal(const Value& lmk,
+                                              FrameId frame_id,
+                                              Timestamp timestamp,
+                                              TrackletId tracklet_id) {
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, background_label,
+                        ReferenceFrame::GLOBAL);
+}
+
+LandmarkStatus LandmarkStatus::Dynamic(const Value& lmk, FrameId frame_id,
+                                       Timestamp timestamp,
+                                       TrackletId tracklet_id,
+                                       ObjectId object_id,
+                                       ReferenceFrame reference_frame) {
+  CHECK(object_id != background_label);
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, object_id,
+                        reference_frame);
+}
+
+LandmarkStatus LandmarkStatus::DynamicInLocal(const Value& lmk,
+                                              FrameId frame_id,
+                                              Timestamp timestamp,
+                                              TrackletId tracklet_id,
+                                              ObjectId object_id) {
+  CHECK(object_id != background_label);
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, object_id,
+                        ReferenceFrame::LOCAL);
+}
+
+LandmarkStatus LandmarkStatus::DynamicInGlobal(const Value& lmk,
+                                               FrameId frame_id,
+                                               Timestamp timestamp,
+                                               TrackletId tracklet_id,
+                                               ObjectId object_id) {
+  CHECK(object_id != background_label);
+  return LandmarkStatus(lmk, frame_id, timestamp, tracklet_id, object_id,
+                        ReferenceFrame::GLOBAL);
+}
+
 CameraMeasurement::CameraMeasurement(
     const MeasurementWithCovariance<Keypoint>& keypoint)
     : keypoint_(keypoint) {}
