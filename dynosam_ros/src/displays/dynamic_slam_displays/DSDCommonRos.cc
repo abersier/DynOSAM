@@ -260,12 +260,18 @@ DSDTransport::Publisher DSDTransport::addObjectInfo(
 
 DynoStatePublisher::DynoStatePublisher(const DisplayParams& params,
                                        rclcpp::Node::SharedPtr node)
-    : params_(params), node_(node), dsd_transport_(node) {
+    : params_(params), node_(node) {
   vo_publisher_ =
       node_->create_publisher<nav_msgs::msg::Odometry>("odometry", 1);
   vo_path_publisher_ =
       node_->create_publisher<nav_msgs::msg::Path>("odometry_path", 1);
   // tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*node_);
+
+  object_odom_publisher_ =
+      node->create_publisher<ObjectOdometry>("object_odometry", 1);
+  multi_object_odom_path_publisher_ =
+      node->create_publisher<MultiObjectOdometryPath>("object_odometry_path",
+                                                      1);
 
   static_points_pub_ =
       node->create_publisher<sensor_msgs::msg::PointCloud2>("static_cloud", 1);
@@ -294,6 +300,88 @@ void DynoStatePublisher::publish(const DynoState& state) {
 
   DisplayCommon::publishPointCloud(dynamic_points_pub_, state.dynamic_map,
                                    X_W_k, params_.world_frame_id);
+
+  publishObjects(frame_id, state.object_trajectories);
+}
+
+void DynoStatePublisher::publishObjects(
+    FrameId frame_id, const MultiObjectTrajectories& object_trajectories) {
+  // get subset of trajectories that has an object observed at k
+  auto object_trajectories_k =
+      object_trajectories.trajectoriesAtFrame(frame_id);
+
+  if (object_trajectories_k.empty()) {
+    return;
+  }
+
+  ObjectOdometryMap object_odometries;
+
+  MultiObjectOdometryPath multi_object_odom_paths;
+  multi_object_odom_paths.header.stamp = utils::toRosTime(frame_id);
+  multi_object_odom_paths.header.frame_id = params_.world_frame_id;
+
+  for (const auto& [object_id, object_trajectory] : object_trajectories_k) {
+    // latest object odometry
+    ObjectOdometry object_odometry =
+        constructObjectOdometry(object_id, object_trajectory.last());
+    object_odom_publisher_->publish(object_odometry);
+
+    // full path for object j
+    ObjectOdometryPath object_path;
+
+    std_msgs::msg::ColorRGBA colour_msg;
+    convert(Color::uniqueId(object_id), colour_msg);
+
+    // construct full paths
+    const auto trajectory_segments = object_trajectory.segments();
+    for (size_t i = 0; i < trajectory_segments.size(); i++) {
+      size_t segment_id = i + 1;
+
+      const auto& segment = trajectory_segments.at(i);
+
+      ObjectOdometryPath path_per_segment;
+      path_per_segment.colour = colour_msg;
+      path_per_segment.object_id = object_id;
+      path_per_segment.path_segment = segment_id;
+      path_per_segment.header = multi_object_odom_paths.header;
+
+      for (const auto& entry : segment.trajectory) {
+        path_per_segment.object_odometries.push_back(
+            constructObjectOdometry(object_id, entry));
+      }
+
+      multi_object_odom_paths.paths.push_back(path_per_segment);
+    }
+  }
+
+  multi_object_odom_path_publisher_->publish(multi_object_odom_paths);
+}
+
+ObjectOdometry DynoStatePublisher::constructObjectOdometry(
+    ObjectId object_id, const PoseWithMotionEntry& pose_with_motion) const {
+  const auto& entry = pose_with_motion.data;
+  const auto L_W_k = entry.pose;
+  const auto H_W_km1_k = entry.motion;
+  const auto timestamp = pose_with_motion.timestamp;
+  const auto frame_id = pose_with_motion.frame_id;
+
+  CHECK_EQ(H_W_km1_k.to(), frame_id);
+  // TODO: from
+
+  const auto frame_link = params_.world_frame_id;
+  const auto child_link = "object_" + std::to_string(object_id) + "_link";
+
+  ObjectOdometry object_odom;
+  utils::convertWithHeader(L_W_k, object_odom.odom, timestamp, frame_link,
+                           child_link);
+
+  dyno::convert(H_W_km1_k.estimate(), object_odom.h_w_km1_k.pose);
+
+  // TODO: body velocity
+  object_odom.object_id = object_id;
+  object_odom.sequence = frame_id;
+
+  return object_odom;
 }
 
 DSDRos::DSDRos(const DisplayParams& params, rclcpp::Node::SharedPtr node)

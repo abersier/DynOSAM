@@ -13,17 +13,19 @@ class TrajectoryEntryAlreadyExists : public DynosamException {
 };
 
 template <typename TData>
+struct TrajectoryEntry {
+  FrameId frame_id;
+  Timestamp timestamp;
+  //! User defined data
+  TData data;
+};
+
+template <typename TData>
 class TrajectoryBase {
  public:
   using This = TrajectoryBase<TData>;
   using Data = TData;
-
-  struct Entry {
-    FrameId frame_id;
-    Timestamp timestamp;
-    //! User defined data
-    Data data;
-  };
+  using Entry = TrajectoryEntry<Data>;
 
   //! Alias for internal trajectory map
   using TrajectoryImpl = gtsam::FastMap<FrameId, Entry>;
@@ -251,6 +253,7 @@ struct PoseWithMotion {
   gtsam::Pose3 pose;
   Motion3ReferenceFrame motion;
 };
+using PoseWithMotionEntry = TrajectoryEntry<PoseWithMotion>;
 
 class PoseWithMotionTrajectory : public TrajectoryBase<PoseWithMotion> {
  public:
@@ -286,11 +289,23 @@ class MultiObjectTrajectories
   ObjectIds objectIds() const;
 
   bool hasFrame(ObjectId object_id, FrameId frame_id) const;
-  EntryMap atFrame(FrameId frame_id) const;
+  EntryMap entriesAtFrame(FrameId frame_id) const;
+  Base trajectoriesAtFrame(FrameId frame_id) const;
+
+  // Most recent frame for any object
+  FrameId lastFrame() const;
+  // Most recent timestamp for any object
+  Timestamp lastTimestamp() const;
 
   // Slow - mostly needed for backwards compatability
   ObjectPoseMap toObjectPoseMap() const;
   ObjectMotionMap toObjectMotionMap() const;
+
+ private:
+  // only searches by frame and assumes that timestamps in all entries are
+  // correct since multiple objects can exist at one frame we assume all
+  // timestamps are correct accross entries
+  bool getTemporalLastEntry(FrameId& frame_id, Timestamp& timestamp) const;
 };
 
 }  // namespace dyno

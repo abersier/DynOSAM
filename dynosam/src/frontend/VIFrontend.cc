@@ -332,6 +332,10 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
 
   dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
                                        nav_state_k.pose());
+
+  dyno_state_.object_trajectories =
+      object_motion_solver_->solve(frame_k, frame_km1);
+
   // construct output packet for backend
   VisionImuPacket::Ptr vision_imu_packet = std::make_shared<VisionImuPacket>();
   vision_imu_packet->frameId(frame_id_k);
@@ -494,7 +498,7 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
 
   VisionImuPacket::ObjectTrackMap object_tracks;
 
-  const auto object_estimates_k = object_trajectories.atFrame(frame_id);
+  const auto object_estimates_k = object_trajectories.entriesAtFrame(frame_id);
   for (const auto& [object_id, object_estimate] : object_estimates_k) {
     const auto& L_W_k = object_estimate.data.pose;
     const auto& H_W_km1_k = object_estimate.data.motion;

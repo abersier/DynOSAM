@@ -237,16 +237,23 @@ class DynoStatePublisher {
   //                                           T_world_camera);
 
  private:
+  void publishObjects(FrameId frame_id,
+                      const MultiObjectTrajectories& object_trajectories);
+
+  ObjectOdometry constructObjectOdometry(
+      ObjectId object_id, const PoseWithMotionEntry& pose_with_motion) const;
+
  protected:
   const DisplayParams params_;
   rclcpp::Node::SharedPtr node_;
-  //! Dynamic SLAM display transport for estimated object odometry
-  DSDTransport dsd_transport_;
   //! TF broadcaster for the odometry.
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   OdometryPub::SharedPtr vo_publisher_;
   PathPub::SharedPtr vo_path_publisher_;
+
+  ObjectOdometryPub::SharedPtr object_odom_publisher_;
+  MultiObjectOdometryPathPub::SharedPtr multi_object_odom_path_publisher_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
       static_points_pub_;

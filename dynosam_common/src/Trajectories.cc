@@ -71,7 +71,25 @@ bool MultiObjectTrajectories::hasFrame(ObjectId object_id,
   return trajectory.exists(frame_id);
 }
 
-MultiObjectTrajectories::EntryMap MultiObjectTrajectories::atFrame(
+FrameId MultiObjectTrajectories::lastFrame() const {
+  FrameId frame_id;
+  Timestamp timestamp;
+  CHECK(getTemporalLastEntry(frame_id, timestamp));
+  (void)timestamp;
+
+  return frame_id;
+}
+
+Timestamp MultiObjectTrajectories::lastTimestamp() const {
+  FrameId frame_id;
+  Timestamp timestamp;
+  CHECK(getTemporalLastEntry(frame_id, timestamp));
+  (void)frame_id;
+
+  return timestamp;
+}
+
+MultiObjectTrajectories::EntryMap MultiObjectTrajectories::entriesAtFrame(
     FrameId frame_id) const {
   EntryMap entry_map;
   for (const auto& [object_id, trajectory] : *this) {
@@ -81,6 +99,18 @@ MultiObjectTrajectories::EntryMap MultiObjectTrajectories::atFrame(
     }
   }
   return entry_map;
+}
+
+MultiObjectTrajectories::Base MultiObjectTrajectories::trajectoriesAtFrame(
+    FrameId frame_id) const {
+  MultiObjectTrajectories::Base trajectories;
+  for (const auto& [object_id, trajectory] : *this) {
+    if (this->hasFrame(object_id, frame_id)) {
+      const auto& trajectory = this->at(object_id);
+      trajectories.insert2(object_id, trajectory);
+    }
+  }
+  return trajectories;
 }
 
 ObjectPoseMap MultiObjectTrajectories::toObjectPoseMap() const {
@@ -101,6 +131,21 @@ ObjectMotionMap MultiObjectTrajectories::toObjectMotionMap() const {
     }
   }
   return motion_map;
+}
+
+bool MultiObjectTrajectories::getTemporalLastEntry(FrameId& frame_id,
+                                                   Timestamp& timestamp) const {
+  auto max_it = std::max_element(
+      this->begin(), this->end(), [](const auto& a, const auto& b) {
+        return a.second.maxFrame() < b.second.maxFrame();
+      });
+
+  if (max_it != this->end()) {
+    frame_id = max_it->second.maxFrame();
+    timestamp = max_it->second.endTime();
+    return true;
+  }
+  return false;
 }
 
 }  // namespace dyno
