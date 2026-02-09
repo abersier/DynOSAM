@@ -903,6 +903,16 @@ MotionTrajetory ParallelHybridAccessor::getObjectMotionTrajectory(
       []() { return MotionTrajetory{}; });
 }
 
+ObjectIds ParallelHybridAccessor::getObjectIds() const {
+  ObjectIds destination;
+
+  const auto& object_estimators = parallel_hybrid_module_->sam_estimators_;
+  std::transform(object_estimators.begin(), object_estimators.end(),
+                 std::back_inserter(destination),
+                 [](auto entry) { return entry.first; });
+  return destination;
+}
+
 StatusLandmarkVector ParallelHybridAccessor::getDynamicLandmarkEstimates(
     FrameId frame_id) const {
   StatusLandmarkVector all_landmarks;

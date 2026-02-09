@@ -86,6 +86,7 @@ add_library(${PROJECT_NAME} SHARED
     src/SharedModuleInfo.cc
     src/SensorModels.cc
     src/Trajectories.cc
+    src/DynoState.cc
 
     src/utils/OpenCVUtils.cc
     src/utils/GtsamUtils.cc

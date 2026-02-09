@@ -484,6 +484,18 @@ class Formulation {
   }
 
   /**
+   * @brief Get custom error handling hooks for this formulation.
+   *
+   * By default returns getDefaultILSErrorHandlingHooks();
+   * Only sets error handling for ILS not for on failed object.
+   *
+   * @return ErrorHandlingHooks
+   */
+  virtual ErrorHandlingHooks getCustomErrorHooks() {
+    return getDefaultILSErrorHandlingHooks();
+  }
+
+  /**
    * @brief Get the fully qualified name of this formulation which is derived
    * from the loggerPrefix and optionally the FormulationParams::suffix if
    * given.

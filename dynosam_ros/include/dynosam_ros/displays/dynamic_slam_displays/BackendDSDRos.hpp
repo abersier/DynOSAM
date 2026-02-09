@@ -1,3 +1,4 @@
+#pragma once
 /*
  *   Copyright (c) 2025 ACFR-RPG, University of Sydney, Jesse Morris
  (jesse.morris@sydney.edu.au)
@@ -28,11 +29,8 @@
  *   SOFTWARE.
  */
 
-#include "dynamic_slam_interfaces/msg/object_odometry.hpp"
 #include "dynosam/backend/BackendOutputPacket.hpp"
 #include "dynosam/visualizer/Display.hpp"
-#include "dynosam_common/GroundTruthPacket.hpp"
-#include "dynosam_common/SharedModuleInfo.hpp"
 #include "dynosam_ros/Display-Definitions.hpp"
 #include "dynosam_ros/displays/DisplaysCommon.hpp"
 #include "dynosam_ros/displays/dynamic_slam_displays/DSDCommonRos.hpp"
@@ -40,23 +38,23 @@
 
 namespace dyno {
 
-class BackendDSDRos : public BackendDisplay, DSDRos {
+class BackendDSDRos : public BackendDisplay {
  public:
   BackendDSDRos(const DisplayParams params, rclcpp::Node::SharedPtr node);
   ~BackendDSDRos() = default;
 
-  void spinOnceImpl(
-      const BackendOutputPacket::ConstPtr& backend_output) override;
+  void spinOnceImpl(const DynoState::ConstPtr& backend_output) override;
 
  private:
   void publishTemporalDynamicMaps(
-      const BackendOutputPacket::ConstPtr& latest_backend_output);
+      const DynoState::ConstPtr& latest_backend_output);
 
  private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
       temporal_dynamic_points_pub_;
   gtsam::FastMap<ObjectId, std::deque<pcl::PointCloud<pcl::PointXYZRGB>>>
       temporal_clouds_;
+  DynoStatePublisher dyno_state_publisher_;
 };
 
 }  // namespace dyno

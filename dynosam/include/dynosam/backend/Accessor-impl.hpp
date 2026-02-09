@@ -192,6 +192,11 @@ AccessorT<MAP, DerivedAccessor>::getDynamicLandmarkEstimates(
 }
 
 template <class MAP, class DerivedAccessor>
+ObjectIds AccessorT<MAP, DerivedAccessor>::getObjectIds() const {
+  return map()->getObjectIds();
+}
+
+template <class MAP, class DerivedAccessor>
 PoseTrajectory AccessorT<MAP, DerivedAccessor>::getCameraTrajectory() const {
   PoseTrajectory pose_trajectory;
 

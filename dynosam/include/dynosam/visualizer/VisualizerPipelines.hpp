@@ -32,13 +32,14 @@
 
 #include <glog/logging.h>
 
-#include "dynosam/backend/BackendOutputPacket.hpp"
+// #include "dynosam/backend/BackendOutputPacket.hpp"
 // #include "dynosam/frontend/VisionImuOutputPacket.hpp"
 
-#include "dynosam/frontend/VIFrontend.hpp"
+#include "dynosam/frontend/VIFrontend.hpp"  // for realtimeoutput!!
 #include "dynosam/pipeline/PipelineBase.hpp"
 #include "dynosam/pipeline/PipelinePayload.hpp"
 #include "dynosam/visualizer/Display.hpp"
+#include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/Types.hpp"
 
 namespace dyno {
@@ -75,7 +76,7 @@ class DisplayPipeline : public SIMOPipelineModule<INPUT, NullPipelinePayload> {
 };
 
 using FrontendVizPipeline = DisplayPipeline<RealtimeOutput>;
-using BackendVizPipeline = DisplayPipeline<BackendOutputPacket>;
+using BackendVizPipeline = DisplayPipeline<DynoState>;
 
 /**
  * @brief Vizualisation class that can be associated with a
@@ -91,7 +92,7 @@ class BackendModuleDisplay {
   BackendModuleDisplay() = default;
   virtual ~BackendModuleDisplay() = default;
 
-  virtual void spin(const BackendOutputPacket::ConstPtr& output) = 0;
+  virtual void spin(const DynoState::ConstPtr& output) = 0;
 };
 
 }  // namespace dyno

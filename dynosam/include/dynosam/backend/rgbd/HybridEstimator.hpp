@@ -1504,6 +1504,8 @@ class HybridFormulationV1 : public HybridFormulation {
 
   gtsam::Pose3 calculateObjectCentroid(ObjectId object_id,
                                        FrameId frame_id) const;
+
+  ErrorHandlingHooks getCustomErrorHooks() override;
 };
 
 // additional functionality when solved with the Regular Backend!

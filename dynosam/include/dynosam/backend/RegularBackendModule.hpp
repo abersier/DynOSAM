@@ -76,7 +76,7 @@ class RegularVIBackendModule
   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
       const override;
 
-  Accessor::Ptr getAccessor() override;
+  Accessor::Ptr getAccessor() const override;
   const VIOFormulation::Ptr formulation() const;
   BackendModuleDisplay::Ptr formulationDisplay() const;
 
@@ -89,8 +89,64 @@ class RegularVIBackendModule
   void setupOptimizers();
   void setupFormulation(std::shared_ptr<Factory> factor);
 
+  void addInitialStates(const VisionImuPacket::ConstPtr& input,
+                        gtsam::Values& new_values,
+                        gtsam::NonlinearFactorGraph& new_factors);
+  void addStates(const VisionImuPacket::ConstPtr& input,
+                 gtsam::Values& new_values,
+                 gtsam::NonlinearFactorGraph& new_factors);
+
+  /**
+   * @brief Construct factors and new values for static and dynamic features.
+   * Does the bulk of the graph construction by calling
+   * Formulation::updateStaticObservations and
+   * Formulation::updateDynamicObservations.
+   *
+   * @param update_params const UpdateObservationParams&
+   * @param frame_k FrameId
+   * @param new_values gtsam::Values&
+   * @param new_factors gtsam::NonlinearFactorGraph&
+   * @param post_update_data PostUpdateData&
+   */
+  virtual void addMeasurements(const UpdateObservationParams& update_params,
+                               FrameId frame_k, gtsam::Values& new_values,
+                               gtsam::NonlinearFactorGraph& new_factors,
+                               PostUpdateData& post_update_data);
+
+  // initial pose can come from many sources
+  void updateMapWithMeasurements(FrameId frame_id_k,
+                                 const VisionImuPacket::ConstPtr& input,
+                                 const gtsam::Pose3& X_W_k);
+
+  void updateAndOptimize(FrameId frame_id_k, const gtsam::Values& new_values,
+                         const gtsam::NonlinearFactorGraph& new_factors,
+                         PostUpdateData& post_update_data);
+  void updateIncremental(FrameId frame_id_k, const gtsam::Values& new_values,
+                         const gtsam::NonlinearFactorGraph& new_factors,
+                         PostUpdateData& post_update_data);
+  void updateBatch(FrameId frame_id_k, const gtsam::Values& new_values,
+                   const gtsam::NonlinearFactorGraph& new_factors,
+                   PostUpdateData& post_update_data);
+  void updateSlidingWindow(FrameId frame_id_k, const gtsam::Values& new_values,
+                           const gtsam::NonlinearFactorGraph& new_factors,
+                           PostUpdateData& post_update_data);
+
+  void logIncrementalStats(
+      FrameId frame_id_k,
+      const IncrementalInterface<dyno::ISAM2>& smoother_interface) const;
+
+ private:
   VIOFormulation::Ptr formulation_;
   BackendModuleDisplay::Ptr formulation_display_;
+
+  // Cached debug info
+  DebugInfo debug_info_;
+  // Cached error hooks
+  ErrorHandlingHooks error_hooks_;
+
+  // optimizers are set in setupUpdates() depending on
+  SlidingWindowOptimization::UniquePtr sliding_window_opt_;
+  std::unique_ptr<dyno::ISAM2> smoother_;
 };
 
 class RegularBackendModule

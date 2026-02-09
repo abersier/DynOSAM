@@ -63,7 +63,40 @@ StateQuery<Motion3ReferenceFrame> Accessor::getObjectMotionReferenceFrame(
   }
 }
 
-MultiObjectTrajectories Accessor::getMultiObjectTrajectories() const {}
+MultiObjectTrajectories Accessor::getMultiObjectTrajectories() const {
+  const ObjectIds object_ids = this->getObjectIds();
+
+  MultiObjectTrajectories multi_object_trajectories;
+  for (const auto& object_id : object_ids) {
+    const PoseTrajectory pose_trajectory =
+        this->getObjectPoseTrajectory(object_id);
+    const MotionTrajetory motion_trajectory =
+        this->getObjectMotionTrajectory(object_id);
+
+    // a motion spans two poses but there *should* always be a but we can
+    // consider the first motion of a segment to be identity since we have not
+    // observed its motion yet depending on how the underlying formualtion is
+    // implement we may not have an explicit value for this pose!
+
+    for (const auto& pose_entry : pose_trajectory) {
+      const FrameId& frame_id = pose_entry.frame_id;
+      if (motion_trajectory.exists(frame_id)) {
+        const auto& motion_entry = motion_trajectory.get(frame_id);
+        const Timestamp& timestamp = pose_entry.timestamp;
+        CHECK_EQ(motion_entry.frame_id, frame_id);
+        CHECK_EQ(motion_entry.timestamp, timestamp);
+
+        PoseWithMotion pose_with_motion;
+        pose_with_motion.pose = pose_entry.data;
+        pose_with_motion.motion = motion_entry.data;
+
+        multi_object_trajectories.insert(object_id, frame_id, timestamp,
+                                         pose_with_motion);
+      }
+    }
+  }
+  return multi_object_trajectories;
+}
 
 bool Accessor::exists(gtsam::Key key) const {
   return (bool)this->getValueImpl(key);

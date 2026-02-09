@@ -33,7 +33,9 @@
 #include "dynamic_slam_interfaces/msg/multi_object_odometry_path.hpp"
 #include "dynamic_slam_interfaces/msg/object_odometry.hpp"
 #include "dynamic_slam_interfaces/msg/object_odometry_path.hpp"
-#include "dynosam/frontend/VIFrontend.hpp"  // only for DynoState! Should be in common!
+// #include "dynosam/frontend/VIFrontend.hpp"  // only for DynoState! Should be
+// in common!
+#include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/Macros.hpp"
 #include "dynosam_ros/Display-Definitions.hpp"
@@ -217,6 +219,9 @@ class DynoStatePublisher {
 
   void publish(const DynoState& state);
 
+  DynoStatePublisher& publishVisualOdomTF(bool flag);
+  DynoStatePublisher& publishObjectOdomTF(bool flag);
+
   //   void publishVisualOdometry(const gtsam::Pose3& T_world_camera,
   //                              Timestamp timestamp, const bool publish_tf);
   //   void publishVisualOdometryPath(const gtsam::Pose3Vector& poses,
@@ -255,10 +260,15 @@ class DynoStatePublisher {
   ObjectOdometryPub::SharedPtr object_odom_publisher_;
   MultiObjectOdometryPathPub::SharedPtr multi_object_odom_path_publisher_;
 
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
-      static_points_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
-      dynamic_points_pub_;
+  PointCloud2Pub::SharedPtr static_points_pub_;
+  PointCloud2Pub::SharedPtr dynamic_points_pub_;
+
+  //! Settings
+
+  //! Publish TF for visual odom
+  bool publish_vo_tf_{false};
+  //! Publish TF for object odometry
+  bool publish_oo_tf_{false};
 };
 
 // TODO: depricate!!

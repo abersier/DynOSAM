@@ -23,7 +23,7 @@ class PoseChangeVIBackendModule
   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
       const override;
 
-  Accessor::Ptr getAccessor() override;
+  Accessor::Ptr getAccessor() const override;
 
  protected:
   using SpinReturn = Base::SpinReturn;

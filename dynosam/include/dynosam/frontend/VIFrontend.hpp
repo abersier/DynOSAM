@@ -5,6 +5,7 @@
 #include "dynosam/frontend/imu/ImuFrontend.hpp"
 #include "dynosam/frontend/vision/FeatureTracker.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
+#include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/ModuleBase.hpp"
 #include "dynosam_common/Trajectories.hpp"
 
@@ -16,24 +17,6 @@ struct InvalidImageContainerException1 : public DynosamException {
                                   const std::string& what)
       : DynosamException("Image container with config: " +
                          container.toString() + "\n was invalid - " + what) {}
-};
-
-struct DynoStateTrajectories {
-  // trajectories
-  PoseTrajectory camera_trajectory;
-  MultiObjectTrajectories object_trajectories;
-};
-
-// For now
-struct DynoState : public DynoStateTrajectories {
-  DYNO_POINTER_TYPEDEFS(DynoState)
-  FrameId frame_id;
-  Timestamp timestamp;
-
-  // maps
-  StatusLandmarkVector local_static_map;
-  StatusLandmarkVector global_static_map;
-  StatusLandmarkVector dynamic_map;
 };
 
 struct RealtimeOutput {

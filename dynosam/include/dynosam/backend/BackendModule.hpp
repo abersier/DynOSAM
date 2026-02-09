@@ -36,6 +36,7 @@
 #include "dynosam/backend/BackendParams.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/visualizer/Visualizer-Definitions.hpp"  //for ImageDisplayQueueOptional,
+#include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/Exceptions.hpp"
 #include "dynosam_common/ModuleBase.hpp"
 #include "dynosam_common/SharedModuleInfo.hpp"
@@ -74,21 +75,17 @@ class Backend {
   virtual ~Backend() {}
 };
 
-// What we mean is DynosamState (all!!!)
-struct State1 {
-  DYNO_POINTER_TYPEDEFS(State1)
-};
-
 // TODO: BackendOutput should become State
 template <typename INPUT>
-class BackendModuleV1 : public ModuleBase<INPUT, State1>, public Backend {
+class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
  public:
-  using Base = ModuleBase<INPUT, State1>;
+  using Base = ModuleBase<INPUT, DynoState>;
   using Base::SpinReturn;
 
-  BackendModuleV1(const BackendParams& params)
+  BackendModuleV1(const BackendParams& params, Camera::Ptr camera)
       : Base("backend"),
         backend_params_(params),
+        camera_(CHECK_NOTNULL(camera)),
         noise_models_(NoiseModels::fromBackendParams(params)) {}
   virtual ~BackendModuleV1() = default;
 
@@ -103,18 +100,40 @@ class BackendModuleV1 : public ModuleBase<INPUT, State1>, public Backend {
    *
    * @return Accessor::Ptr
    */
-  virtual Accessor::Ptr getAccessor() = 0;
+  virtual Accessor::Ptr getAccessor() const = 0;
   virtual std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
   getActiveOptimisation() const = 0;
+
+  virtual DynoState::Ptr makeOutput() const {
+    Accessor::Ptr accessor = this->getAccessor();
+
+    DynoState::Ptr state = std::make_shared<DynoState>();
+
+    const auto camera_trajectory = accessor->getCameraTrajectory();
+    // expect frame and timestamp to be from the last entry
+    const auto last_camera_entry = camera_trajectory.last();
+    state->frame_id = last_camera_entry.frame_id;
+    state->timestamp = last_camera_entry.timestamp;
+
+    state->camera_trajectory = camera_trajectory;
+    state->object_trajectories = accessor->getMultiObjectTrajectories();
+
+    // TODO: should be global!?
+    state->local_static_map = accessor->getFullStaticMap();
+    state->dynamic_map = accessor->getDynamicLandmarkEstimates(state->frame_id);
+
+    return state;
+  }
 
  private:
   // called in ModuleBase immediately before the spin function is called
   virtual inline void validateInput(
       const typename Base::InputConstPtr& input) const override {}
 
- private:
+ protected:
   // TODO: maybe put in Backend
   const BackendParams backend_params_;
+  Camera::Ptr camera_;
   const NoiseModels noise_models_;
 };
 
@@ -127,11 +146,11 @@ class BackendModuleV1T : public BackendModuleV1<INPUT> {
   using Base = BackendModuleV1<INPUT>;
   using FormulationT = Formulation<MapT>;
 
-  BackendModuleV1T(const BackendParams& params)
-      : Base(params), map_(MapT::create()) {}
+  BackendModuleV1T(const BackendParams& params, Camera::Ptr camera)
+      : Base(params, camera), map_(MapT::create()) {}
   virtual ~BackendModuleV1T() = default;
 
-  const typename MapT::Ptr getMap() { return map_; }
+  const typename MapT::Ptr map() { return map_; }
 
  protected:
   typename MapT::Ptr map_;

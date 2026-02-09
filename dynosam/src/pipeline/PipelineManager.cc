@@ -469,32 +469,67 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
   Camera::Ptr camera = std::make_shared<Camera>(mutable_camera_params);
   CHECK_NOTNULL(camera);
 
-  VIFrontend::Ptr frontend = nullptr;
-  Backend::Ptr backend = nullptr;
-  BackendModuleDisplay::Ptr external_backend_display = nullptr;
+  // Output regustra for the backend (ie. DynoState output) since this is the
+  // same for all backend modules
+  std::shared_ptr<BackendOutputRegistra> output_registra = nullptr;
   // load frontend
   if (backend_type == BackendType::KF_HYBRID) {
     // PoseChangeVIFrontend
-    loadPoseChangeModules(camera, factory, frontend, backend,
-                          external_backend_display);
+    loadPoseChangeModules(camera, factory, frontend_, backend_,
+                          external_backend_display_, output_registra);
   } else {
-    loadRegularOrParallelHybridModules(camera, factory, frontend, backend,
-                                       external_backend_display);
+    loadRegularOrParallelHybridModules(camera, factory, frontend_, backend_,
+                                       external_backend_display_,
+                                       output_registra);
   }
 
-  if (!frontend) {
+  if (!frontend_) {
     throw DynosamException("Pipeline failure: no front-end could be loaded");
   }
 
-  frontend_viz_pipeline_ = std::make_unique<FrontendVizPipeline>(
-      "frontend-viz-pipeline", &frontend_viz_input_queue_, frontend_display);
-  frontend_viz_pipeline_->parallelRun(true);
+  FrontendPipelineV1::UniquePtr frontend_pipeline_derived =
+      std::make_unique<FrontendPipelineV1>("frontend-pipeline",
+                                           &frontend_input_queue_, frontend_);
+  const auto parallel_run = params_.parallelRun();
+  frontend_pipeline_derived->parallelRun(parallel_run);
+  frontend_pipeline_derived->registerOutputQueue(&frontend_viz_input_queue_);
+  // conver pipeline to base type
+  frontend_pipeline_ = std::move(frontend_pipeline_derived);
+
+  if (frontend_display) {
+    LOG(INFO) << "Loading frontend viz pipeline";
+    frontend_viz_pipeline_ = std::make_unique<FrontendVizPipeline>(
+        "frontend-viz-pipeline", &frontend_viz_input_queue_, frontend_display);
+    frontend_viz_pipeline_->parallelRun(true);
+  }
+
+  if (backend_) {
+    if (backend_display && output_registra) {
+      LOG(INFO) << "Loaded backend with output queue registra. Constructing "
+                   "backend viz";
+      backend_viz_pipeline_ = std::make_unique<BackendVizPipeline>(
+          "backend-viz-pipeline", &backend_viz_input_queue_, backend_display);
+      backend_viz_pipeline_->parallelRun(true);
+      // register viz queue as output of backend
+      output_registra->registerQueue(&backend_viz_input_queue_);
+    }
+
+    if (external_backend_display_) {
+      LOG(INFO) << "Connecting BackendModuleDisplay";
+      auto external_backend_display = external_backend_display_;
+      output_registra->registerCallback(
+          [external_backend_display](const auto& output) -> void {
+            external_backend_display->spin(output);
+          });
+    }
+  }
 }
 
 void DynoPipelineManager::loadPoseChangeModules(
     Camera::Ptr camera, BackendModuleFactory::Ptr factory,
-    VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
-    BackendModuleDisplay::Ptr& external_backend_display_out) {}
+    Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+    BackendModuleDisplay::Ptr& external_backend_display_out,
+    std::shared_ptr<BackendOutputRegistra>& output_registra_out) {}
 
 // TODO: what we should get out are the two OutputReigstras for the frontend AND
 // the backend
@@ -502,29 +537,20 @@ void DynoPipelineManager::loadPoseChangeModules(
 //  then register these with VIZ if necessary?
 void DynoPipelineManager::loadRegularOrParallelHybridModules(
     Camera::Ptr camera, BackendModuleFactory::Ptr factory,
-    VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
-    BackendModuleDisplay::Ptr& external_backend_display_out) {
+    Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+    BackendModuleDisplay::Ptr& external_backend_display_out,
+    std::shared_ptr<BackendOutputRegistra>& output_registra_out) {
   auto regular_vi_frontend =
       std::make_shared<RegularVIFrontend>(params_, camera, &display_queue_);
   LOG(INFO) << "Made RegularVIFrontend";
 
-  FrontendPipelineV1::UniquePtr frontend_pipeline_derived =
-      std::make_unique<FrontendPipelineV1>(
-          "frontend-pipeline", &frontend_input_queue_, regular_vi_frontend);
-
   frontend_out = regular_vi_frontend;
 
   const auto parallel_run = params_.parallelRun();
-  frontend_pipeline_derived->parallelRun(parallel_run);
-  frontend_pipeline_derived->registerOutputQueue(&frontend_viz_input_queue_);
-  // conver pipeline to base type
-  frontend_pipeline_ = std::move(frontend_pipeline_derived);
-
   if (FLAGS_use_backend) {
     LOG(INFO) << "Construcing Backend";
 
     params_.backend_params_.full_batch_frame = data_loader_->datasetSize();
-    ;
     Sensors sensors;
     sensors.camera = camera;
 
@@ -546,7 +572,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
       // TODO: better naming options for pipelines since they now all output
       // DynosamState!!!
       using VisionImuPipeline =
-          PipelineModuleProcessor<VisionImuPacket, State1>;
+          PipelineModuleProcessor<VisionImuPacket, DynoState>;
       using VisionImuQueue = VisionImuPipeline::InputQueue;
 
       // construct backend pipeline and connect from frontend!!
@@ -565,10 +591,15 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
             backend_input_queue->push(vi_packet);
           });
 
+      output_registra_out = backend_pipeline->getOutputRegistra();
+
       // create storage object for queue since we currently use raw-pointers!
       // EEK!
       backend_input_queue_ = GenericThreadSafeQueueHolder(backend_input_queue);
+      // must set backend pipeline in function here
       backend_pipeline_ = std::move(backend_pipeline);
+      external_backend_display_out = backend_wrapper.backend_viz;
+      backend_out = vision_imu_backend_module;
     } else {
       // TODO: make exception!!
       LOG(FATAL) << "IS BAD";

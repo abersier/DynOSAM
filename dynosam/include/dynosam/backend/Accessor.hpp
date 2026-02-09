@@ -188,6 +188,8 @@ class Accessor {
    */
   virtual StatusLandmarkVector getFullStaticMap() const = 0;
 
+  virtual ObjectIds getObjectIds() const = 0;
+
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)
    * for object id (j). If result is true and a motion is provided, return true
@@ -479,6 +481,8 @@ class AccessorT : public DerivedAccessor {
    * @return StatusLandmarkVector
    */
   StatusLandmarkVector getFullStaticMap() const override;
+
+  ObjectIds getObjectIds() const override;
 
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)

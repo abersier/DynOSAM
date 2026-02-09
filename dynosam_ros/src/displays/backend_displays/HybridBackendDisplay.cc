@@ -19,9 +19,9 @@ HybridModuleDisplayCommon::HybridModuleDisplayCommon(
 }
 
 void HybridModuleDisplayCommon::publishObjectBoundingBoxes(
-    const BackendOutputPacket::ConstPtr& output) {
+    const DynoState::ConstPtr& output) {
   CloudPerObject clouds_per_obj =
-      groupObjectCloud(output->dynamic_landmarks, output->pose());
+      groupObjectCloud(output->dynamic_map, output->cameraPose());
 
   visualization_msgs::msg::MarkerArray array;
 
@@ -30,7 +30,7 @@ void HybridModuleDisplayCommon::publishObjectBoundingBoxes(
         pcl::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>(object_cloud));
 
     std::vector<Marker> markers = DisplayCommon::objectBBXToRvizMarker(
-        bbx, object_id, output->getTimestamp(), params_.world_frame_id);
+        bbx, object_id, output->timestamp, params_.world_frame_id);
     array.markers.insert(array.markers.end(), markers.begin(), markers.end());
   }
 
@@ -124,16 +124,14 @@ void HybridModuleDisplayCommon::publishObjectKeyFrames(
   object_key_frame_pub_->publish(array);
 }
 
-void ParalleHybridModuleDisplay::spin(
-    const BackendOutputPacket::ConstPtr& output) {
+void ParalleHybridModuleDisplay::spin(const DynoState::ConstPtr& output) {
   this->publishObjectBoundingBoxes(output);
-  this->publishObjectKeyFrames(output->getFrameId(), output->getTimestamp());
+  this->publishObjectKeyFrames(output->frame_id, output->timestamp);
 }
 
-void RegularHybridFormulationDisplay::spin(
-    const BackendOutputPacket::ConstPtr& output) {
+void RegularHybridFormulationDisplay::spin(const DynoState::ConstPtr& output) {
   this->publishObjectBoundingBoxes(output);
-  this->publishObjectKeyFrames(output->getFrameId(), output->getTimestamp());
+  this->publishObjectKeyFrames(output->frame_id, output->timestamp);
 }
 
 HybridKeyFrameFormulationDisplay::HybridKeyFrameFormulationDisplay(
@@ -148,87 +146,75 @@ HybridKeyFrameFormulationDisplay::HybridKeyFrameFormulationDisplay(
       node_->create_publisher<MarkerArray>("anchor_object_keyframes", 1);
 }
 
-void HybridKeyFrameFormulationDisplay::spin(
-    const BackendOutputPacket::ConstPtr& output) {
+void HybridKeyFrameFormulationDisplay::spin(const DynoState::ConstPtr& output) {
   LOG(INFO) << "In HybridKeyFrameFormulationDisplay::spin";
 
-  auto ros_time = utils::toRosTime(output->getTimestamp());
+  auto ros_time = utils::toRosTime(output->timestamp);
 
-  visualization_msgs::msg::MarkerArray array;
-  const auto& regular_keyframes = module_->getRegularKeyFrames();
-  const auto& anchor_keyframes = module_->getAnchorKeyFrames();
+  // visualization_msgs::msg::MarkerArray array;
+  // const auto& regular_keyframes = module_->getRegularKeyFrames();
+  // const auto& anchor_keyframes = module_->getAnchorKeyFrames();
 
-  auto map = module_->map();
-  auto frame_node = map->getFrame(output->getFrameId());
-  ObjectIds observed_objects = frame_node->getObservedObjects();
+  // auto map = module_->map();
+  // auto frame_node = map->getFrame(output->gframe_id);
+  // ObjectIds observed_objects = frame_node->getObservedObjects();
 
-  const auto keyframe_poses_per_object = module_->getInitialObjectPoses();
+  // const auto keyframe_poses_per_object = module_->getInitialObjectPoses();
 
-  int count = 0;
-  for (const auto& object_id : observed_objects) {
-    // CHECK(keyframe_poses_per_object.exists(object_id)) << "Missing object "
-    // <<  object_id;
-    if (!keyframe_poses_per_object.exists(object_id)) {
-      continue;
-    }
+  // int count = 0;
+  // for (const auto& object_id : observed_objects) {
+  //   // CHECK(keyframe_poses_per_object.exists(object_id)) << "Missing object
+  //   "
+  //   // <<  object_id;
+  //   if (!keyframe_poses_per_object.exists(object_id)) {
+  //     continue;
+  //   }
 
-    const auto& keyframe_poses = keyframe_poses_per_object.at(object_id);
+  //   const auto& keyframe_poses = keyframe_poses_per_object.at(object_id);
 
-    std_msgs::msg::ColorRGBA colour_msg;
-    convert(Color::uniqueId(object_id), colour_msg);
+  //   std_msgs::msg::ColorRGBA colour_msg;
+  //   convert(Color::uniqueId(object_id), colour_msg);
 
-    for (const auto& [frame_id, L_W_k] : keyframe_poses) {
-      visualization_msgs::msg::Marker marker;
-      // Header and Metadata
-      marker.header.frame_id = params_.world_frame_id;
-      marker.header.stamp = ros_time;
-      // marker.ns = "obj_" + std::to_string(object_id) + "_keyframe";
-      marker.ns = "obj_anchor_kf";
-      marker.id = count;
-      marker.action = visualization_msgs::msg::Marker::ADD;
+  //   for (const auto& [frame_id, L_W_k] : keyframe_poses) {
+  //     visualization_msgs::msg::Marker marker;
+  //     // Header and Metadata
+  //     marker.header.frame_id = params_.world_frame_id;
+  //     marker.header.stamp = ros_time;
+  //     // marker.ns = "obj_" + std::to_string(object_id) + "_keyframe";
+  //     marker.ns = "obj_anchor_kf";
+  //     marker.id = count;
+  //     marker.action = visualization_msgs::msg::Marker::ADD;
 
-      // Marker Type: LINE_LIST allows us to draw multiple lines (the three
-      // axes)
-      marker.type = visualization_msgs::msg::Marker::SPHERE;
-      // marker.lifetime =
-      // Translation
-      marker.pose.position.x = L_W_k.x();
-      marker.pose.position.y = L_W_k.y();
-      marker.pose.position.z = L_W_k.z();
+  //     // Marker Type: LINE_LIST allows us to draw multiple lines (the three
+  //     // axes)
+  //     marker.type = visualization_msgs::msg::Marker::SPHERE;
+  //     // marker.lifetime =
+  //     // Translation
+  //     marker.pose.position.x = L_W_k.x();
+  //     marker.pose.position.y = L_W_k.y();
+  //     marker.pose.position.z = L_W_k.z();
 
-      // --- Line Properties ---
-      marker.scale.x = 0.2;
-      marker.scale.y = 0.2;
-      marker.scale.z = 0.2;
+  //     // --- Line Properties ---
+  //     marker.scale.x = 0.2;
+  //     marker.scale.y = 0.2;
+  //     marker.scale.z = 0.2;
 
-      // Orientation (Convert GTSAM Rotation to ROS Quaternion)
-      const gtsam::Quaternion gtsam_q = L_W_k.rotation().toQuaternion();
-      marker.pose.orientation.w = gtsam_q.w();
-      marker.pose.orientation.x = gtsam_q.x();
-      marker.pose.orientation.y = gtsam_q.y();
-      marker.pose.orientation.z = gtsam_q.z();
+  //     // Orientation (Convert GTSAM Rotation to ROS Quaternion)
+  //     const gtsam::Quaternion gtsam_q = L_W_k.rotation().toQuaternion();
+  //     marker.pose.orientation.w = gtsam_q.w();
+  //     marker.pose.orientation.x = gtsam_q.x();
+  //     marker.pose.orientation.y = gtsam_q.y();
+  //     marker.pose.orientation.z = gtsam_q.z();
 
-      marker.color = colour_msg;
+  //     marker.color = colour_msg;
 
-      array.markers.push_back(marker);
+  //     array.markers.push_back(marker);
 
-      count++;
-    }
-  }
-
-  initial_anchor_object_key_frame_pub_->publish(array);
-
-  // auto make_range_markers = [](const KeyFrameRanges& kf_ranges) {
-  //   for (const FrameRange<gtsam::Pose3>::Ptr& range : kf_ranges) {
-  //     const auto [keyframe_id, kf_pose] = range->dataPair();
+  //     count++;
   //   }
   // }
 
-  // for (ObjectId object_id : observed_objects) {
-  //   LOG(INFO) << "Looking for KF ranges for j=" << object_id;
-  //   auto regular_kf_range = regular_keyframes->at(object_id);
-  //   auto anchor_kf_range = anchor_keyframes->at(object_id);
-  // }
+  // initial_anchor_object_key_frame_pub_->publish(array);
 }
 
 }  // namespace dyno

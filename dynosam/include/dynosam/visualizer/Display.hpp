@@ -30,29 +30,30 @@
 
 #pragma once
 
-#include "dynosam/backend/BackendOutputPacket.hpp"
+// #include "dynosam/backend/BackendOutputPacket.hpp"
 // #include "dynosam/frontend/VisionImuOutputPacket.hpp"
 #include "dynosam/frontend/VIFrontend.hpp"
+#include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/SharedModuleInfo.hpp"
 #include "dynosam_common/Types.hpp"
 
 namespace dyno {
 
 namespace internal {
-template <typename INPUT>
-std::pair<Timestamp, FrameId> collectTemporalData(const INPUT&);
+// template <typename INPUT>
+// std::pair<Timestamp, FrameId> collectTemporalData(const INPUT&);
 
-template <>
-inline std::pair<Timestamp, FrameId> collectTemporalData(
-    const VisionImuPacket& input) {
-  return {input.timestamp(), input.frameId()};
-}
+// template <>
+// inline std::pair<Timestamp, FrameId> collectTemporalData(
+//     const VisionImuPacket& input) {
+//   return {input.timestamp(), input.frameId()};
+// }
 
-template <>
-inline std::pair<Timestamp, FrameId> collectTemporalData(
-    const BackendOutputPacket& input) {
-  return {input.timestamp, input.frame_id};
-}
+// template <>
+// inline std::pair<Timestamp, FrameId> collectTemporalData(
+//     const BackendOutputPacket& input) {
+//   return {input.timestamp, input.frame_id};
+// }
 }  // namespace internal
 
 template <typename INPUT>
@@ -80,6 +81,6 @@ class DisplayBase : public SharedModuleInterface {
 };
 
 using FrontendDisplay = DisplayBase<RealtimeOutput>;
-using BackendDisplay = DisplayBase<BackendOutputPacket>;
+using BackendDisplay = DisplayBase<DynoState>;
 
 }  // namespace dyno

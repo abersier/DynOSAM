@@ -512,6 +512,8 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
   VisionImuPacket::ObjectTrackMap object_tracks;
 
   const auto object_estimates_k = object_trajectories.entriesAtFrame(frame_id);
+  LOG(INFO) << "Object estimates at " << frame_id
+            << " size= " << object_estimates_k.size();
   for (const auto& [object_id, object_estimate] : object_estimates_k) {
     const auto& L_W_k = object_estimate.data.pose;
     const auto& H_W_km1_k = object_estimate.data.motion;

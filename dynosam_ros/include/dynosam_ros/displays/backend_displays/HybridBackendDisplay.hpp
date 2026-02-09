@@ -27,7 +27,7 @@ class HybridModuleDisplayCommon : public BackendModuleDisplayRos {
   HybridModuleDisplayCommon(const DisplayParams& params, rclcpp::Node* node,
                             HybridAccessorCommon::Ptr hybrid_accessor);
 
-  void publishObjectBoundingBoxes(const BackendOutputPacket::ConstPtr& output);
+  void publishObjectBoundingBoxes(const DynoState::ConstPtr& output);
   void publishObjectKeyFrames(const FrameId frame_id,
                               const Timestamp timestamp);
 
@@ -46,7 +46,7 @@ class ParalleHybridModuleDisplay : public HybridModuleDisplayCommon {
             params, node, hybridAccessorCommonHelper(module->getAccessor())),
         module_(CHECK_NOTNULL(module)) {}
 
-  void spin(const BackendOutputPacket::ConstPtr& output) override;
+  void spin(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<ParallelHybridBackendModule> module_;
@@ -63,7 +63,7 @@ class RegularHybridFormulationDisplay : public HybridModuleDisplayCommon {
     CHECK_NOTNULL(module);
   }
 
-  void spin(const BackendOutputPacket::ConstPtr& output) override;
+  void spin(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<RegularHybridFormulation> module_;
@@ -75,7 +75,7 @@ class HybridKeyFrameFormulationDisplay : public HybridModuleDisplayCommon {
       const DisplayParams& params, rclcpp::Node* node,
       std::shared_ptr<HybridFormulationKeyFrame> module);
 
-  void spin(const BackendOutputPacket::ConstPtr& output) override;
+  void spin(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<HybridFormulationKeyFrame> module_;

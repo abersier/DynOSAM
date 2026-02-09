@@ -51,6 +51,8 @@ namespace dyno {
 using FrontendPipelineV1 =
     PipelineModuleProcessor<FrontendInputPacketBase, RealtimeOutput>;
 
+using BackendOutputRegistra = QueueRegistra<DynoState>;
+
 namespace internal {}
 
 class DynoPipelineManager {
@@ -95,17 +97,22 @@ class DynoPipelineManager {
 
   void loadPoseChangeModules(
       Camera::Ptr camera, BackendModuleFactory::Ptr factory,
-      VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
-      BackendModuleDisplay::Ptr& external_backend_display_out);
+      Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+      BackendModuleDisplay::Ptr& external_backend_display_out,
+      std::shared_ptr<BackendOutputRegistra>& output_registra_out);
 
   void loadRegularOrParallelHybridModules(
       Camera::Ptr camera, BackendModuleFactory::Ptr factory,
-      VIFrontend::Ptr& frontend_out, Backend::Ptr& backend_out,
-      BackendModuleDisplay::Ptr& external_backend_display_out);
+      Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
+      BackendModuleDisplay::Ptr& external_backend_display_out,
+      std::shared_ptr<BackendOutputRegistra>& output_registra_out);
 
  private:
   DynoParams params_;
   const bool use_offline_frontend_;
+
+  Frontend::Ptr frontend_;
+  Backend::Ptr backend_;
 
   //! Use the pipeline base version of the frontend pipeline
   //! This allows us to have different pipelines to provide data to the backend
@@ -116,16 +123,14 @@ class DynoPipelineManager {
   FrontendPipelineV1::InputQueue frontend_input_queue_;
   FrontendPipelineV1::OutputQueue frontend_viz_input_queue_;
 
-  /// TODO: another hack to get the final size of the dataset
-  // depending on use_offline_frontend_ this either gets the size from the
-  // dataset of from the FrontendOfflinePipeline currently only works for RGB!!
-  std::function<FrameId()> get_dataset_size_;
-
   // BackendPipeline::UniquePtr backend_pipeline_{nullptr};
   PipelineBase::UniquePtr backend_pipeline_{nullptr};
+  BackendOutputRegistra::Queue backend_viz_input_queue_;
   // FrontendPipeline::OutputQueue backend_input_queue_;
   // BackendPipeline::OutputQueue backend_output_queue_;
 
+  //! Generic holder for the backend input queue to ensure its held in memory
+  //! As we dont know the type of the backend input at compile time
   GenericThreadSafeQueueHolder backend_input_queue_;
 
   // Data-provider pointers
@@ -133,6 +138,7 @@ class DynoPipelineManager {
   DataProvider::Ptr data_loader_;
 
   // Display and Viz
+  BackendModuleDisplay::Ptr external_backend_display_;
   FrontendVizPipeline::UniquePtr frontend_viz_pipeline_;
   BackendVizPipeline::UniquePtr backend_viz_pipeline_;
   ImageDisplayQueue display_queue_;

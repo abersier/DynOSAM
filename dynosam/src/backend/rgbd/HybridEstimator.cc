@@ -1162,6 +1162,20 @@ gtsam::Pose3 HybridFormulationV1::calculateObjectCentroid(
   return center;
 }
 
+ErrorHandlingHooks HybridFormulationV1::getCustomErrorHooks() {
+  // base error hooks set "handle ILS exceptions"
+  auto handle_failed_object =
+      [&](const std::pair<FrameId, ObjectId>& failed_on_object) {
+        const auto [frame_id, object_id] = failed_on_object;
+        LOG(INFO) << "Is hybrid formulation with failed estimation at "
+                  << info_string(frame_id, object_id);
+        this->forceNewKeyFrame(frame_id, object_id);
+      };
+
+  // make error handling hooks with default ILS and custom on failed object hook
+  return getDefaultILSErrorHandlingHooks(handle_failed_object);
+}
+
 UpdateObservationResult HybridFormulationKeyFrame::updateDynamicObservations(
     FrameId frame_id_k, gtsam::Values& new_values,
     gtsam::NonlinearFactorGraph& new_factors,

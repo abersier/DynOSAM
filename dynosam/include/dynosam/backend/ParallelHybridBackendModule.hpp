@@ -88,6 +88,8 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
   PoseTrajectory getObjectPoseTrajectory(ObjectId object_id) const override;
   MotionTrajetory getObjectMotionTrajectory(ObjectId object_id) const override;
 
+  ObjectIds getObjectIds() const override;
+
   StatusLandmarkVector getDynamicLandmarkEstimates(
       FrameId frame_id) const override;
 
