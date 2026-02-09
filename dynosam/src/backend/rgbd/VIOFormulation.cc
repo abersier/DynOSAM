@@ -24,6 +24,21 @@ StateQuery<gtsam::imuBias::ConstantBias> VIOAccessor::getImuBias(
   return this->query<gtsam::imuBias::ConstantBias>(ImuBiasSymbol(frame_id));
 }
 
+VIOFormulation::VIOFormulation(const FormulationParams& params,
+                               typename Map::Ptr map,
+                               const NoiseModels& noise_models,
+                               const Sensors& sensors,
+                               const FormulationHooks& hooks)
+    : Base(params, map, noise_models, sensors, hooks) {
+  init_vel_prior_noise_ = gtsam::noiseModel::Isotropic::Sigma(3, 1e-5);
+
+  gtsam::Vector6 prior_imu_bias_sigmas;
+  prior_imu_bias_sigmas.head<3>().setConstant(0.1);
+  prior_imu_bias_sigmas.tail<3>().setConstant(0.01);
+  init_imu_bias_prior_noise_ =
+      gtsam::noiseModel::Diagonal::Sigmas(prior_imu_bias_sigmas);
+}
+
 gtsam::NavState VIOFormulation::addStatesInitalise(
     gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors,
     FrameId frame_id_k, Timestamp timestamp_k, const gtsam::Pose3& X_W_k,
@@ -45,20 +60,13 @@ gtsam::NavState VIOFormulation::addStatesInitalise(
   // add bias state
   this->addValue(new_values, initial_bias, imu_bias_key);
 
-  const gtsam::SharedNoiseModel noise_init_vel_prior =
-      gtsam::noiseModel::Isotropic::Sigma(3, 1e-5);
-  gtsam::Vector6 prior_imu_bias_sigmas;
-  prior_imu_bias_sigmas.head<3>().setConstant(0.1);
-  prior_imu_bias_sigmas.tail<3>().setConstant(0.01);
-  const gtsam::SharedNoiseModel imu_bias_prior_noise =
-      gtsam::noiseModel::Diagonal::Sigmas(prior_imu_bias_sigmas);
   this->addFactor(new_factors,
                   boost::make_shared<gtsam::PriorFactor<gtsam::Vector3>>(
-                      velocity_key, V_W_k, noise_init_vel_prior));
+                      velocity_key, V_W_k, init_vel_prior_noise_));
   this->addFactor(
       new_factors,
       boost::make_shared<gtsam::PriorFactor<gtsam::imuBias::ConstantBias>>(
-          imu_bias_key, initial_bias, imu_bias_prior_noise));
+          imu_bias_key, initial_bias, init_imu_bias_prior_noise_));
 
   first_frame_ = frame_id_k;
   last_propogate_frame_ = frame_id_k;
@@ -192,11 +200,27 @@ gtsam::NavState VIOFormulation::predictAndAddFactorsVO(
       DYNO_GET_QUERY_DEBUG(accessor->getImuBias(from_frame));
 
   addSensorPose(new_values, to_frame, nav_state_k.pose());
+
+  const gtsam::Key velocity_key(CameraVelocitySymbol(to_frame));
   // add predicted velocity value
-  this->addValue(new_values, nav_state_k.velocity(),
-                 CameraVelocitySymbol(to_frame));
+  this->addValue(new_values, nav_state_k.velocity(), velocity_key);
   // initalise imu bias
-  this->addValue(new_values, imu_bias_prev, ImuBiasSymbol(to_frame));
+  const gtsam::Key imu_bias_key(ImuBiasSymbol(to_frame));
+  this->addValue(new_values, imu_bias_prev, imu_bias_key);
+
+  // in VO formulation we dont actually estimate for velocity but we keep them
+  // in the values set so we can retrieve them
+  // to ensure that marginalization etc (ie. for fixed-lag) we must have at
+  // least one factor on them otherwise things in gtsam will break!
+  // this->addFactor(new_factors,
+  //                 boost::make_shared<gtsam::PriorFactor<gtsam::Vector3>>(
+  //                     velocity_key,
+  //                     nav_state_k.velocity(),
+  //                     init_vel_prior_noise_));
+  // this->addFactor(
+  //     new_factors,
+  //     boost::make_shared<gtsam::PriorFactor<gtsam::imuBias::ConstantBias>>(
+  //         imu_bias_key, imu_bias_prev, init_imu_bias_prior_noise_));
 
   return nav_state_k;
 }

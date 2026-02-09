@@ -70,7 +70,7 @@ class ModuleBase {
   using OutputCallback = std::function<void(OutputConstPtr)>;
 
   ModuleBase(const std::string& name)
-      : name_(name), module_state_(State::Boostrap) {}
+      : name_(name), module_state_(State::Boostrap), iteration_(0) {}
   virtual ~ModuleBase() = default;
 
   OutputConstPtr spinOnce(InputConstPtr input) {
@@ -94,6 +94,8 @@ class ModuleBase {
       }
     }
 
+    iteration_++;
+
     if (spin_return.second) emitOutputCallbacks(spin_return.second);
 
     module_state_ = spin_return.first;
@@ -101,6 +103,15 @@ class ModuleBase {
   }
 
   inline const std::string& moduleName() const { return name_; }
+
+  /**
+   * @brief Get how many spin iterations the module has performed.
+   * Value starts at 1 and increments after the internal boostrap/nominal Spin
+   * functions have been complete.
+   *
+   * @return int
+   */
+  inline int getModuleIteration() const { return iteration_; }
 
   /**
    * @brief Registeres a function callback to be triggered prior to
@@ -153,7 +164,7 @@ class ModuleBase {
  private:
   const std::string name_;
   std::atomic<State> module_state_;
-  std::atomic<State> previous_module_state_;
+  std::atomic_int iteration_;
 
   std::vector<InputCallback> input_callbacks_;
   std::vector<OutputCallback> output_callbacks_;

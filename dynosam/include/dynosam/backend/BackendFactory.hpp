@@ -119,17 +119,15 @@ class BackendFactory
     BackendWrapper wrapper;
 
     if (this->backend_type_ == BackendType::PARALLEL_HYBRID) {
-      // std::shared_ptr<ParallelHybridBackendModule> backend =
-      //     std::make_shared<ParallelHybridBackendModule>(params.backend_params,
-      //                                                   params.sensors.camera,
-      //                                                   params.display_queue);
+      std::shared_ptr<ParallelHybridBackendModule> backend =
+          std::make_shared<ParallelHybridBackendModule>(params.backend_params,
+                                                        params.sensors.camera);
 
-      // wrapper.backend = backend;
-      // // Parallel Hybrid is a special case where we have a vizualiser over
-      // the
-      // // whole module
-      // wrapper.backend_viz = this->createDisplay(backend);
-      VLOG(20) << "Creating ParallelHybridBackendModule"
+      wrapper.backend = backend;
+      // Parallel Hybrid is a special case where we have a vizualiser over
+      // the whole module
+      wrapper.backend_viz = this->createDisplay(backend);
+      VLOG(20) << "Creating ParallelHybridBackendModule "
                << (wrapper.backend_viz ? " with additional display"
                                        : " without additional display");
 

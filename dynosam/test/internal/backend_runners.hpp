@@ -39,29 +39,31 @@ namespace dyno_testing {
 
 using namespace dyno;
 
+using VisionImuInputBackend = BackendModuleV1<VisionImuPacket>;
+
 struct TesterBase {
   virtual ~TesterBase() = default;
 
-  virtual BackendModule::Ptr getBackend() = 0;
+  virtual VisionImuInputBackend::Ptr getBackend() = 0;
   virtual void onFinish() = 0;
   virtual void preSpin() {}
   virtual void postSpin() {}
 };
 
 struct RegularBackendTester : public TesterBase {
-  RegularBackendTester(dyno::RegularBackendModule::Ptr backend_)
+  RegularBackendTester(dyno::RegularVIBackendModule::Ptr backend_)
       : backend(backend_) {}
 
-  BackendModule::Ptr getBackend() override { return backend; }
+  VisionImuInputBackend::Ptr getBackend() override { return backend; }
 
-  dyno::RegularBackendModule::Ptr backend;
+  dyno::RegularVIBackendModule::Ptr backend;
 };
 
 struct ParallelHybridBackendTester : public TesterBase {
   ParallelHybridBackendTester(dyno::ParallelHybridBackendModule::Ptr backend_)
       : backend(backend_) {}
 
-  BackendModule::Ptr getBackend() override { return backend; }
+  VisionImuInputBackend::Ptr getBackend() override { return backend; }
 
   virtual void postSpin() { CHECK_NOTNULL(backend)->logGraphs(); }
 
@@ -72,12 +74,12 @@ struct ParallelHybridBackendTester : public TesterBase {
 
 struct IncrementalTester : public RegularBackendTester {
   struct Data {
-    dyno::RegularBackendModule::Ptr backend;
+    dyno::RegularVIBackendModule::Ptr backend;
     std::shared_ptr<gtsam::ISAM2> isam2;
     gtsam::Values opt_values;
   };
 
-  IncrementalTester(dyno::RegularBackendModule::Ptr backend_)
+  IncrementalTester(dyno::RegularVIBackendModule::Ptr backend_)
       : RegularBackendTester(backend_) {
     data = std::make_shared<Data>();
     gtsam::ISAM2Params isam2_params;
@@ -86,7 +88,7 @@ struct IncrementalTester : public RegularBackendTester {
     data->isam2 = std::make_shared<gtsam::ISAM2>(isam2_params);
 
     backend->registerPostFormulationUpdateCallback(
-        [&](const RegularBackendModule::FormulationType::Ptr& formulation,
+        [&](const RegularVIBackendModule::FormulationT::Ptr& formulation,
             dyno::FrameId frame_id, const gtsam::Values& new_values,
             const gtsam::NonlinearFactorGraph& new_factors) -> void {
           LOG(INFO) << "Running isam2 update " << frame_id
@@ -130,7 +132,7 @@ struct IncrementalTester : public RegularBackendTester {
     dyno::BackendMetaData backend_info;
     backend_info.backend_params = &backend->getParams();
 
-    dyno::PostUpdateData post_update(backend->getSpinState().frame_id);
+    dyno::PostUpdateData post_update(backend->latestFrameId());
     backend->formulation()->postUpdate(post_update);
     backend->formulation()->logBackendFromMap(backend_info);
 
@@ -145,20 +147,20 @@ struct IncrementalTester : public RegularBackendTester {
 
 struct BatchTester : public RegularBackendTester {
   struct Data {
-    dyno::RegularBackendModule::Ptr backend;
+    dyno::RegularVIBackendModule::Ptr backend;
 
     gtsam::Values values;
     gtsam::NonlinearFactorGraph factors;
   };
 
-  BatchTester(dyno::RegularBackendModule::Ptr backend_)
+  BatchTester(dyno::RegularVIBackendModule::Ptr backend_)
       : RegularBackendTester(backend_) {
     data = std::make_shared<Data>();
     CHECK(backend);
     data->backend = backend;
 
     backend->registerPostFormulationUpdateCallback(
-        [&](const RegularBackendModule::FormulationType::Ptr& formulation,
+        [&](const RegularVIBackendModule::FormulationT::Ptr& formulation,
             dyno::FrameId frame_id, const gtsam::Values& new_values,
             const gtsam::NonlinearFactorGraph& new_factors) -> void {
           data->values = formulation->getTheta();
@@ -178,7 +180,7 @@ struct BatchTester : public RegularBackendTester {
     dyno::BackendMetaData backend_info;
     backend_info.backend_params = &backend->getParams();
 
-    dyno::PostUpdateData post_update(backend->getSpinState().frame_id);
+    dyno::PostUpdateData post_update(backend->latestFrameId());
     backend->formulation()->postUpdate(post_update);
     backend->formulation()->logBackendFromMap(backend_info);
 

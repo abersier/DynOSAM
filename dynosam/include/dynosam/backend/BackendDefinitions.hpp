@@ -133,6 +133,7 @@ struct BackendMetaData {
   std::string logging_suffix;
 };
 
+// TODO: remove! Module can have an iteration variable!!
 struct BackendSpinState {
   FrameId frame_id{0u};
   Timestamp timestamp{0.0};

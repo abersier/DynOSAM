@@ -73,6 +73,8 @@ class RegularVIBackendModule
   RegularVIBackendModule(const BackendParams& backend_params,
                          Camera::Ptr camera, const BackendType& backend_type);
 
+  ~RegularVIBackendModule();
+
   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
       const override;
 

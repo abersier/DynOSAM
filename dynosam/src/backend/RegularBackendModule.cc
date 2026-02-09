@@ -93,6 +93,10 @@ RegularVIBackendModule::RegularVIBackendModule(
           backend_params, camera,
           DefaultBackendFactory<MapVision>::Create(backend_type)) {}
 
+RegularVIBackendModule::~RegularVIBackendModule() {
+  LOG(ERROR) << "TODO: logging!!!!!";
+}
+
 std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
 RegularVIBackendModule::getActiveOptimisation() const {
   LOG(FATAL) << "TODO";

@@ -563,7 +563,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
     // // this should be Backend::Ptr not backend module
     BackendWrapper backend_wrapper = factory->createModule(module_params);
 
-    using VisionIMUBackendModule = BackendModuleV1T<MapVision, VisionImuPacket>;
+    using VisionIMUBackendModule = BackendModuleV1<VisionImuPacket>;
     auto vision_imu_backend_module =
         std::dynamic_pointer_cast<VisionIMUBackendModule>(
             backend_wrapper.backend);

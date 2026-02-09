@@ -142,17 +142,14 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
   HybridAccessor::Ptr static_accessor_;
 };
 
-class ParallelHybridBackendModule
-    : public BackendModuleType<RegularBackendModuleTraits> {
+class ParallelHybridBackendModule : public BackendModuleV1<VisionImuPacket> {
  public:
   DYNO_POINTER_TYPEDEFS(ParallelHybridBackendModule)
 
-  using Base = BackendModuleType<RegularBackendModuleTraits>;
-  using RGBDMap = Base::MapType;
+  using Base = BackendModuleV1<VisionImuPacket>;
 
   ParallelHybridBackendModule(const BackendParams& backend_params,
-                              Camera::Ptr camera,
-                              ImageDisplayQueue* display_queue = nullptr);
+                              Camera::Ptr camera);
   ~ParallelHybridBackendModule();
 
   void logGraphs();
@@ -169,13 +166,14 @@ class ParallelHybridBackendModule
    *
    * @return Accessor::Ptr
    */
-  Accessor::Ptr getAccessor() override;
+  Accessor::Ptr getAccessor() const override;
 
  private:
   using SpinReturn = Base::SpinReturn;
+  SpinReturn boostrapSpin(VisionImuPacket::ConstPtr input) override;
+  SpinReturn nominalSpin(VisionImuPacket::ConstPtr input) override;
 
-  SpinReturn boostrapSpinImpl(VisionImuPacket::ConstPtr input) override;
-  SpinReturn nominalSpinImpl(VisionImuPacket::ConstPtr input) override;
+  FrameId latestFrameId() const override;
 
   Pose3Measurement bootstrapUpdateStaticEstimator(
       VisionImuPacket::ConstPtr input);
@@ -192,15 +190,10 @@ class ParallelHybridBackendModule
                           const VisionImuPacket::ObjectTracks& object_update,
                           const Pose3Measurement& X_W_k);
 
-  BackendOutputPacket::Ptr constructOutputPacket(FrameId frame_k,
-                                                 Timestamp timestamp) const;
-
   void logBackendFromEstimators();
   void updateTrackletMapping(const VisionImuPacket::ConstPtr input);
 
  private:
-  Camera::Ptr camera_;
-
   mutable std::mutex mutex_;
 
   gtsam::ISAM2Params static_isam2_params_;

@@ -653,7 +653,7 @@ TEST(RegularBackendModule, testObjectCentricFormulations) {
   //           dyno::RegularBackendModule::BackendType::HYBRID));
 
   tester.addTester(std::make_shared<dyno_testing::BatchTester>(
-      std::make_shared<dyno::RegularBackendModule>(
+      std::make_shared<dyno::RegularVIBackendModule>(
           backend_params, dyno_testing::makeDefaultCameraPtr(),
           dyno::BackendType::HYBRID)));
 
@@ -867,9 +867,9 @@ TEST(RegularBackendModule, testObjectCentric) {
   backend_params.min_dynamic_observations = 3u;
   backend_params.dynamic_point_noise_sigma = dynamic_point_sigma;
 
-  dyno::RegularBackendModule backend(backend_params,
-                                     dyno_testing::makeDefaultCameraPtr(),
-                                     dyno::BackendType::TESTING_HYBRID_SD);
+  dyno::RegularVIBackendModule backend(backend_params,
+                                       dyno_testing::makeDefaultCameraPtr(),
+                                       dyno::BackendType::TESTING_HYBRID_SD);
 
   gtsam::ISAM2Params isam2_params;
   isam2_params.evaluateNonlinearError = true;
@@ -884,7 +884,7 @@ TEST(RegularBackendModule, testObjectCentric) {
   gtsam::Values opt_values;
 
   backend.registerPostFormulationUpdateCallback(
-      [&](const dyno::RegularBackendModule::FormulationType::Ptr& formulation,
+      [&](const dyno::RegularVIBackendModule::FormulationT::Ptr& formulation,
           dyno::FrameId frame_id, const gtsam::Values& new_values,
           const gtsam::NonlinearFactorGraph& new_factors) -> void {
         LOG(INFO) << "In backend callback " << frame_id;
@@ -1127,7 +1127,7 @@ TEST(RegularBackendModule, testObjectCentric) {
 
   // log results of LM optimisation with different suffix
   dyno::BackendMetaData backend_info;
-  dyno::PostUpdateData post_update(backend.getSpinState().frame_id);
+  dyno::PostUpdateData post_update(backend.latestFrameId());
   backend.formulation()->postUpdate(post_update);
   backend.formulation()->logBackendFromMap(backend_info);
 

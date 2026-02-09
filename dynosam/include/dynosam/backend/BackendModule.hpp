@@ -82,6 +82,9 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
   using Base = ModuleBase<INPUT, DynoState>;
   using Base::SpinReturn;
 
+  using This = BackendModuleV1<INPUT>;
+  DYNO_POINTER_TYPEDEFS(This)
+
   BackendModuleV1(const BackendParams& params, Camera::Ptr camera)
       : Base("backend"),
         backend_params_(params),
@@ -93,6 +96,9 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
   // and get noise models!
   const BackendParams& getParams() const { return backend_params_; }
   const NoiseModels& getNoiseModels() const { return noise_models_; }
+
+  // Maybe need better name? This should be the lates frame with updates?
+  virtual FrameId latestFrameId() const = 0;
 
   /**
    * @brief Get the accessor the the underlying formulation, allowing the
@@ -146,14 +152,32 @@ class BackendModuleV1T : public BackendModuleV1<INPUT> {
   using Base = BackendModuleV1<INPUT>;
   using FormulationT = Formulation<MapT>;
 
+  using PostFormulationUpdateCallback = std::function<void(
+      const typename FormulationT::Ptr&, FrameId, const gtsam::Values&,
+      const gtsam::NonlinearFactorGraph&)>;
+
   BackendModuleV1T(const BackendParams& params, Camera::Ptr camera)
       : Base(params, camera), map_(MapT::create()) {}
   virtual ~BackendModuleV1T() = default;
 
   const typename MapT::Ptr map() { return map_; }
 
+  void registerPostFormulationUpdateCallback(
+      const PostFormulationUpdateCallback& cb) {
+    post_formulation_update_cb_ = cb;
+  }
+
+  /**
+   * @brief Retrieves the latest (ie. largest) frame id held in the map_
+   *
+   * @return FrameId
+   */
+  virtual FrameId latestFrameId() const override { return map_->lastFrameId(); }
+
  protected:
   typename MapT::Ptr map_;
+  //! External callback containing formulation data and new values and factors
+  PostFormulationUpdateCallback post_formulation_update_cb_;
 };
 
 /**

@@ -33,9 +33,8 @@ class VIOFormulation : public Formulation<MapVision> {
 
   VIOFormulation(const FormulationParams& params, typename Map::Ptr map,
                  const NoiseModels& noise_models, const Sensors& sensors,
-                 const FormulationHooks& hooks)
-      : Base(params, map, noise_models, sensors, hooks) {}
-  virtual ~VIOFormulation() {}
+                 const FormulationHooks& hooks);
+  virtual ~VIOFormulation() = default;
 
   // NOTE: V_C_k should actually be V_W_k as nav state and imu-pim operates in
   // W!!
@@ -80,6 +79,11 @@ class VIOFormulation : public Formulation<MapVision> {
   FrameId first_frame_{0};
   FrameId last_propogate_frame_{0};
   Timestamp last_propogate_time_{0.0};
+
+  //! Initial ego-motion velocity prior noise model
+  gtsam::SharedNoiseModel init_vel_prior_noise_;
+  //! Initial imu bias prior noise model
+  gtsam::SharedNoiseModel init_imu_bias_prior_noise_;
 };
 
 }  // namespace dyno
