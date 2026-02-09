@@ -34,11 +34,9 @@
 #include <gtsam_unstable/nonlinear/IncrementalFixedLagSmoother.h>
 
 #include "dynosam/backend/BackendDefinitions.hpp"
-#include "dynosam/backend/BackendInputPacket.hpp"
 #include "dynosam/backend/BackendModule.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/ParallelObjectISAM.hpp"
-#include "dynosam/backend/RegularBackendDefinitions.hpp"
 #include "dynosam_common/Flags.hpp"
 #include "dynosam_opt/Map.hpp"
 

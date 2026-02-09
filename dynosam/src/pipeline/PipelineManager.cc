@@ -224,12 +224,12 @@ void DynoPipelineManager::launchSpinners() {
 
   if (params_.parallelRun()) {
     frontend_pipeline_spinner_ = std::make_unique<dyno::Spinner>(
-        std::bind(&dyno::FrontendPipeline::spin, frontend_pipeline_.get()),
+        std::bind(&dyno::PipelineBase::spin, frontend_pipeline_.get()),
         "frontend-pipeline-spinner");
 
     if (backend_pipeline_)
       backend_pipeline_spinner_ = std::make_unique<dyno::Spinner>(
-          std::bind(&dyno::BackendPipeline::spin, backend_pipeline_.get()),
+          std::bind(&dyno::PipelineBase::spin, backend_pipeline_.get()),
           "backend-pipeline-spinner");
   }
 

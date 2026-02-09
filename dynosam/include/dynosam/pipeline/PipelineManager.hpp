@@ -32,7 +32,6 @@
 
 #include "dynosam/backend/BackendModuleFactory.hpp"
 // TODO : try and delete
-#include "dynosam/backend/BackendPipeline.hpp"
 #include "dynosam/dataprovider/DataInterfacePipeline.hpp"
 #include "dynosam/dataprovider/DataProvider.hpp"
 // TODO: probably can delete

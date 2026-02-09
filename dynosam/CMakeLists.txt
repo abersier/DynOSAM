@@ -96,8 +96,8 @@ add_library(${PROJECT_NAME} SHARED
 
   src/backend/Accessor.cc
   src/backend/BackendDefinitions.cc
-  src/backend/BackendPipeline.cc
-  src/backend/BackendModule.cc
+  # src/backend/BackendPipeline.cc
+  # src/backend/BackendModule.cc
   src/backend/BackendParams.cc
   src/backend/RegularBackendModule.cc
   src/backend/rgbd/WorldMotionEstimator.cc

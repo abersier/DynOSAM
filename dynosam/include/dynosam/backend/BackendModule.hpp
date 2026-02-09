@@ -31,8 +31,6 @@
 #pragma once
 
 #include "dynosam/backend/BackendDefinitions.hpp"
-#include "dynosam/backend/BackendInputPacket.hpp"
-#include "dynosam/backend/BackendOutputPacket.hpp"
 #include "dynosam/backend/BackendParams.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/visualizer/Visualizer-Definitions.hpp"  //for ImageDisplayQueueOptional,
@@ -48,21 +46,22 @@
 
 namespace dyno {
 
-template <typename DERIVED_INPUT_PACKET, typename MEASUREMENT_TYPE,
-          typename BASE_INPUT_PACKET = BackendInputPacket>
-struct BackendModuleTraits {
-  using DerivedPacketType = DERIVED_INPUT_PACKET;
-  using DerivedPacketTypeConstPtr = std::shared_ptr<const DerivedPacketType>;
+// template <typename DERIVED_INPUT_PACKET, typename MEASUREMENT_TYPE,
+//           typename BASE_INPUT_PACKET = BackendInputPacket>
+// struct BackendModuleTraits {
+//   using DerivedPacketType = DERIVED_INPUT_PACKET;
+//   using DerivedPacketTypeConstPtr = std::shared_ptr<const DerivedPacketType>;
 
-  using BasePacketType = BASE_INPUT_PACKET;
-  // BasePacketType is the type that gets passed to the module via the pipeline
-  // and must be a base class since we pass data along the pipelines via
-  // poniters
-  static_assert(std::is_base_of_v<BasePacketType, DerivedPacketType>);
+//   using BasePacketType = BASE_INPUT_PACKET;
+//   // BasePacketType is the type that gets passed to the module via the
+//   pipeline
+//   // and must be a base class since we pass data along the pipelines via
+//   // poniters
+//   static_assert(std::is_base_of_v<BasePacketType, DerivedPacketType>);
 
-  using MeasurementType = MEASUREMENT_TYPE;
-  using MapType = Map<MeasurementType>;
-};
+//   using MeasurementType = MEASUREMENT_TYPE;
+//   using MapType = Map<MeasurementType>;
+// };
 
 using FrontendUpdateInterface =
     std::function<void(const FrameId, const Timestamp)>;
@@ -180,130 +179,133 @@ class BackendModuleV1T : public BackendModuleV1<INPUT> {
   PostFormulationUpdateCallback post_formulation_update_cb_;
 };
 
-/**
- * @brief Base class to actually do processing. Data passed to this module from
- * the frontend
- *
- */
-class BackendModule
-    : public ModuleBase<BackendInputPacket, BackendOutputPacket>,
-      public SharedModuleInterface {
- public:
-  DYNO_POINTER_TYPEDEFS(BackendModule)
+// /**
+//  * @brief Base class to actually do processing. Data passed to this module
+//  from
+//  * the frontend
+//  *
+//  */
+// class BackendModule
+//     : public ModuleBase<BackendInputPacket, BackendOutputPacket>,
+//       public SharedModuleInterface {
+//  public:
+//   DYNO_POINTER_TYPEDEFS(BackendModule)
 
-  using Base = ModuleBase<BackendInputPacket, BackendOutputPacket>;
-  using Base::SpinReturn;
+//   using Base = ModuleBase<BackendInputPacket, BackendOutputPacket>;
+//   using Base::SpinReturn;
 
-  BackendModule(const BackendParams& params, ImageDisplayQueue* display_queue);
-  virtual ~BackendModule() = default;
+//   BackendModule(const BackendParams& params, ImageDisplayQueue*
+//   display_queue); virtual ~BackendModule() = default;
 
-  const BackendParams& getParams() const { return base_params_; }
-  const NoiseModels& getNoiseModels() const { return noise_models_; }
-  const BackendSpinState& getSpinState() const { return spin_state_; }
+//   const BackendParams& getParams() const { return base_params_; }
+//   const NoiseModels& getNoiseModels() const { return noise_models_; }
+//   const BackendSpinState& getSpinState() const { return spin_state_; }
 
-  /**
-   * @brief Get the accessor the the underlying formulation, allowing the
-   * optimised values to be directly accessed
-   *
-   * @return Accessor::Ptr
-   */
-  virtual Accessor::Ptr getAccessor() = 0;
+//   /**
+//    * @brief Get the accessor the the underlying formulation, allowing the
+//    * optimised values to be directly accessed
+//    *
+//    * @return Accessor::Ptr
+//    */
+//   virtual Accessor::Ptr getAccessor() = 0;
 
-  void registerFrontendUpdateInterface(const FrontendUpdateInterface& cb) {
-    CHECK(cb);
-    frontend_update_callback_ = cb;
-  }
+//   void registerFrontendUpdateInterface(const FrontendUpdateInterface& cb) {
+//     CHECK(cb);
+//     frontend_update_callback_ = cb;
+//   }
 
- protected:
-  // called in ModuleBase immediately before the spin function is called
-  virtual void validateInput(
-      const BackendInputPacket::ConstPtr& input) const override;
-  void setFactorParams(const BackendParams& backend_params);
+//  protected:
+//   // called in ModuleBase immediately before the spin function is called
+//   virtual void validateInput(
+//       const BackendInputPacket::ConstPtr& input) const override;
+//   void setFactorParams(const BackendParams& backend_params);
 
- protected:
-  // Redefine base input since these will be cast up by the BackendModuleType
-  // class to a new type which we want to refer to as the input type BaseInput
-  // is a ConstPtr to the type defined by BackendInputPacket
-  using BaseInputConstPtr = Base::InputConstPtr;
-  using BaseInput = Base::Input;
+//  protected:
+//   // Redefine base input since these will be cast up by the BackendModuleType
+//   // class to a new type which we want to refer to as the input type
+//   BaseInput
+//   // is a ConstPtr to the type defined by BackendInputPacket
+//   using BaseInputConstPtr = Base::InputConstPtr;
+//   using BaseInput = Base::Input;
 
- protected:
-  const BackendParams base_params_;
-  ImageDisplayQueue* display_queue_{nullptr};  //! Optional display queue
+//  protected:
+//   const BackendParams base_params_;
+//   ImageDisplayQueue* display_queue_{nullptr};  //! Optional display queue
 
-  //! Spin state of the backend. Updated in the backend module
-  //! base via InputCallback (see BackendModule constructor).
-  BackendSpinState spin_state_;
+//   //! Spin state of the backend. Updated in the backend module
+//   //! base via InputCallback (see BackendModule constructor).
+//   BackendSpinState spin_state_;
 
-  NoiseModels noise_models_;
-  FrontendUpdateInterface frontend_update_callback_;
+//   NoiseModels noise_models_;
+//   FrontendUpdateInterface frontend_update_callback_;
 
- private:
-  //! Maps which iteration of the backend corresponds with a frame id
-  //! Used primarily to handle KF's as the BackendSpinState#iterations
-  //! are used as an analog for KF ids
-  gtsam::FastMap<int, FrameId> iteration_to_frame_id_;
-};
+//  private:
+//   //! Maps which iteration of the backend corresponds with a frame id
+//   //! Used primarily to handle KF's as the BackendSpinState#iterations
+//   //! are used as an analog for KF ids
+//   gtsam::FastMap<int, FrameId> iteration_to_frame_id_;
+// };
 
-template <class MODULE_TRAITS>
-class BackendModuleType : public BackendModule {
- public:
-  using ModuleTraits = MODULE_TRAITS;
-  // A Dervied BackedInputPacket type (e.g. RGBDOutputPacketType)
-  using DerivedPacketType = typename ModuleTraits::DerivedPacketType;
-  using DerivedPacketTypeConstPtr =
-      typename ModuleTraits::DerivedPacketTypeConstPtr;
-  using MeasurementType = typename ModuleTraits::MeasurementType;
-  using This = BackendModuleType<ModuleTraits>;
-  using Base = BackendModule;
+// template <class MODULE_TRAITS>
+// class BackendModuleType : public BackendModule {
+//  public:
+//   using ModuleTraits = MODULE_TRAITS;
+//   // A Dervied BackedInputPacket type (e.g. RGBDOutputPacketType)
+//   using DerivedPacketType = typename ModuleTraits::DerivedPacketType;
+//   using DerivedPacketTypeConstPtr =
+//       typename ModuleTraits::DerivedPacketTypeConstPtr;
+//   using MeasurementType = typename ModuleTraits::MeasurementType;
+//   using This = BackendModuleType<ModuleTraits>;
+//   using Base = BackendModule;
 
-  using MapType = typename ModuleTraits::MapType;
-  using FormulationType = Formulation<MapType>;
+//   using MapType = typename ModuleTraits::MapType;
+//   using FormulationType = Formulation<MapType>;
 
-  DYNO_POINTER_TYPEDEFS(This)
+//   DYNO_POINTER_TYPEDEFS(This)
 
-  using Base::SpinReturn;
-  // Define the input type to the derived input type, defined in the
-  // MODULE_TRAITS this is the derived Input packet that is passed to the
-  // boostrap/nominal Spin Impl functions that must be implemented in the
-  // derived class that does the provessing on this module
-  using InputConstPtr = DerivedPacketTypeConstPtr;
-  using OutputConstPtr = Base::OutputConstPtr;
+//   using Base::SpinReturn;
+//   // Define the input type to the derived input type, defined in the
+//   // MODULE_TRAITS this is the derived Input packet that is passed to the
+//   // boostrap/nominal Spin Impl functions that must be implemented in the
+//   // derived class that does the provessing on this module
+//   using InputConstPtr = DerivedPacketTypeConstPtr;
+//   using OutputConstPtr = Base::OutputConstPtr;
 
-  BackendModuleType(const BackendParams& params,
-                    ImageDisplayQueue* display_queue)
-      : Base(params, display_queue), map_(MapType::create()) {}
+//   BackendModuleType(const BackendParams& params,
+//                     ImageDisplayQueue* display_queue)
+//       : Base(params, display_queue), map_(MapType::create()) {}
 
-  virtual ~BackendModuleType() {}
+//   virtual ~BackendModuleType() {}
 
-  inline const typename MapType::Ptr getMap() { return map_; }
+//   inline const typename MapType::Ptr getMap() { return map_; }
 
-  virtual std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
-  getActiveOptimisation() const = 0;
+//   virtual std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
+//   getActiveOptimisation() const = 0;
 
- protected:
-  virtual SpinReturn boostrapSpinImpl(InputConstPtr input) = 0;
-  virtual SpinReturn nominalSpinImpl(InputConstPtr input) = 0;
+//  protected:
+//   virtual SpinReturn boostrapSpinImpl(InputConstPtr input) = 0;
+//   virtual SpinReturn nominalSpinImpl(InputConstPtr input) = 0;
 
-  typename MapType::Ptr map_;
+//   typename MapType::Ptr map_;
 
- private:
-  SpinReturn boostrapSpin(Base::BaseInputConstPtr base_input) override {
-    return boostrapSpinImpl(attemptCast(base_input));
-  }
+//  private:
+//   SpinReturn boostrapSpin(Base::BaseInputConstPtr base_input) override {
+//     return boostrapSpinImpl(attemptCast(base_input));
+//   }
 
-  SpinReturn nominalSpin(Base::BaseInputConstPtr base_input) override {
-    return nominalSpinImpl(attemptCast(base_input));
-  }
+//   SpinReturn nominalSpin(Base::BaseInputConstPtr base_input) override {
+//     return nominalSpinImpl(attemptCast(base_input));
+//   }
 
-  DerivedPacketTypeConstPtr attemptCast(Base::BaseInputConstPtr base_input) {
-    DerivedPacketTypeConstPtr deriverd_input =
-        safeCast<Base::BaseInput, DerivedPacketType>(base_input);
-    checkAndThrow((bool)deriverd_input,
-                  "Failed to cast " + type_name<Base::BaseInput>() + " to " +
-                      type_name<DerivedPacketType>() + " in BackendModuleType");
-    return deriverd_input;
-  }
-};
+//   DerivedPacketTypeConstPtr attemptCast(Base::BaseInputConstPtr base_input) {
+//     DerivedPacketTypeConstPtr deriverd_input =
+//         safeCast<Base::BaseInput, DerivedPacketType>(base_input);
+//     checkAndThrow((bool)deriverd_input,
+//                   "Failed to cast " + type_name<Base::BaseInput>() + " to " +
+//                       type_name<DerivedPacketType>() + " in
+//                       BackendModuleType");
+//     return deriverd_input;
+//   }
+// };
 
 }  // namespace dyno

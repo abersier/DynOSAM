@@ -207,8 +207,7 @@ void DynoPipelineManagerRos::initalisePipeline() {
     };
   }
 
-  using RosBackendFactory = BackendFactory<BackendModulePolicyRos,
-                                           RegularBackendModuleTraits::MapType>;
+  using RosBackendFactory = RegularBackendModuleFactory<BackendModulePolicyRos>;
   // for now we just support regular backend ... in fact this design means we
   // should depricate any other map...
   //   auto factory =

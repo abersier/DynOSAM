@@ -276,13 +276,11 @@ using DefaultBackendFactory = BackendFactory<NoVizPolicy, MAP>;
 
 /// @brief BackendModuleFactory templated on the correct map type and with the
 /// default (NoVizPolicy) policy
-using DefaultRegularBackendModuleFactory =
-    DefaultBackendFactory<RegularBackendModuleTraits::MapType>;
+using DefaultRegularBackendModuleFactory = DefaultBackendFactory<MapVision>;
 
 /// @brief BackendModuleFactory templated on the regular map type but with a
 /// templated Policy
 template <typename Policy>
-using RegularBackendModuleFactory =
-    BackendFactory<Policy, RegularBackendModuleTraits::MapType>;
+using RegularBackendModuleFactory = BackendFactory<Policy, MapVision>;
 
 }  // namespace dyno

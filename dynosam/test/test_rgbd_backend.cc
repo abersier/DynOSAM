@@ -43,7 +43,6 @@
 #include <iterator>
 #include <vector>
 
-#include "dynosam/backend/BackendPipeline.hpp"
 #include "dynosam/backend/ParallelHybridBackendModule.hpp"
 #include "dynosam/backend/RegularBackendModule.hpp"
 #include "dynosam/factors/LandmarkMotionTernaryFactor.hpp"
@@ -83,61 +82,63 @@ void printSymbolTree(const gtsam::ISAM2& isam, const std::string& label) {
     std::cout << "{Empty Tree}" << std::endl;
 }
 
-TEST(RegularBackendModule, smallKITTIDataset) {
-  using namespace dyno;
-  using OfflineFrontend =
-      FrontendOfflinePipeline<RegularBackendModule::ModuleTraits>;
-  const auto file_path = getTestDataPath() + "/small_frontend.bson";
+// TEST(RegularBackendModule, smallKITTIDataset) {
+//   using namespace dyno;
+//   using OfflineFrontend =
+//       FrontendOfflinePipeline<RegularBackendModule::ModuleTraits>;
+//   const auto file_path = getTestDataPath() + "/small_frontend.bson";
 
-  OfflineFrontend::UniquePtr offline_frontend =
-      std::make_unique<OfflineFrontend>("offline-rgbdfrontend", file_path);
+//   OfflineFrontend::UniquePtr offline_frontend =
+//       std::make_unique<OfflineFrontend>("offline-rgbdfrontend", file_path);
 
-  dyno::BackendParams backend_params;
-  backend_params.useLogger(false);
-  backend_params.min_dynamic_observations = 1u;
+//   dyno::BackendParams backend_params;
+//   backend_params.useLogger(false);
+//   backend_params.min_dynamic_observations = 1u;
 
-  dyno::RegularBackendModule backend(backend_params,
-                                     dyno_testing::makeDefaultCameraPtr(),
-                                     dyno::BackendType::HYBRID);
+//   dyno::RegularBackendModule backend(backend_params,
+//                                      dyno_testing::makeDefaultCameraPtr(),
+//                                      dyno::BackendType::HYBRID);
 
-  gtsam::ISAM2Params isam2_params;
-  isam2_params.factorization = gtsam::ISAM2Params::Factorization::QR;
-  // isam2_params.relinearizeSkip = 1;
-  gtsam::ISAM2 isam2(isam2_params);
-  //   gtsam::NonlinearISAM isam(1, gtsam::EliminateQR);
-  // gtsam::IncrementalFixedLagSmoother smoother(2.0, isam2_params);
+//   gtsam::ISAM2Params isam2_params;
+//   isam2_params.factorization = gtsam::ISAM2Params::Factorization::QR;
+//   // isam2_params.relinearizeSkip = 1;
+//   gtsam::ISAM2 isam2(isam2_params);
+//   //   gtsam::NonlinearISAM isam(1, gtsam::EliminateQR);
+//   // gtsam::IncrementalFixedLagSmoother smoother(2.0, isam2_params);
 
-  backend.registerPostFormulationUpdateCallback(
-      [&](const dyno::RegularBackendModule::FormulationType::Ptr& formulation,
-          dyno::FrameId frame_id, const gtsam::Values& new_values,
-          const gtsam::NonlinearFactorGraph& new_factors) -> void {
-        LOG(INFO) << "In backend callback " << frame_id;
+//   backend.registerPostFormulationUpdateCallback(
+//       [&](const dyno::RegularBackendModule::FormulationType::Ptr&
+//       formulation,
+//           dyno::FrameId frame_id, const gtsam::Values& new_values,
+//           const gtsam::NonlinearFactorGraph& new_factors) -> void {
+//         LOG(INFO) << "In backend callback " << frame_id;
 
-        auto result = isam2.update(new_factors, new_values);
+//         auto result = isam2.update(new_factors, new_values);
 
-        isam2.getFactorsUnsafe().saveGraph(
-            dyno::getOutputFilePath("small_isam_graph_" +
-                                    std::to_string(frame_id) + ".dot"),
-            dyno::DynosamKeyFormatter);
+//         isam2.getFactorsUnsafe().saveGraph(
+//             dyno::getOutputFilePath("small_isam_graph_" +
+//                                     std::to_string(frame_id) + ".dot"),
+//             dyno::DynosamKeyFormatter);
 
-        gtsam::FastMap<gtsam::Key, std::string> coloured_affected_keys;
-        for (const auto& key : result.markedKeys) {
-          coloured_affected_keys.insert2(key, "red");
-        }
+//         gtsam::FastMap<gtsam::Key, std::string> coloured_affected_keys;
+//         for (const auto& key : result.markedKeys) {
+//           coloured_affected_keys.insert2(key, "red");
+//         }
 
-        dyno::factor_graph_tools::saveBayesTree(
-            isam2,
-            dyno::getOutputFilePath("small_oc_bayes_tree_" +
-                                    std::to_string(frame_id) + ".dot"),
-            dyno::DynosamKeyFormatter, coloured_affected_keys);
-      });
+//         dyno::factor_graph_tools::saveBayesTree(
+//             isam2,
+//             dyno::getOutputFilePath("small_oc_bayes_tree_" +
+//                                     std::to_string(frame_id) + ".dot"),
+//             dyno::DynosamKeyFormatter, coloured_affected_keys);
+//       });
 
-  auto output = offline_frontend->process(offline_frontend->getInputPacket());
-  while (output != nullptr) {
-    backend.spinOnce(output);
-    output = offline_frontend->process(offline_frontend->getInputPacket());
-  }
-}
+//   auto output =
+//   offline_frontend->process(offline_frontend->getInputPacket()); while
+//   (output != nullptr) {
+//     backend.spinOnce(output);
+//     output = offline_frontend->process(offline_frontend->getInputPacket());
+//   }
+// }
 
 // TEST(RegularBackendModule, constructSimpleGraph) {
 //   // make camera with a constant motion model starting at zero
