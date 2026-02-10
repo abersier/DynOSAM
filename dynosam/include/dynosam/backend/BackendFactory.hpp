@@ -38,6 +38,7 @@
 #include "dynosam/backend/BackendParams.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/ParallelHybridBackendModule.hpp"
+#include "dynosam/backend/PoseChangeBackendModule.hpp"
 #include "dynosam/backend/RegularBackendModule.hpp"
 #include "dynosam/backend/rgbd/HybridEstimator.hpp"
 #include "dynosam/backend/rgbd/WorldMotionEstimator.hpp"
@@ -115,6 +116,7 @@ class BackendFactory
 
   virtual ~BackendFactory() = default;
 
+  // TODO: pass ground truth or formulation hooks with params!!
   BackendWrapper createModule(const ModuleParams& params) override {
     BackendWrapper wrapper;
 
@@ -131,29 +133,30 @@ class BackendFactory
                << (wrapper.backend_viz ? " with additional display"
                                        : " without additional display");
 
+    } else if (this->backend_type_ == BackendType::KF_HYBRID) {
+      // Need to do this inside the factory so we get access to the policy!
+      //  I guess the pipeline could call createDisplay directly?
+
+      // TODO: is this the best way of making the KF_hybrid? many things need
+      // the estimator?
+      FormulationParams formulation_params = params.backend_params;
+      NoiseModels noise_models =
+          NoiseModels::fromBackendParams(params.backend_params);
+      std::shared_ptr<HybridFormulationKeyFrame> formulation =
+          std::make_shared<HybridFormulationKeyFrame>(
+              formulation_params, HybridFormulationKeyFrame::Map::create(),
+              noise_models, params.sensors, FormulationHooks{});
+
+      std::shared_ptr<PoseChangeVIBackendModule> pose_change_backend =
+          std::make_shared<PoseChangeVIBackendModule>(
+              params.backend_params, params.sensors.camera, formulation);
+
+      wrapper.backend = pose_change_backend;
+      wrapper.backend_viz = this->createDisplay(pose_change_backend);
+      VLOG(20) << "Creating PoseChangeVIBackendModule "
+               << (wrapper.backend_viz ? " with additional display"
+                                       : " without additional display");
     } else {
-      // std::shared_ptr<BackendFormulationFactory<MAP>> formulation_factory =
-      //     std::dynamic_pointer_cast<BackendFormulationFactory<MAP>>(
-      //         this->getPtr());
-
-      // CHECK_NOTNULL(formulation_factory);
-
-      // std::shared_ptr<RegularBackendModule> backend =
-      //     std::make_shared<RegularBackendModule>(
-      //         params.backend_params, params.sensors.camera,
-      //         formulation_factory, params.display_queue);
-
-      // wrapper.backend = backend;
-
-      // // the formulation is tighly wrapper in the regular backend module and
-      // can
-      // // be any formulation (while the Parallel Hybrid has to be Hybrid) so
-      // we
-      // // now retrieve the visualiser
-      // wrapper.backend_viz = backend->formulationDisplay();
-      // VLOG(20) << "Creating RegularBackendModule"
-      //          << (wrapper.backend_viz ? " with additional display"
-      //                                  : " without additional display");
       std::shared_ptr<BackendFormulationFactory<MAP>> formulation_factory =
           std::dynamic_pointer_cast<BackendFormulationFactory<MAP>>(
               this->getPtr());
@@ -186,6 +189,7 @@ class BackendFactory
       const FormulationHooks& formulation_hooks) override {
     FormulationVizWrapper<MAP> wrapper;
 
+    // TODO: or KF_HYBRDI!!
     if (this->backend_type_ == BackendType::PARALLEL_HYBRID) {
       DYNO_THROW_MSG(IncorrectParallelHybridConstruction)
           << "Cannot construct PARALLEL_HYBRID backend with a call to "

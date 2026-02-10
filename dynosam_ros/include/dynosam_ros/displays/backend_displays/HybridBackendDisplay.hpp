@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dynosam/backend/ParallelHybridBackendModule.hpp"
+#include "dynosam/backend/PoseChangeBackendModule.hpp"
 #include "dynosam/backend/rgbd/HybridEstimator.hpp"
 #include "dynosam_ros/displays/BackendDisplayRos.hpp"
 #include "dynosam_ros/displays/DisplaysCommon.hpp"
@@ -82,6 +83,19 @@ class HybridKeyFrameFormulationDisplay : public HybridModuleDisplayCommon {
   MarkerArrayPub::SharedPtr initial_anchor_object_key_frame_pub_;
 };
 
+class PoseChangeBakendModuleDisplay : public BackendModuleDisplayRos {
+ public:
+  PoseChangeBakendModuleDisplay(
+      const DisplayParams& params, rclcpp::Node* node,
+      std::shared_ptr<PoseChangeVIBackendModule> module);
+
+  void spin(const DynoState::ConstPtr& output) override;
+
+ private:
+  std::shared_ptr<PoseChangeVIBackendModule> module_;
+  HybridKeyFrameFormulationDisplay formulation_display_;
+};
+
 // TODO: in light of now having many Hybrid formulations we should template on
 // HybridFormulation not on RegularHybridFormulation as the display should work
 // for all!!
@@ -103,6 +117,11 @@ struct BackendModuleDisplayTraits<RegularHybridFormulation> {
 template <>
 struct BackendModuleDisplayTraits<HybridFormulationKeyFrame> {
   using type = HybridKeyFrameFormulationDisplay;
+};
+
+template <>
+struct BackendModuleDisplayTraits<PoseChangeVIBackendModule> {
+  using type = PoseChangeBakendModuleDisplay;
 };
 
 }  // namespace dyno

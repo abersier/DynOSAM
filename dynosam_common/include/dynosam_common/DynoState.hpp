@@ -14,6 +14,7 @@ struct DynoState : public DynoStateTrajectories {
   FrameId frame_id;
   Timestamp timestamp;
 
+  // if nothing in the trajectory this segfaults :/
   gtsam::Pose3 cameraPose() const;
   MotionEstimateMap objectMotions() const;
 

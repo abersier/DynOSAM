@@ -197,6 +197,11 @@ ObjectIds AccessorT<MAP, DerivedAccessor>::getObjectIds() const {
 }
 
 template <class MAP, class DerivedAccessor>
+FrameIds AccessorT<MAP, DerivedAccessor>::getFrameIds() const {
+  return map()->getFrameIds();
+}
+
+template <class MAP, class DerivedAccessor>
 PoseTrajectory AccessorT<MAP, DerivedAccessor>::getCameraTrajectory() const {
   PoseTrajectory pose_trajectory;
 

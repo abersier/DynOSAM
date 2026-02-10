@@ -97,7 +97,21 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
   const NoiseModels& getNoiseModels() const { return noise_models_; }
 
   // Maybe need better name? This should be the lates frame with updates?
-  virtual FrameId latestFrameId() const = 0;
+  /**
+   * @brief Uses the accessor to retruieve the greatest (ie last) frame id
+   * available.
+   *
+   * The accessor will use the map object to retrieve the value
+   * and this function assumes the Accessor#getFrameIds() returns frame
+   * values as an ordered vector
+   *
+   * @return FrameId
+   */
+  FrameId latestFrameId() const {
+    const auto accessor = this->getAccessor();
+    // getFrameIds should return an ordered vector of frames
+    return *accessor->getFrameIds().crbegin();
+  }
 
   /**
    * @brief Get the accessor the the underlying formulation, allowing the
@@ -165,13 +179,6 @@ class BackendModuleV1T : public BackendModuleV1<INPUT> {
       const PostFormulationUpdateCallback& cb) {
     post_formulation_update_cb_ = cb;
   }
-
-  /**
-   * @brief Retrieves the latest (ie. largest) frame id held in the map_
-   *
-   * @return FrameId
-   */
-  virtual FrameId latestFrameId() const override { return map_->lastFrameId(); }
 
  protected:
   typename MapT::Ptr map_;

@@ -40,6 +40,7 @@
 
 #include "dynosam_common/GroundTruthPacket.hpp"
 #include "dynosam_common/PointCloudProcess.hpp"
+#include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/CsvParser.hpp"
 #include "dynosam_common/utils/JsonUtils.hpp"
@@ -260,69 +261,61 @@ class EstimationModuleLogger {
   virtual ~EstimationModuleLogger();
 
   // logs to motion errors
-  virtual std::optional<size_t> logObjectMotion(
-      FrameId frame_id, const MotionEstimateMap& motion_estimates,
+  virtual size_t logObjectTrajectory(
+      FrameId frame_id, const MultiObjectTrajectories& object_trajectories,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
 
-  virtual std::optional<size_t> logObjectMotion(
-      const ObjectMotionMap& object_motions,
+  virtual size_t logObjectTrajectory(
+      const MultiObjectTrajectories& object_trajectories,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
 
-  // logs object pose (to a differnet file)
-  virtual std::optional<size_t> logObjectPose(
-      FrameId frame_id, const PoseEstimateMap& object_poses,
+  virtual size_t logCameraPose(
+      FrameId frame_id, const PoseTrajectory& camera_poses,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
 
-  virtual std::optional<size_t> logObjectPose(
-      const ObjectPoseMap& object_poses,
+  virtual size_t logCameraPose(
+      const PoseTrajectory& camera_poses,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
 
-  // logs camera pose (to a differnet file)
-  virtual std::optional<size_t> logCameraPose(
-      FrameId frame_id, const gtsam::Pose3& T_world_camera,
-      const std::optional<GroundTruthPacketMap>& gt_packets = {});
-
-  virtual void logPoints(FrameId frame_id, const gtsam::Pose3& T_world_local_k,
+  virtual void logPoints(FrameId frame_id, const gtsam::Pose3& X_W_k,
                          const StatusLandmarkVector& landmarks);
 
   virtual void logMapPoints(const StatusLandmarkVector& landmarks);
 
-  // logs to object bounding boxes
-  virtual void logObjectBbxes(FrameId frame_id,
-                              const BbxPerObject& object_bbxes);
-
-  // interum solution since we only log FrameIds to file and not Tiemstamps
-  // TODO: better is to log both (or actually just timestamp since our eval is
-  // designed to use Timestamps and we just have a hack ;)
-  void logFrameIdToTimestamp(FrameId frame_id, Timestamp timestamp);
-
   inline const std::string& moduleName() const { return module_name_; }
 
  protected:
-  bool logObjectMotion(
-      CsvWriter& writer, const Motion3ReferenceFrame& motion, FrameId frame_id,
-      ObjectId object_id,
+  inline long int timestampToNano(Timestamp timestamp) const {
+    return timestamp * 1e+9;
+  }
+
+  void logObjectSE3(CsvWriter& writer, const gtsam::Pose3& se3_est,
+                    const gtsam::Pose3& se3_gt, Timestamp timestamp,
+                    FrameId frame_id, ObjectId object_id);
+
+  void logCameraSE3(CsvWriter& writer, const gtsam::Pose3& se3_est,
+                    const gtsam::Pose3& se3_gt, Timestamp timestamp,
+                    FrameId frame_id);
+
+  bool logObjectTrajectoryEntry(
+      const PoseWithMotionEntry& entry, const ObjectId object_id,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
-  bool logObjectPose(
-      CsvWriter& writer, const gtsam::Pose3& pose, FrameId frame_id,
-      ObjectId object_id,
+
+  bool logCameraPoseEntry(
+      const PoseTrajectoryEntry& entry,
       const std::optional<GroundTruthPacketMap>& gt_packets = {});
 
  protected:
   const std::string module_name_;
   const std::string object_pose_file_name_;
   const std::string object_motion_file_name_;
-  const std::string object_bbx_file_name_;
   const std::string camera_pose_file_name_;
   const std::string map_points_file_name_;
-  const std::string frame_id_to_timestamp_file_name_;
 
   CsvWriter::UniquePtr object_pose_csv_;
   CsvWriter::UniquePtr object_motion_csv_;
-  CsvWriter::UniquePtr object_bbx_csv_;
   CsvWriter::UniquePtr camera_pose_csv_;
   CsvWriter::UniquePtr map_points_csv_;
-  CsvWriter::UniquePtr frame_id_timestamp_csv_;
 };
 
 }  // namespace dyno

@@ -32,7 +32,7 @@
 #include <variant>
 
 #include "dynosam/backend/BackendDefinitions.hpp"
-#include "dynosam/backend/BackendFormulationFactory.hpp"`
+#include "dynosam/backend/BackendFormulationFactory.hpp"
 #include "dynosam/backend/BackendModule.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/rgbd/VIOFormulation.hpp"

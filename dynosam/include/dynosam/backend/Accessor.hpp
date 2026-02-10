@@ -187,8 +187,12 @@ class Accessor {
    * @return StatusLandmarkVector
    */
   virtual StatusLandmarkVector getFullStaticMap() const = 0;
-
   virtual ObjectIds getObjectIds() const = 0;
+
+  // Should be in order!!
+  virtual FrameIds getFrameIds() const = 0;
+
+  virtual StatusLandmarkVector getFullTemporalDynamicMap() const;
 
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)
@@ -483,6 +487,8 @@ class AccessorT : public DerivedAccessor {
   StatusLandmarkVector getFullStaticMap() const override;
 
   ObjectIds getObjectIds() const override;
+
+  FrameIds getFrameIds() const override;
 
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)

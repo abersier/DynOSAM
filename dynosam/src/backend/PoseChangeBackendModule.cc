@@ -1,3 +1,55 @@
 #include "dynosam/backend/PoseChangeBackendModule.hpp"
 
-namespace dyno {}
+#include <gtsam/nonlinear/ISAM2Params.h>
+
+#include "dynosam_opt/IncrementalOptimization.hpp"
+
+namespace dyno {
+
+PoseChangeVIBackendModule::PoseChangeVIBackendModule(
+    const BackendParams& params, Camera::Ptr camera,
+    HybridFormulationKeyFrame::Ptr formulation)
+    : Base(params, camera), formulation_(CHECK_NOTNULL(formulation)) {
+  gtsam::ISAM2Params isam2_params;
+  isam2_params.relinearizeThreshold = 0.01;
+  // isam2_params.relinearizeSkip = FLAGS_regular_backend_relinearize_skip;
+  isam2_params.keyFormatter = DynosamKeyFormatter;
+  // isam2_params.enablePartialRelinearizationCheck = true;
+  isam2_params.evaluateNonlinearError = true;
+  smoother_ = std::make_unique<gtsam::ISAM2>(isam2_params);
+
+  error_hooks_ = formulation_->getCustomErrorHooks();
+}
+
+DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
+    PoseChangeInput::ConstPtr input) {
+  LOG(INFO) << "In PoseChangeVIBackendModule";
+
+  utils::ChronoTimingStats timer(formulation_->getFullyQualifiedName() +
+                                 ".update_incremental");
+  using SmootherInterface = IncrementalInterface<gtsam::ISAM2>;
+  SmootherInterface smoother_interface(smoother_.get());
+
+  gtsam::ISAM2Result result;
+  bool is_smoother_ok = smoother_interface.optimize(
+      &result,
+      [&](const gtsam::ISAM2&,
+          SmootherInterface::UpdateArguments& update_arguments) {
+        update_arguments.new_values = input->new_values;
+        update_arguments.new_factors = input->new_factors;
+      },
+      error_hooks_);
+
+  if (!is_smoother_ok) {
+    LOG(FATAL) << "Failed...";
+  }
+
+  LOG(INFO) << "ISAM2 result. Error before " << result.getErrorBefore()
+            << " error after " << result.getErrorAfter();
+  gtsam::Values optimised_values = smoother_interface.calculateEstimate();
+  formulation_->updateTheta(optimised_values);
+
+  return makeOutput();
+}
+
+}  // namespace dyno

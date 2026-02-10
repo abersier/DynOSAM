@@ -74,11 +74,10 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/imu/ImuParams.cc
 
   src/frontend/vision/Frame.cc
-  src/frontend/FrontendPipeline.cc
-  src/frontend/FrontendModule.cc
   src/frontend/FrontendParams.cc
-  # src/frontend/RGBDInstanceFrontendModule.cc
   src/frontend/VIFrontend.cc
+  src/frontend/RegularVIFrontend.cc
+  src/frontend/PoseChangeVIFrontend.cc
   src/frontend/VisionImuOutputPacket.cc
   src/frontend/vision/ORBextractor.cc
   src/frontend/vision/FeatureTracker.cc
@@ -89,8 +88,6 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/vision/TrackerParams.cc
   src/frontend/vision/FeatureTrackerBase.cc
   src/frontend/vision/FeatureDetector.cc
-  src/frontend/RGBDInstance-Definitions.cc
-  src/frontend/Frontend-Definitions.cc
   src/frontend/anms/NonMaximumSupression.cc
   src/frontend/anms/anms.cc
 

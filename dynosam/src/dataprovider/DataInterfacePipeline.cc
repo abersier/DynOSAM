@@ -69,13 +69,21 @@ FrontendInputPacketBase::ConstPtr DataInterfacePipeline::getInputPacket() {
 
   CHECK(packet);
 
-  GroundTruthInputPacket::Optional ground_truth;
-  if (ground_truth_packets_.find(packet->frameId()) !=
-      ground_truth_packets_.end()) {
+  GroundTruthInputPacket::Optional ground_truth_packet;
+
+  auto ground_truth = shared_ground_truth_.access();
+  if (ground_truth && ground_truth->exists(packet->frameId())) {
     VLOG(5) << "Gotten ground truth packet for frame id " << packet->frameId()
             << ", timestamp=" << packet->timestamp();
-    ground_truth = ground_truth_packets_.at(packet->frameId());
+    ground_truth_packet = ground_truth->at(packet->frameId());
   }
+  // if (ground_truth_packets_.find(packet->frameId()) !=
+  //     ground_truth_packets_.end()) {
+  //   VLOG(5) << "Gotten ground truth packet for frame id " <<
+  //   packet->frameId()
+  //           << ", timestamp=" << packet->timestamp();
+  //   ground_truth = ground_truth_packets_.at(packet->frameId());
+  // }
 
   const Timestamp& timestamp = packet->timestamp();
   ImuMeasurements::Optional imu_meas;
@@ -92,18 +100,22 @@ FrontendInputPacketBase::ConstPtr DataInterfacePipeline::getInputPacket() {
   }
 
   auto frontend_input =
-      std::make_shared<FrontendInputPacketBase>(packet, ground_truth);
+      std::make_shared<FrontendInputPacketBase>(packet, ground_truth_packet);
   frontend_input->imu_measurements = imu_meas;
 
   // in some cases (ie datasets) we know ahead of time which imu packet is
   // associated with which frame
-  //  if it is provided, check that our getTimeSyncedImuMeasurements did the
-  //  right thing
+  // if it is provided, check that our getTimeSyncedImuMeasurements did the
+  // right thing
   if (imu_meas && imu_meas->synchronised_frame_id) {
     CHECK_EQ(packet->frameId(), imu_meas->synchronised_frame_id.value());
   }
 
   return frontend_input;
+}
+
+SharedGroundTruth DataInterfacePipeline::getSharedGroundTruth() const {
+  return shared_ground_truth_;
 }
 
 bool DataInterfacePipeline::hasWork() const {

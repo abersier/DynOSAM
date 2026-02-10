@@ -681,10 +681,10 @@ void ParallelHybridBackendModule::implSolvePerObject(
 //   return backend_output;
 // }
 
-FrameId ParallelHybridBackendModule::latestFrameId() const {
-  auto map = static_formulation_->map();
-  return map->lastFrameId();
-}
+// FrameId ParallelHybridBackendModule::latestFrameId() const {
+//   auto map = static_formulation_->map();
+//   return map->lastFrameId();
+// }
 
 void ParallelHybridBackendModule::logBackendFromEstimators() {
   // TODO: name + suffix
@@ -927,6 +927,10 @@ ObjectIds ParallelHybridAccessor::getObjectIds() const {
                  std::back_inserter(destination),
                  [](auto entry) { return entry.first; });
   return destination;
+}
+
+FrameIds ParallelHybridAccessor::getFrameIds() const {
+  return static_accessor_->getFrameIds();
 }
 
 StatusLandmarkVector ParallelHybridAccessor::getDynamicLandmarkEstimates(

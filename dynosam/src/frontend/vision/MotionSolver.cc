@@ -1419,56 +1419,57 @@ ObjectMotionSolverFilter::createAndInsertFilter(ObjectId object_id,
   return filter;
 }
 
-void ObjectMotionSolverFilter::fillHybridInfo(
-    ObjectId object_id, VisionImuPacket::ObjectTracks& object_track) {
-  CHECK(filters_.exists(object_id));
-  auto filter = filters_.at(object_id);
+// void ObjectMotionSolverFilter::fillHybridInfo(
+//     ObjectId object_id, VisionImuPacket::ObjectTracks& object_track) {
+//   CHECK(filters_.exists(object_id));
+//   auto filter = filters_.at(object_id);
 
-  CHECK(object_keyframe_statuses_.exists(object_id));
-  auto object_kf_status = object_keyframe_statuses_.at(object_id);
+//   CHECK(object_keyframe_statuses_.exists(object_id));
+//   auto object_kf_status = object_keyframe_statuses_.at(object_id);
 
-  CHECK(object_statuses_.exists(object_id));
-  auto object_motion_track_status = object_statuses_.at(object_id);
+//   CHECK(object_statuses_.exists(object_id));
+//   auto object_motion_track_status = object_statuses_.at(object_id);
 
-  VisionImuPacket::ObjectTracks::HybridInfo hybrid_info;
-  hybrid_info.H_W_KF_k = filter->getKeyFramedMotionReference();
-  hybrid_info.L_W_KF = filter->getKeyFramePose();
-  hybrid_info.L_W_k = filter->getPose();
+//   VisionImuPacket::ObjectTracks::HybridInfo hybrid_info;
+//   hybrid_info.H_W_KF_k = filter->getKeyFramedMotionReference();
+//   hybrid_info.L_W_KF = filter->getKeyFramePose();
+//   hybrid_info.L_W_k = filter->getPose();
 
-  hybrid_info.regular_keyframe = false;
-  hybrid_info.anchor_keyframe = false;
+//   hybrid_info.regular_keyframe = false;
+//   hybrid_info.anchor_keyframe = false;
 
-  object_track.motion_track_status = object_motion_track_status;
+//   object_track.motion_track_status = object_motion_track_status;
 
-  if (object_track.motion_track_status == ObjectTrackingStatus::New ||
-      object_track.motion_track_status == ObjectTrackingStatus::WellTracked) {
-    if (object_kf_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-      hybrid_info.regular_keyframe = true;
-      hybrid_info.anchor_keyframe = true;
-    } else if (object_kf_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-      hybrid_info.regular_keyframe = true;
-    }
-  }
+//   if (object_track.motion_track_status == ObjectTrackingStatus::New ||
+//       object_track.motion_track_status == ObjectTrackingStatus::WellTracked)
+//       {
+//     if (object_kf_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
+//       hybrid_info.regular_keyframe = true;
+//       hybrid_info.anchor_keyframe = true;
+//     } else if (object_kf_status == ObjectKeyFrameStatus::RegularKeyFrame) {
+//       hybrid_info.regular_keyframe = true;
+//     }
+//   }
 
-  // TODO: check for online inliers or set inliers after RLLS
-  const auto fixed_points = filter->getCurrentLinearizedPoints();
-  for (const auto& [tracklet_id, m_L] : fixed_points) {
-    hybrid_info.initial_object_points.push_back(LandmarkStatus::Dynamic(
-        // currently no covariance!
-        Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, NaN,
-        tracklet_id, object_id, ReferenceFrame::OBJECT));
-  }
+//   // TODO: check for online inliers or set inliers after RLLS
+//   const auto fixed_points = filter->getCurrentLinearizedPoints();
+//   for (const auto& [tracklet_id, m_L] : fixed_points) {
+//     hybrid_info.initial_object_points.push_back(LandmarkStatus::Dynamic(
+//         // currently no covariance!
+//         Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, NaN,
+//         tracklet_id, object_id, ReferenceFrame::OBJECT));
+//   }
 
-  LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-            << "motion KF: " << hybrid_info.H_W_KF_k.from()
-            << " to: " << hybrid_info.H_W_KF_k.to()
-            << " track status: " << to_string(object_motion_track_status)
-            << " with regular kf " << std::boolalpha
-            << hybrid_info.regular_keyframe << " anchor kf "
-            << hybrid_info.anchor_keyframe;
+//   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
+//             << "motion KF: " << hybrid_info.H_W_KF_k.from()
+//             << " to: " << hybrid_info.H_W_KF_k.to()
+//             << " track status: " << to_string(object_motion_track_status)
+//             << " with regular kf " << std::boolalpha
+//             << hybrid_info.regular_keyframe << " anchor kf "
+//             << hybrid_info.anchor_keyframe;
 
-  object_track.hybrid_info = hybrid_info;
-}
+//   object_track.hybrid_info = hybrid_info;
+// }
 
 void ObjectMotionSolverFilter::updateTrajectories(
     MultiObjectTrajectories& object_trajectories,
@@ -1480,8 +1481,8 @@ void ObjectMotionSolverFilter::updateTrajectories(
   for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
     CHECK(filters_.exists(object_id));
 
-    CHECK_EQ(motion_reference_frame.from(), frame_id_k);
-    CHECK_EQ(motion_reference_frame.to(), frame_k->getFrameId());
+    CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
+    CHECK_EQ(motion_reference_frame.to(), frame_id_k);
 
     auto filter = filters_.at(object_id);
     gtsam::Pose3 L_k_j = filter->getPose();

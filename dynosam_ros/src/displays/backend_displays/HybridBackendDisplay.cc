@@ -217,4 +217,16 @@ void HybridKeyFrameFormulationDisplay::spin(const DynoState::ConstPtr& output) {
   // initial_anchor_object_key_frame_pub_->publish(array);
 }
 
+PoseChangeBakendModuleDisplay::PoseChangeBakendModuleDisplay(
+    const DisplayParams& params, rclcpp::Node* node,
+    std::shared_ptr<PoseChangeVIBackendModule> module)
+    : BackendModuleDisplayRos(params, node),
+      module_(module),
+      formulation_display_(params, node, module->getFormulation()) {}
+
+void PoseChangeBakendModuleDisplay::spin(const DynoState::ConstPtr& output) {
+  LOG(INFO) << "In PoseChangeBakendModuleDisplay::spin";
+  formulation_display_.spin(output);
+}
+
 }  // namespace dyno

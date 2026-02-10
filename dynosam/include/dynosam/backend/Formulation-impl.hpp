@@ -877,11 +877,26 @@ void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
   BackendLogger::UniquePtr logger =
       std::make_unique<BackendLogger>(logger_prefix);
 
-  typename Map::Ptr map = this->map();
   auto accessor = this->accessorFromTheta();
 
   CHECK(hooks().ground_truth_packets_request);
   const auto ground_truth_packets = hooks().ground_truth_packets_request();
+
+  const PoseTrajectory& camera_trajectory = accessor->getCameraTrajectory();
+  logger->logCameraPose(camera_trajectory, ground_truth_packets);
+
+  const MultiObjectTrajectories& object_trajectories =
+      accessor->getMultiObjectTrajectories();
+  logger->logObjectTrajectory(object_trajectories, ground_truth_packets);
+
+  auto static_map = accessor->getFullStaticMap();
+  auto dynamic_map = accessor->getFullTemporalDynamicMap();
+
+  logger->logMapPoints(static_map);
+  logger->logMapPoints(dynamic_map);
+
+  // TODO: do we still need the full batch hack? Hardly ever use FB anymore but
+  //  maybe fore backwards compatability!?
 
   // TODO: formulation params are now backend params so no longer need to
   //  pass backend params into Formulation with BackendMetaData
@@ -890,53 +905,54 @@ void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
 
   // const ObjectPoseMap object_pose_map = accessor->getObjectPoses();
 
-  for (FrameId frame_k : map->getFrameIds()) {
-    // TODO: hack - only go up to frames < full batch so we actually only
-    // include the optimised alues
-    // TODO: actually should be based on the optimization mode!!
-    if (params_.optimization_mode == RegularOptimizationType::FULL_BATCH &&
-        params_.full_batch_frame - 1 == (int)frame_k) {
-      break;
-    }
+  // for (FrameId frame_k : map->getFrameIds()) {
+  //   // TODO: hack - only go up to frames < full batch so we actually only
+  //   // include the optimised alues
+  //   // TODO: actually should be based on the optimization mode!!
+  //   if (params_.optimization_mode == RegularOptimizationType::FULL_BATCH &&
+  //       params_.full_batch_frame - 1 == (int)frame_k) {
+  //     break;
+  //   }
 
-    std::stringstream ss;
-    ss << "Logging data from map at frame " << frame_k;
+  //   std::stringstream ss;
+  //   ss << "Logging data from map at frame " << frame_k;
 
-    // get MotionestimateMap
-    //  const MotionEstimateMap motions = map->getMotionEstimates(frame_k);
-    {
-      const MotionEstimateMap motions = accessor->getObjectMotions(frame_k);
-      auto result =
-          logger->logObjectMotion(frame_k, motions, ground_truth_packets);
-      if (result)
-        ss << " Logged " << *result << " motions from " << motions.size()
-           << " computed motions.";
-      else
-        ss << " Could not log object motions.";
-    }
+  //   // get MotionestimateMap
+  //   //  const MotionEstimateMap motions = map->getMotionEstimates(frame_k);
+  //   {
+  //     const MotionEstimateMap motions = accessor->getObjectMotions(frame_k);
+  //     auto result =
+  //         logger->logObjectMotion(frame_k, motions, ground_truth_packets);
+  //     if (result)
+  //       ss << " Logged " << *result << " motions from " << motions.size()
+  //          << " computed motions.";
+  //     else
+  //       ss << " Could not log object motions.";
+  //   }
 
-    StateQuery<gtsam::Pose3> X_k_query = accessor->getSensorPose(frame_k);
+  //   StateQuery<gtsam::Pose3> X_k_query = accessor->getSensorPose(frame_k);
 
-    if (X_k_query) {
-      logger->logCameraPose(frame_k, X_k_query.get(), ground_truth_packets);
-    } else {
-      LOG(WARNING) << "Could not log camera pose estimate at frame " << frame_k;
-    }
+  //   if (X_k_query) {
+  //     logger->logCameraPose(frame_k, X_k_query.get(), ground_truth_packets);
+  //   } else {
+  //     LOG(WARNING) << "Could not log camera pose estimate at frame " <<
+  //     frame_k;
+  //   }
 
-    // TODO: log!!
-    //  logger->logObjectPose(object_pose_map, ground_truth_packets);
+  //   // TODO: log!!
+  //   //  logger->logObjectPose(object_pose_map, ground_truth_packets);
 
-    if (map->frameExists(frame_k)) {
-      auto static_map = accessor->getStaticLandmarkEstimates(frame_k);
-      auto dynamic_map = accessor->getDynamicLandmarkEstimates(frame_k);
+  //   if (map->frameExists(frame_k)) {
+  //     auto static_map = accessor->getStaticLandmarkEstimates(frame_k);
+  //     auto dynamic_map = accessor->getDynamicLandmarkEstimates(frame_k);
 
-      CHECK(X_k_query);  // actually not needed for points in world!!
-      logger->logPoints(frame_k, *X_k_query, static_map);
-      logger->logPoints(frame_k, *X_k_query, dynamic_map);
-    }
+  //     CHECK(X_k_query);  // actually not needed for points in world!!
+  //     logger->logPoints(frame_k, *X_k_query, static_map);
+  //     logger->logPoints(frame_k, *X_k_query, dynamic_map);
+  //   }
 
-    LOG(INFO) << ss.str();
-  }
+  //   LOG(INFO) << ss.str();
+  // }
 
   logger.reset();
 }

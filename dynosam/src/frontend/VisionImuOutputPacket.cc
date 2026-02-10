@@ -44,29 +44,6 @@ PointCloudLabelRGB::Ptr VisionImuPacket::denseLabelledCloud() const {
   return dense_labelled_cloud_;
 }
 
-bool VisionImuPacket::isCameraKeyFrame() const {
-  return camera_tracks_.is_keyframe;
-}
-
-bool VisionImuPacket::isObjectKeyFrame(ObjectId object_id) const {
-  if (object_tracks_.exists(object_id)) {
-    return object_tracks_.at(object_id).isKeyFrame();
-  }
-  return false;
-}
-
-bool VisionImuPacket::isKeyFrame() const {
-  bool is_any_keyframe = this->isCameraKeyFrame();
-  for (const auto& [object_id, _] : this->objectTracks()) {
-    is_any_keyframe = is_any_keyframe || isObjectKeyFrame(object_id);
-  }
-  return is_any_keyframe;
-}
-
-void VisionImuPacket::setCameraKeyFrame(bool keyframe) {
-  camera_tracks_.is_keyframe = keyframe;
-}
-
 const VisionImuPacket::CameraTracks& VisionImuPacket::cameraTracks() const {
   return camera_tracks_;
 }

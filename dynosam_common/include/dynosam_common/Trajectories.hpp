@@ -248,6 +248,7 @@ class PoseTrajectory : public TrajectoryBase<gtsam::Pose3> {
  public:
   PoseTrajectory() : TrajectoryBase<gtsam::Pose3>() {}
 };
+using PoseTrajectoryEntry = PoseTrajectory::Entry;
 
 class MotionTrajetory : public TrajectoryBase<Motion3ReferenceFrame> {
  public:

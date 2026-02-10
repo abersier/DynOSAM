@@ -261,6 +261,32 @@ class GroundTruthPacketMap
 };
 
 /**
+ * @brief Thread safe access to ground truth across modules using atomic copy.
+ *
+ */
+class SharedGroundTruth {
+ public:
+  SharedGroundTruth() = default;
+
+  void insert(FrameId frame_id, const GroundTruthInputPacket& packet);
+
+  /**
+   * @brief Thread safe access the the global ground truth.
+   *
+   * Returns a value if the ground truth is not null and the underlying map is
+   * not empty
+   *
+   *
+   * @return std::optional<GroundTruthPacketMap>
+   */
+  std::optional<GroundTruthPacketMap> access() const;
+
+ private:
+  std::shared_ptr<const GroundTruthPacketMap> safeAccess() const;
+  std::shared_ptr<const GroundTruthPacketMap> ground_truth_{nullptr};
+};
+
+/**
  * @brief Below is the JSON seralize/deseralize functions for all the
  * GroundTruthPacket types. We use the nlohmann::json library
  * (https://json.nlohmann.me/) - see the Arbitrary types conversions section in

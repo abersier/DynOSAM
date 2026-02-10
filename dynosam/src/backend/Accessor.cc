@@ -48,6 +48,14 @@ StatusLandmarkVector Accessor::getLandmarkEstimates(FrameId frame_id) const {
   return estimates;
 }
 
+StatusLandmarkVector Accessor::getFullTemporalDynamicMap() const {
+  StatusLandmarkVector estimates;
+  for (const FrameId frame_id : this->getFrameIds()) {
+    estimates += getDynamicLandmarkEstimates(frame_id);
+  }
+  return estimates;
+}
+
 StateQuery<Motion3ReferenceFrame> Accessor::getObjectMotionReferenceFrame(
     FrameId frame_id, ObjectId object_id) const {
   StateQuery<Motion3> motion_query = this->getObjectMotion(frame_id, object_id);

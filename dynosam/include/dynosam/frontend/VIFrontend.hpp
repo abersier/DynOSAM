@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dynosam/frontend/FrontendInputPacket.hpp"
-#include "dynosam/frontend/RGBDInstance-Definitions.hpp"
 #include "dynosam/frontend/imu/ImuFrontend.hpp"
 #include "dynosam/frontend/vision/FeatureTracker.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
@@ -17,6 +16,19 @@ struct InvalidImageContainerException1 : public DynosamException {
                                   const std::string& what)
       : DynosamException("Image container with config: " +
                          container.toString() + "\n was invalid - " + what) {}
+};
+
+class RGBDFrontendLogger : public EstimationModuleLogger {
+ public:
+  DYNO_POINTER_TYPEDEFS(RGBDFrontendLogger)
+  RGBDFrontendLogger();
+  virtual ~RGBDFrontendLogger();
+
+  void logTrackingLengthHistogram(const Frame::Ptr frame);
+
+ private:
+  std::string tracking_length_hist_file_name_;
+  json tracklet_length_json_;
 };
 
 struct RealtimeOutput {
@@ -37,20 +49,23 @@ class Frontend : public ModuleBase<FrontendInputPacketBase, RealtimeOutput> {
 
   DYNO_POINTER_TYPEDEFS(Frontend)
   Frontend(const std::string& name, const DynoParams& params,
-           ImageDisplayQueue* display_queue);
+           ImageDisplayQueue* display_queue,
+           const SharedGroundTruth& shared_ground_truth);
   virtual ~Frontend() = default;
 
  protected:
   bool pushImageToDisplayQueue(const std::string& wname, const cv::Mat& image);
 
+  void logRealTimeOutput(const RealtimeOutput::Ptr& output);
+
  protected:
   virtual void validateInput(
       const FrontendInputPacketBase::ConstPtr& input) const;
 
-  // TODO: log state
-
   const DynoParams dyno_params_;
   ImageDisplayQueue* display_queue_;
+  const SharedGroundTruth shared_ground_truth_;
+
   RGBDFrontendLogger::UniquePtr logger_;
 };
 
@@ -58,7 +73,8 @@ class VIFrontend : public Frontend {
  public:
   DYNO_POINTER_TYPEDEFS(VIFrontend)
   VIFrontend(const std::string& name, const DynoParams& params,
-             Camera::Ptr camera, ImageDisplayQueue* display_queue);
+             Camera::Ptr camera, ImageDisplayQueue* display_queue,
+             const SharedGroundTruth& shared_ground_truth);
   virtual ~VIFrontend() = default;
 
  protected:
@@ -107,62 +123,28 @@ class VIFrontend : public Frontend {
   void fillDebugImagery(DebugImagery& debug_imagery, const Frame::Ptr& frame_k,
                         const Frame::Ptr& frame_km1) const;
 
+  // helper functions
+  void fillMeasurementsFromFeatureIterator(
+      CameraMeasurementStatusVector* measurements, FeatureFilterIterator it,
+      FrameId frame_id, Timestamp timestamp, const gtsam::Vector2& pixel_sigmas,
+      double depth_sigma, StatusLandmarkVector* landmarks = nullptr) const;
+
  protected:
   Camera::Ptr camera_;
+
   EgoMotionSolver ego_motion_solver_;
   ImuFrontend imu_frontend_;
   FeatureTracker::UniquePtr tracker_;
-};
 
-// maybe a better name is VIModule or something? Depends on what we mean by
-// regular!!!
-using RegularBackendSink =
-    std::function<void(const VisionImuPacket::ConstPtr&)>;
+  //! Cached rgbd-camera
+  std::shared_ptr<RGBDCamera> rgbd_camera_;
 
-// TODO: include sinks (callback) to backend with VisionImuOutput
-class RegularVIFrontend : public VIFrontend {
- public:
-  DYNO_POINTER_TYPEDEFS(RegularVIFrontend)
-  RegularVIFrontend(const DynoParams& params, Camera::Ptr camera,
-                    ImageDisplayQueue* display_queue = nullptr);
-
-  void addVIOutputSink(const RegularBackendSink& func) {
-    regular_backend_output_sink_ = func;
-  };
-
- private:
-  SpinReturn boostrapSpin(FrontendInputPacketBase::ConstPtr input) override;
-  SpinReturn nominalSpin(FrontendInputPacketBase::ConstPtr input) override;
-
-  void fillOutputPacketWithTracks(
-      VisionImuPacket::Ptr vision_imu_packet, const Frame& frame,
-      const gtsam::Pose3 X_W_k, const gtsam::Pose3& T_k_1_k,
-      const MultiObjectTrajectories& object_trajectories) const;
-
- private:
-  ConsecutiveFrameObjectMotionSolver::UniquePtr object_motion_solver_;
-
-  gtsam::NavState nav_state_km1_;
-  //! The relative camera pose (T_k_1_k) from the previous frame
-  //! this is used as a constant velocity model when VO tracking fails and the
-  //! IMU is not available!
-  gtsam::Pose3 T_km1_k_;
-
-  //! Current trajectories. Copied to the DynoState output
-  DynoStateTrajectories dyno_state_;
-
-  RegularBackendSink regular_backend_output_sink_;
-};
-
-class PoseChangeVIFrontend : public VIFrontend {
- public:
-  DYNO_POINTER_TYPEDEFS(PoseChangeVIFrontend)
-  PoseChangeVIFrontend(const DynoParams& params, Camera::Ptr camera,
-                       ImageDisplayQueue* display_queue = nullptr);
-
- private:
-  SpinReturn boostrapSpin(FrontendInputPacketBase::ConstPtr input) override;
-  SpinReturn nominalSpin(FrontendInputPacketBase::ConstPtr input) override;
+  //! Cached sigmas for static feature measurements
+  double static_point_sigma_{0};
+  gtsam::Vector2 static_pixel_sigmas_;
+  //! Cached sigmas for dynamic feature measurements
+  double dynamic_point_sigma_{0};
+  gtsam::Vector2 dynamic_pixel_sigmas_;
 };
 
 }  // namespace dyno

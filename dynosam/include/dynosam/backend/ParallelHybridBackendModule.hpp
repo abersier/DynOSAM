@@ -87,6 +87,7 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
   MotionTrajetory getObjectMotionTrajectory(ObjectId object_id) const override;
 
   ObjectIds getObjectIds() const override;
+  FrameIds getFrameIds() const override;
 
   StatusLandmarkVector getDynamicLandmarkEstimates(
       FrameId frame_id) const override;
@@ -170,8 +171,6 @@ class ParallelHybridBackendModule : public BackendModuleV1<VisionImuPacket> {
   using SpinReturn = Base::SpinReturn;
   SpinReturn boostrapSpin(VisionImuPacket::ConstPtr input) override;
   SpinReturn nominalSpin(VisionImuPacket::ConstPtr input) override;
-
-  FrameId latestFrameId() const override;
 
   Pose3Measurement bootstrapUpdateStaticEstimator(
       VisionImuPacket::ConstPtr input);

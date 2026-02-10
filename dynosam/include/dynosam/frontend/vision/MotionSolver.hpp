@@ -576,21 +576,13 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
     return object_statuses_.at(object_id);
   }
 
-  void fillHybridInfo(ObjectId object_id,
-                      VisionImuPacket::ObjectTracks& object_track);
+  ObjectKeyFrameStatus getKeyFrameStatus(ObjectId object_id) const {
+    return object_keyframe_statuses_.at(object_id);
+  }
 
-  // TODO: depricate
-  void markObjectAsLost(ObjectId object_id) { filters_.erase(object_id); }
-
-  // any objects reset this frame and therefore will (is this guaranteed?
-  // otherwise we're making additional KF's) be KF in the next frame!
-  bool anyObjectsKF() const {
-    for (const auto& [_, result] : filter_needs_reset_) {
-      if (result) {
-        return true;
-      }
-    }
-    return false;
+  const gtsam::FastMap<ObjectId, std::shared_ptr<HybridObjectMotionSRIF>>&
+  getFilters() const {
+    return filters_;
   }
 
  protected:
@@ -621,7 +613,6 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
   const Params filter_params_;
   MultiObjectTrajectories object_trajectories_;
 
- public:  // TODO: for testing!
   gtsam::FastMap<ObjectId, std::shared_ptr<HybridObjectMotionSRIF>> filters_;
 
  private:

@@ -330,6 +330,46 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
+void SharedGroundTruth::insert(FrameId frame_id,
+                               const GroundTruthInputPacket& packet) {
+  // Load current snapshot
+  auto current = safeAccess();
+
+  // Create new map (copy old if exists)
+  GroundTruthPacketMap new_map;
+  if (current) {
+    new_map = *current;  // copy existing data
+  }
+
+  // Insert new entry
+  new_map[frame_id] = std::move(packet);
+
+  // Publish new immutable snapshot
+  auto new_snapshot =
+      std::make_shared<const GroundTruthPacketMap>(std::move(new_map));
+
+  std::atomic_store(&ground_truth_, new_snapshot);
+}
+
+std::optional<GroundTruthPacketMap> SharedGroundTruth::access() const {
+  auto shared_map = safeAccess();
+
+  if (!shared_map) {
+    return {};
+  }
+
+  if (shared_map->empty()) {
+    return {};
+  }
+
+  return *shared_map;
+}
+
+std::shared_ptr<const GroundTruthPacketMap> SharedGroundTruth::safeAccess()
+    const {
+  return std::atomic_load(&ground_truth_);
+}
+
 void to_json(json& j, const ObjectPoseGT::MotionInfo& motion_info) {
   j["is_moving"] = motion_info.is_moving_;
   j["has_stopped"] = motion_info.has_stopped_;

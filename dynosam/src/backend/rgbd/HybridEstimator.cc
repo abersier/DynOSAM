@@ -1434,191 +1434,202 @@ void HybridFormulationKeyFrame::preUpdate(const PreUpdateData& data) {
   // LOG(INFO) << "preUpdate kfid = " << kf_id;
 
   // frame id or kf_id
-  const FrameId frame_id = data.frame_id;
-  CHECK(data.input);
-  using ObjectTrackMap = VisionImuPacket::ObjectTrackMap;
-  using ObjectTracks = VisionImuPacket::ObjectTracks;
+  // const FrameId frame_id = data.frame_id;
+  // CHECK(data.input);
+  // using ObjectTrackMap = VisionImuPacket::ObjectTrackMap;
+  // using ObjectTracks = VisionImuPacket::ObjectTracks;
 
-  HybridAccessor::Ptr accessor = this->derivedAccessor<HybridAccessor>();
-  CHECK_NOTNULL(accessor);
+  // HybridAccessor::Ptr accessor = this->derivedAccessor<HybridAccessor>();
+  // CHECK_NOTNULL(accessor);
 
-  const VisionImuPacket& input = *data.input;
-  const ObjectTrackMap& object_tracks = input.objectTracks();
-  for (const auto& [object_id, object_track] : object_tracks) {
-    // LOG(INFO) << "Processing object track for object "
-    //           << info_string(frame_id, object_id);
-    CHECK(object_track.hybrid_info)
-        << "Hybrid info must be provided as part of the object track for this "
-           "formulation!";
+  // const VisionImuPacket& input = *data.input;
+  // const ObjectTrackMap& object_tracks = input.objectTracks();
+  // for (const auto& [object_id, object_track] : object_tracks) {
+  //   // LOG(INFO) << "Processing object track for object "
+  //   //           << info_string(frame_id, object_id);
+  //   CHECK(object_track.hybrid_info)
+  //       << "Hybrid info must be provided as part of the object track for this
+  //       "
+  //          "formulation!";
 
-    const ObjectTracks::HybridInfo& hybrid_info =
-        object_track.hybrid_info.value();
-    CHECK(hybrid_info.isKeyFrame());
+  //   const ObjectTracks::HybridInfo& hybrid_info =
+  //       object_track.hybrid_info.value();
+  //   CHECK(hybrid_info.isKeyFrame());
 
-    // intermediate keyframe?
-    const bool regular_keyframe = hybrid_info.regular_keyframe;
-    const bool anchor_keyframe = hybrid_info.anchor_keyframe;
-    const ObjectTrackingStatus& object_motion_tracking_status =
-        object_track.motion_track_status;
+  //   // intermediate keyframe?
+  //   const bool regular_keyframe = hybrid_info.regular_keyframe;
+  //   const bool anchor_keyframe = hybrid_info.anchor_keyframe;
+  //   const ObjectTrackingStatus& object_motion_tracking_status =
+  //       object_track.motion_track_status;
 
-    // estimated keyframe motioa from the frontend
-    // in this case k is the current but will now also be the latest KF
-    const Motion3ReferenceFrame& H_W_RKF_k = hybrid_info.H_W_KF_k;
+  //   // estimated keyframe motioa from the frontend
+  //   // in this case k is the current but will now also be the latest KF
+  //   const Motion3ReferenceFrame& H_W_RKF_k = hybrid_info.H_W_KF_k;
 
-    KeyFrameMetaData kf_data;
-    kf_data.is_regular = regular_keyframe;
-    kf_data.is_anchor = anchor_keyframe;
-    kf_data.H_W_lRKF_KF = H_W_RKF_k;
+  //   KeyFrameMetaData kf_data;
+  //   kf_data.is_regular = regular_keyframe;
+  //   kf_data.is_anchor = anchor_keyframe;
+  //   kf_data.H_W_lRKF_KF = H_W_RKF_k;
 
-    key_frames_per_object_.insert22(object_id, frame_id, kf_data);
+  //   key_frames_per_object_.insert22(object_id, frame_id, kf_data);
 
-    if (anchor_keyframe) CHECK(regular_keyframe);
+  //   if (anchor_keyframe) CHECK(regular_keyframe);
 
-    LOG(INFO) << "Processing object track: " << info_string(frame_id, object_id)
-              << " keyframe status: anchor_keyframe=" << anchor_keyframe
-              << " regular_keyframe=" << regular_keyframe << " tracking_status="
-              << to_string(object_motion_tracking_status);
+  //   LOG(INFO) << "Processing object track: " << info_string(frame_id,
+  //   object_id)
+  //             << " keyframe status: anchor_keyframe=" << anchor_keyframe
+  //             << " regular_keyframe=" << regular_keyframe << "
+  //             tracking_status="
+  //             << to_string(object_motion_tracking_status);
 
-    const bool is_only_regular_keyframe = regular_keyframe && !anchor_keyframe;
+  //   const bool is_only_regular_keyframe = regular_keyframe &&
+  //   !anchor_keyframe;
 
-    CHECK(object_motion_tracking_status != ObjectTrackingStatus::PoorlyTracked);
+  //   CHECK(object_motion_tracking_status !=
+  //   ObjectTrackingStatus::PoorlyTracked);
 
-    // TODO: we initalie the new KF with the pose provided from the frontend
-    // for consistency. This is fine when the object observations are continuous
-    // but at some point the KF pose in the frontend and back-end will change
-    // (i.e after opt!)
+  //   // TODO: we initalie the new KF with the pose provided from the frontend
+  //   // for consistency. This is fine when the object observations are
+  //   continuous
+  //   // but at some point the KF pose in the frontend and back-end will change
+  //   // (i.e after opt!)
 
-    // ad new initialisation points to backend
-    // misleading print as we dont add this many points! Only new ones
-    VLOG(10) << "Adding initial object points of size "
-             << hybrid_info.initial_object_points.size();
-    for (const auto& landmark_status : hybrid_info.initial_object_points) {
-      const TrackletId& tracklet_id = landmark_status.trackletId();
-      const gtsam::Point3& m_L = landmark_status.value();
-      // only add new ones?
-      if (!m_L_initial_.exists(object_id, tracklet_id)) {
-        // LOG(INFO) << "Making initial object points j=" << object_id << " i="
-        // << tracklet_id;
-        m_L_initial_.insert22(object_id, tracklet_id, m_L);
-      }
-    }
+  //   // ad new initialisation points to backend
+  //   // misleading print as we dont add this many points! Only new ones
+  //   VLOG(10) << "Adding initial object points of size "
+  //            << hybrid_info.initial_object_points.size();
+  //   for (const auto& landmark_status : hybrid_info.initial_object_points) {
+  //     const TrackletId& tracklet_id = landmark_status.trackletId();
+  //     const gtsam::Point3& m_L = landmark_status.value();
+  //     // only add new ones?
+  //     if (!m_L_initial_.exists(object_id, tracklet_id)) {
+  //       // LOG(INFO) << "Making initial object points j=" << object_id << "
+  //       i="
+  //       // << tracklet_id;
+  //       m_L_initial_.insert22(object_id, tracklet_id, m_L);
+  //     }
+  //   }
 
-    // if anchor (then also must be regular) then make both KF's
-    // if only regular, compute compsed motion
-    // this should correspond somewhat with the tracking status
-    // ie. if Anchor KF then we expect the object to be new (or - re-tracking
-    // but currently dont actually use this) otherwise expect to be
-    // well-tracked! an object can be well-tracked but also be a AKF (i guess)
-    // if decied upon on the fronted
+  //   // if anchor (then also must be regular) then make both KF's
+  //   // if only regular, compute compsed motion
+  //   // this should correspond somewhat with the tracking status
+  //   // ie. if Anchor KF then we expect the object to be new (or - re-tracking
+  //   // but currently dont actually use this) otherwise expect to be
+  //   // well-tracked! an object can be well-tracked but also be a AKF (i
+  //   guess)
+  //   // if decied upon on the fronted
 
-    // sanity check
-    // if (object_motion_tracking_status == ObjectTrackingStatus::New ||
-    //     object_motion_tracking_status == ObjectTrackingStatus::ReTracked) {
-    if (!is_only_regular_keyframe) {
-      // no previous keyframes should exist
-      // CHECK(!front_end_keyframes_.exists(object_id));
-      // if(object_motion_tracking_status == ObjectTrackingStatus::New)
-      CHECK(anchor_keyframe);
-      CHECK(regular_keyframe);
+  //   // sanity check
+  //   // if (object_motion_tracking_status == ObjectTrackingStatus::New ||
+  //   //     object_motion_tracking_status == ObjectTrackingStatus::ReTracked)
+  //   { if (!is_only_regular_keyframe) {
+  //     // no previous keyframes should exist
+  //     // CHECK(!front_end_keyframes_.exists(object_id));
+  //     // if(object_motion_tracking_status == ObjectTrackingStatus::New)
+  //     CHECK(anchor_keyframe);
+  //     CHECK(regular_keyframe);
 
-      key_frame_data_.startNewActiveRange(object_id, H_W_RKF_k.from(),
-                                          hybrid_info.L_W_k);
-      LOG(INFO) << "Making Anchor KF for NEW object "
-                << info_string(H_W_RKF_k.from(), object_id) << " with motion "
-                << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
+  //     key_frame_data_.startNewActiveRange(object_id, H_W_RKF_k.from(),
+  //                                         hybrid_info.L_W_k);
+  //     LOG(INFO) << "Making Anchor KF for NEW object "
+  //               << info_string(H_W_RKF_k.from(), object_id) << " with motion
+  //               "
+  //               << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
 
-      front_end_keyframes_.startNewActiveRange(object_id, H_W_RKF_k.from(),
-                                               hybrid_info.L_W_k);
-      LOG(INFO) << "Making Regular KF for NEW object "
-                << info_string(H_W_RKF_k.from(), object_id) << " with motion "
-                << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
-      initial_H_W_AKF_k_.insert22(object_id, H_W_RKF_k.to(), H_W_RKF_k);
-      // } else if (object_motion_tracking_status ==
-      //            ObjectTrackingStatus::WellTracked) {
-    } else {
-      CHECK(regular_keyframe);
-      CHECK(object_motion_tracking_status == ObjectTrackingStatus::WellTracked);
-      //
-      CHECK(!anchor_keyframe);
+  //     front_end_keyframes_.startNewActiveRange(object_id, H_W_RKF_k.from(),
+  //                                              hybrid_info.L_W_k);
+  //     LOG(INFO) << "Making Regular KF for NEW object "
+  //               << info_string(H_W_RKF_k.from(), object_id) << " with motion
+  //               "
+  //               << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
+  //     initial_H_W_AKF_k_.insert22(object_id, H_W_RKF_k.to(), H_W_RKF_k);
+  //     // } else if (object_motion_tracking_status ==
+  //     //            ObjectTrackingStatus::WellTracked) {
+  //   } else {
+  //     CHECK(regular_keyframe);
+  //     CHECK(object_motion_tracking_status ==
+  //     ObjectTrackingStatus::WellTracked);
+  //     //
+  //     CHECK(!anchor_keyframe);
 
-      const KeyFrameRange::ConstPtr last_frontend_range =
-          front_end_keyframes_.find(object_id, frame_id);
-      CHECK(last_frontend_range)
-          << "Failed for tracked object " << info_string(frame_id, object_id);
-      const auto [lRKF_id, L_lRKF] = last_frontend_range->dataPair();
-      LOG(INFO) << "Last regular KF " << lRKF_id;
+  //     const KeyFrameRange::ConstPtr last_frontend_range =
+  //         front_end_keyframes_.find(object_id, frame_id);
+  //     CHECK(last_frontend_range)
+  //         << "Failed for tracked object " << info_string(frame_id,
+  //         object_id);
+  //     const auto [lRKF_id, L_lRKF] = last_frontend_range->dataPair();
+  //     LOG(INFO) << "Last regular KF " << lRKF_id;
 
-      // TODO: if this is regular KF then the position of this KF will change
-      // according to the motion that is refined
-      //  as L_W_k = L_W_KF = H_W_AKF_KF * L_AKF
-      front_end_keyframes_.startNewActiveRange(object_id, H_W_RKF_k.to(),
-                                               hybrid_info.L_W_k);
-      LOG(INFO) << "Making Regular KF for tracked object "
-                << info_string(H_W_RKF_k.to(), object_id) << " with motion "
-                << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
+  //     // TODO: if this is regular KF then the position of this KF will change
+  //     // according to the motion that is refined
+  //     //  as L_W_k = L_W_KF = H_W_AKF_KF * L_AKF
+  //     front_end_keyframes_.startNewActiveRange(object_id, H_W_RKF_k.to(),
+  //                                              hybrid_info.L_W_k);
+  //     LOG(INFO) << "Making Regular KF for tracked object "
+  //               << info_string(H_W_RKF_k.to(), object_id) << " with motion "
+  //               << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
 
-      const KeyFrameRange::ConstPtr frontend_range =
-          front_end_keyframes_.find(object_id, frame_id);
-      CHECK(frontend_range);
-      // the most recent motion added to the estimator should take us from
-      // backend_kf_id to last_kf_id
-      const auto [current_kf_id, current_kf_pose] = frontend_range->dataPair();
-      LOG(INFO) << "Current regular KF " << current_kf_id;
+  //     const KeyFrameRange::ConstPtr frontend_range =
+  //         front_end_keyframes_.find(object_id, frame_id);
+  //     CHECK(frontend_range);
+  //     // the most recent motion added to the estimator should take us from
+  //     // backend_kf_id to last_kf_id
+  //     const auto [current_kf_id, current_kf_pose] =
+  //     frontend_range->dataPair(); LOG(INFO) << "Current regular KF " <<
+  //     current_kf_id;
 
-      // get backend anchor point and confert motion if necessary
-      const KeyFrameRange::ConstPtr backend_range =
-          CHECK_NOTNULL(key_frame_data_.find(object_id, frame_id));
-      const auto [backend_kf_id, backend_kf_pose] = backend_range->dataPair();
-      LOG(INFO) << "Anchor KF id: " << backend_kf_id;
+  //     // get backend anchor point and confert motion if necessary
+  //     const KeyFrameRange::ConstPtr backend_range =
+  //         CHECK_NOTNULL(key_frame_data_.find(object_id, frame_id));
+  //     const auto [backend_kf_id, backend_kf_pose] =
+  //     backend_range->dataPair(); LOG(INFO) << "Anchor KF id: " <<
+  //     backend_kf_id;
 
-      LOG(INFO) << "Provided object odometry " << H_W_RKF_k.from() << " -> "
-                << H_W_RKF_k.to();
+  //     LOG(INFO) << "Provided object odometry " << H_W_RKF_k.from() << " -> "
+  //               << H_W_RKF_k.to();
 
-      // motion from anchor point to current k
-      // this value will be added to the estimator
-      Motion3ReferenceFrame H_W_AKF_KF_initial;
-      if (H_W_RKF_k.from() == backend_kf_id) {
-        // TODO: also check pose is close?
-        CHECK_EQ(H_W_RKF_k.from(), lRKF_id);
-        H_W_AKF_KF_initial = H_W_RKF_k;
-      } else {
-        // motion does not match, so start a new starting point and transform
-        // the motio update frontend range
-        // NOTE: this uses the "to" motion (not the from)
+  //     // motion from anchor point to current k
+  //     // this value will be added to the estimator
+  //     Motion3ReferenceFrame H_W_AKF_KF_initial;
+  //     if (H_W_RKF_k.from() == backend_kf_id) {
+  //       // TODO: also check pose is close?
+  //       CHECK_EQ(H_W_RKF_k.from(), lRKF_id);
+  //       H_W_AKF_KF_initial = H_W_RKF_k;
+  //     } else {
+  //       // motion does not match, so start a new starting point and transform
+  //       // the motio update frontend range
+  //       // NOTE: this uses the "to" motion (not the from)
 
-        // need to transform into correct frame using (ideally the most up to
-        // date, i.e estimated motion)
-        LOG(INFO) << "Looking up estimated motion from " << backend_kf_id
-                  << " -> " << lRKF_id;
+  //       // need to transform into correct frame using (ideally the most up to
+  //       // date, i.e estimated motion)
+  //       LOG(INFO) << "Looking up estimated motion from " << backend_kf_id
+  //                 << " -> " << lRKF_id;
 
-        // TODO: eventually should come from optimizer
-        CHECK(initial_H_W_AKF_k_.exists(object_id, lRKF_id));
-        // from current anchor keyframe to last regular kf
-        const auto H_W_AKF_lKF = initial_H_W_AKF_k_.at(object_id, lRKF_id);
-        // check the last keyframed motion does indeed take us from the anchor
-        // kf
-        //  to the lastest regular keyframe
-        // which is also the start of the new motion H_W_lRKF_RKF
-        CHECK_EQ(H_W_AKF_lKF.from(), backend_kf_id);
-        CHECK_EQ(H_W_AKF_lKF.to(), lRKF_id);
+  //       // TODO: eventually should come from optimizer
+  //       CHECK(initial_H_W_AKF_k_.exists(object_id, lRKF_id));
+  //       // from current anchor keyframe to last regular kf
+  //       const auto H_W_AKF_lKF = initial_H_W_AKF_k_.at(object_id, lRKF_id);
+  //       // check the last keyframed motion does indeed take us from the
+  //       anchor
+  //       // kf
+  //       //  to the lastest regular keyframe
+  //       // which is also the start of the new motion H_W_lRKF_RKF
+  //       CHECK_EQ(H_W_AKF_lKF.from(), backend_kf_id);
+  //       CHECK_EQ(H_W_AKF_lKF.to(), lRKF_id);
 
-        // this motion does us from the last keyframe to the current frame k
-        CHECK_EQ(H_W_RKF_k.from(), lRKF_id);
-        CHECK_EQ(H_W_RKF_k.to(), current_kf_id);
+  //       // this motion does us from the last keyframe to the current frame k
+  //       CHECK_EQ(H_W_RKF_k.from(), lRKF_id);
+  //       CHECK_EQ(H_W_RKF_k.to(), current_kf_id);
 
-        H_W_AKF_KF_initial = Motion3ReferenceFrame(
-            H_W_RKF_k.estimate() * H_W_AKF_lKF.estimate(),
-            Motion3ReferenceFrame::Style::KF, ReferenceFrame::GLOBAL,
-            backend_kf_id, current_kf_id);
-      }
-      initial_H_W_AKF_k_.insert22(object_id, H_W_AKF_KF_initial.to(),
-                                  H_W_AKF_KF_initial);
-    }
-    // else if (object_motion_tracking_status ==
-    //            ObjectTrackingStatus::ReTracked) {
-    //   LOG(FATAL) << "Object re-tracked. Not handling this case yet!";
-    // }
-  }
+  //       H_W_AKF_KF_initial = Motion3ReferenceFrame(
+  //           H_W_RKF_k.estimate() * H_W_AKF_lKF.estimate(),
+  //           Motion3ReferenceFrame::Style::KF, ReferenceFrame::GLOBAL,
+  //           backend_kf_id, current_kf_id);
+  //     }
+  //     initial_H_W_AKF_k_.insert22(object_id, H_W_AKF_KF_initial.to(),
+  //                                 H_W_AKF_KF_initial);
+  //   }
+  // }
 }
 
 ObjectPoseMap HybridFormulationKeyFrame::getInitialObjectPoses() const {

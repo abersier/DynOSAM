@@ -33,10 +33,9 @@
 #include <glog/logging.h>
 
 #include "dynosam/backend/BackendFactory.hpp"
-#include "dynosam/frontend/RGBDInstanceFrontendModule.hpp"
-#include "dynosam_common/logger/Logger.hpp"
+#include "dynosam/frontend/PoseChangeVIFrontend.hpp"
+#include "dynosam/frontend/RegularVIFrontend.hpp"
 #include "dynosam_common/utils/TimingStats.hpp"
-#include "dynosam_opt/Map.hpp"
 
 DEFINE_bool(use_backend, false, "If any backend should be initalised");
 DEFINE_bool(use_opencv_display, true,
@@ -529,7 +528,72 @@ void DynoPipelineManager::loadPoseChangeModules(
     Camera::Ptr camera, BackendModuleFactory::Ptr factory,
     Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
     BackendModuleDisplay::Ptr& external_backend_display_out,
-    std::shared_ptr<BackendOutputRegistra>& output_registra_out) {}
+    std::shared_ptr<BackendOutputRegistra>& output_registra_out) {
+  const auto backend_type = params_.backend_type;
+  CHECK_EQ(backend_type, BackendType::KF_HYBRID);
+
+  const auto parallel_run = params_.parallelRun();
+
+  Sensors sensors;
+  sensors.camera = camera;
+  // TODO: display queue not used anymore!!!
+  // TODO: ground truth!
+  ModuleParams module_params;
+  module_params.backend_params = params_.backend_params_;
+  module_params.sensors = sensors;
+  module_params.display_queue = &display_queue_;
+  BackendWrapper backend_wrapper = factory->createModule(module_params);
+
+  auto pose_change_backend =
+      std::dynamic_pointer_cast<PoseChangeVIBackendModule>(
+          backend_wrapper.backend);
+
+  if (!pose_change_backend) {
+    throw DynosamException(
+        "Dyno pipeline loaded with BackendType::KF_HYBRID but loaded "
+        "backend was not PoseChangeVIBackendModule!");
+  }
+
+  HybridFormulationKeyFrame::Ptr kf_formulation =
+      pose_change_backend->getFormulation();
+  CHECK_NOTNULL(kf_formulation);
+
+  auto pc_vi_frontend = std::make_shared<PoseChangeVIFrontend>(
+      params_, camera, kf_formulation, &display_queue_,
+      data_interface_->getSharedGroundTruth());
+  LOG(INFO) << "Made PoseChangeVIFrontend";
+
+  frontend_out = pc_vi_frontend;
+
+  using PoseChangePipeline =
+      PipelineModuleProcessor<PoseChangeInput, DynoState>;
+  using PoseChangeQueue = PoseChangePipeline::InputQueue;
+  // construct backend pipeline and connect from frontend!!
+  std::shared_ptr<PoseChangeQueue> backend_input_queue =
+      std::make_shared<PoseChangeQueue>();
+  std::unique_ptr<PoseChangePipeline> backend_pipeline =
+      std::make_unique<PoseChangePipeline>("pose-change-vi-pipeline",
+                                           backend_input_queue.get(),
+                                           pose_change_backend);
+  backend_pipeline->parallelRun(parallel_run);
+
+  // register output function from frontend
+  pc_vi_frontend->addPoseChangeOutputSink(
+      [backend_input_queue](const PoseChangeInput::ConstPtr& pc_packet) {
+        CHECK(backend_input_queue);
+        backend_input_queue->push(pc_packet);
+      });
+
+  output_registra_out = backend_pipeline->getOutputRegistra();
+
+  // create storage object for queue since we currently use raw-pointers!
+  // EEK!
+  backend_input_queue_ = GenericThreadSafeQueueHolder(backend_input_queue);
+  // must set backend pipeline in function here
+  backend_pipeline_ = std::move(backend_pipeline);
+  external_backend_display_out = backend_wrapper.backend_viz;
+  backend_out = pose_change_backend;
+}
 
 // TODO: what we should get out are the two OutputReigstras for the frontend AND
 // the backend
@@ -540,8 +604,9 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
     Frontend::Ptr& frontend_out, Backend::Ptr& backend_out,
     BackendModuleDisplay::Ptr& external_backend_display_out,
     std::shared_ptr<BackendOutputRegistra>& output_registra_out) {
-  auto regular_vi_frontend =
-      std::make_shared<RegularVIFrontend>(params_, camera, &display_queue_);
+  auto regular_vi_frontend = std::make_shared<RegularVIFrontend>(
+      params_, camera, &display_queue_,
+      data_interface_->getSharedGroundTruth());
   LOG(INFO) << "Made RegularVIFrontend";
 
   frontend_out = regular_vi_frontend;
@@ -555,6 +620,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
     sensors.camera = camera;
 
     // TODO: display queue not used anymore!!!
+    // TODO: ground truth!
     ModuleParams module_params;
     module_params.backend_params = params_.backend_params_;
     module_params.sensors = sensors;

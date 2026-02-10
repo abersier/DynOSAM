@@ -56,9 +56,9 @@ class ImuInterfaceHandler {
  protected:
   ThreadsafeImuBuffer imu_buffer_;
 
-  Timestamp timestamp_last_frame_{
-      0};  //! Time of last IMU synchronisation (and
-           //! represents the time of the last frame)
+  //! Time of last IMU synchronisation (and
+  //! represents the time of the last frame)
+  Timestamp timestamp_last_frame_{0};
 };
 
 /**
@@ -105,7 +105,8 @@ class DataInterfacePipeline
   }
 
   inline void addGroundTruthPacket(const GroundTruthInputPacket& gt_packet) {
-    ground_truth_packets_[gt_packet.frame_id_] = gt_packet;
+    // ground_truth_packets_[gt_packet.frame_id_] = gt_packet;
+    shared_ground_truth_.insert(gt_packet.frame_id_, gt_packet);
   }
 
   inline void registerImageContainerPreprocessor(
@@ -116,6 +117,8 @@ class DataInterfacePipeline
       const PreQueueContainerCallback& func) {
     pre_queue_container_calback_ = func;
   }
+
+  SharedGroundTruth getSharedGroundTruth() const;
 
  protected:
   virtual void onShutdown() {}
@@ -135,8 +138,7 @@ class DataInterfacePipeline
   ThreadsafeQueue<ImageContainer::Ptr> packet_queue_;
   std::atomic_bool parallel_run_;
 
-  std::map<FrameId, GroundTruthInputPacket> ground_truth_packets_;
-  // gtsam::FastMap<FrameId, ImuMeasurements> imu_measurements_;
+  SharedGroundTruth shared_ground_truth_;
 
   // callback to handle dataset specific pre-processing of the images before
   // they are sent to the frontend if one is registered, called immediately
