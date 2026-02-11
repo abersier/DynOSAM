@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include <dynosam/visualizer/Display.hpp>
+#include <dynosam/visualizer/VisualizerPipelines.hpp>
 
 #include "dynosam_ros/Display-Definitions.hpp"
 #include "dynosam_ros/displays/inbuilt_displays/InbuiltDisplayCommon.hpp"

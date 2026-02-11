@@ -122,7 +122,6 @@ add_library(${PROJECT_NAME} SHARED
   src/pipeline/PipelineSpinner.cc
 
   src/visualizer/VisualizerPipelines.cc
-  src/visualizer/Visualizer-Definitions.cc
 )
 
 # target_compile_definitions(${PROJECT_NAME}

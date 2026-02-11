@@ -36,7 +36,6 @@
 
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/Vision-Definitions.hpp"
-#include "dynosam/visualizer/Visualizer-Definitions.hpp"
 #include "dynosam_common/Cuda.hpp"
 #include "dynosam_common/DynamicObjects.hpp"
 #include "dynosam_common/Types.hpp"

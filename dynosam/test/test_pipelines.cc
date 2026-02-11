@@ -37,7 +37,6 @@
 #include "dynosam/backend/RegularBackendModule.hpp"
 #include "dynosam/frontend/FrontendPipeline.hpp"
 #include "dynosam/pipeline/PipelineBase.hpp"
-#include "dynosam/pipeline/PipelinePayload.hpp"
 #include "dynosam_common/ModuleBase.hpp"
 #include "dynosam_common/utils/SafeCast.hpp"
 #include "internal/helpers.hpp"
@@ -280,9 +279,9 @@ overload(Ts...) -> overload<Ts...>;  // line not needed in C++20
 
 //     using Var = std::variant<int, std::string>;
 //     using VarPipeline = FunctionalSIMOPipelineModule<Var,
-//     NullPipelinePayload>;
+//     EmptyPayload>;
 
-//     using VarModule = VariantModule<Var, NullPipelinePayload, std::string>;
+//     using VarModule = VariantModule<Var, EmptyPayload, std::string>;
 
 //     VarPipeline::InputQueue input_queue;
 //     VarPipeline::OutputQueue output_queue;

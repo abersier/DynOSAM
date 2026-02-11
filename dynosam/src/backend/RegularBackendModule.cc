@@ -291,7 +291,8 @@ void RegularVIBackendModule::updateMapWithMeasurements(
 
   // update static and ego motion
   map_->updateObservations(input->staticMeasurements());
-  map_->updateSensorPoseMeasurement(frame_id_k, Pose3Measurement(X_W_k));
+  map_->updateSensorPoseMeasurement(frame_id_k, input->timestamp(),
+                                    Pose3Measurement(X_W_k));
 
   // update dynamic and motions
   MotionEstimateMap object_motions;

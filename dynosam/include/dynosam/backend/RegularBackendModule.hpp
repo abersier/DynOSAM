@@ -36,7 +36,6 @@
 #include "dynosam/backend/BackendModule.hpp"
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/rgbd/VIOFormulation.hpp"
-#include "dynosam/visualizer/Visualizer-Definitions.hpp"  //for ImageDisplayQueueOptional,
 #include "dynosam_common/Flags.hpp"
 #include "dynosam_opt/ISAM2.hpp"
 #include "dynosam_opt/IncrementalOptimization.hpp"

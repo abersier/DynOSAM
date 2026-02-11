@@ -42,7 +42,7 @@ BackendDSDRos::BackendDSDRos(const DisplayParams params,
           "temporal_dynamic_cloud", 1);
 }
 
-void BackendDSDRos::spinOnceImpl(const DynoState::ConstPtr& backend_output) {
+void BackendDSDRos::spinOnce(const DynoState::ConstPtr& backend_output) {
   VLOG(20) << "Spinning BackendDSDRos k=" << backend_output->frame_id;
   dyno_state_publisher_.publish(*backend_output);
   // // publish vo and path

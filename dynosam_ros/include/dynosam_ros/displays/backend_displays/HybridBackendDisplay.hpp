@@ -47,7 +47,7 @@ class ParalleHybridModuleDisplay : public HybridModuleDisplayCommon {
             params, node, hybridAccessorCommonHelper(module->getAccessor())),
         module_(CHECK_NOTNULL(module)) {}
 
-  void spin(const DynoState::ConstPtr& output) override;
+  void spinOnce(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<ParallelHybridBackendModule> module_;
@@ -64,7 +64,7 @@ class RegularHybridFormulationDisplay : public HybridModuleDisplayCommon {
     CHECK_NOTNULL(module);
   }
 
-  void spin(const DynoState::ConstPtr& output) override;
+  void spinOnce(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<RegularHybridFormulation> module_;
@@ -76,7 +76,7 @@ class HybridKeyFrameFormulationDisplay : public HybridModuleDisplayCommon {
       const DisplayParams& params, rclcpp::Node* node,
       std::shared_ptr<HybridFormulationKeyFrame> module);
 
-  void spin(const DynoState::ConstPtr& output) override;
+  void spinOnce(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<HybridFormulationKeyFrame> module_;
@@ -89,7 +89,7 @@ class PoseChangeBakendModuleDisplay : public BackendModuleDisplayRos {
       const DisplayParams& params, rclcpp::Node* node,
       std::shared_ptr<PoseChangeVIBackendModule> module);
 
-  void spin(const DynoState::ConstPtr& output) override;
+  void spinOnce(const DynoState::ConstPtr& output) override;
 
  private:
   std::shared_ptr<PoseChangeVIBackendModule> module_;

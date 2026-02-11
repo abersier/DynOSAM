@@ -163,12 +163,13 @@ class Map : public std::enable_shared_from_this<Map<MEASUREMENT>> {
    * @param frame_id FrameId
    * @param X const Pose3Measurement&
    */
-  void updateSensorPoseMeasurement(FrameId frame_id,
+  void updateSensorPoseMeasurement(FrameId frame_id, Timestamp timestamp,
                                    const Pose3Measurement& X) {
     auto frame_node = this->getFrame(frame_id);
     if (!frame_node) {
       frame_node = std::make_shared<FrameNodeM>(getptr());
       frame_node->frame_id = frame_id;
+      frame_node->timestamp = timestamp;
       frames_.insert2(frame_id, frame_node);
     }
     frame_node->X_world = X;

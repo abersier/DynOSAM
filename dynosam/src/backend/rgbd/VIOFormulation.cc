@@ -172,7 +172,8 @@ gtsam::NavState VIOFormulation::predictAndAddFactorsVO(
   const gtsam::NavState nav_state_prev =
       DYNO_GET_QUERY_DEBUG(accessor->getNavState(from_frame));
 
-  VLOG(10) << "Forward predicting frame=" << frame_id_k << " using VO";
+  VLOG(10) << "Forward predicting k=" << frame_id_k << " t=" << timestamp_k
+           << " using VO";
   const gtsam::Pose3 X_W_km1 = nav_state_prev.pose();
   // apply relative pose
   const gtsam::Pose3 X_W_k = X_W_km1 * T_k_1_k;

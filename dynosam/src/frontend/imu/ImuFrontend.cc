@@ -148,6 +148,18 @@ ImuFrontend::PimPtr ImuFrontend::preintegrateImuMeasurements(
   return copyPimShared();
 }
 
+ImuFrontend::PimPtr ImuFrontend::copyPim(const ImuFrontend::PimPtr& pim) {
+  auto combined_pim =
+      std::dynamic_pointer_cast<gtsam::PreintegratedCombinedMeasurements>(pim);
+  if (!combined_pim) {
+    throw DynosamException(
+        "Cannot copy PimPtr becuase derived type was not "
+        "PreintegratedCombinedMeasurements!");
+  }
+  return std::make_shared<gtsam::PreintegratedCombinedMeasurements>(
+      *combined_pim);
+}
+
 ImuFrontend::PimPtr ImuFrontend::copyPimShared() const {
   return std::make_shared<gtsam::PreintegratedCombinedMeasurements>(
       safeCastToPreintegratedCombinedImuMeasurements(*pim_));

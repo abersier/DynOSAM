@@ -1202,8 +1202,8 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
     // TODO: making temporal kf proves problems - show interaction between
     // "should reset" and not actually needing a reset is maybe problematic?
 
-    return is_resampled || temporal_kf;
-    // return is_resampled;
+    // return is_resampled || temporal_kf;
+    return is_resampled;
   };
 
   // includes the isa_resampled logic

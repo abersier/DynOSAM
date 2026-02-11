@@ -64,6 +64,8 @@ class VIOFormulation : public Formulation<MapVision> {
 
   StateQuery<gtsam::NavState> getNavState(FrameId frame_id);
 
+  FrameId getLastPropogatedFrame() const { return last_propogate_frame_; }
+
  private:
   gtsam::NavState predictAndAddFactorsVO(
       gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors,

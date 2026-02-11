@@ -518,7 +518,7 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
       auto external_backend_display = external_backend_display_;
       output_registra->registerCallback(
           [external_backend_display](const auto& output) -> void {
-            external_backend_display->spin(output);
+            external_backend_display->spinOnce(output);
           });
     }
   }

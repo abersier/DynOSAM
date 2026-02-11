@@ -96,7 +96,7 @@ class ParallelObjectISAM {
   // what motion representation should this be in? GLOBAL? Do ne need a new
   // repsentation for KF object centric?
   template <typename DERIVEDSTATUS>
-  void update(FrameId frame_k,
+  void update(FrameId frame_k, Timestamp timestamp_k,
               const MeasurementStatusVector<DERIVEDSTATUS>& measurements,
               const Pose3Measurement& X_world_k,
               const Motion3ReferenceFrame& motion_frame,
@@ -110,7 +110,8 @@ class ParallelObjectISAM {
     result_.was_smoother_ok = false;
 
     VLOG(50) << "ParallelObjectISAM::updateMap, j=" << object_id_;
-    this->updateMap(frame_k, measurements, X_world_k, motion_frame);
+    this->updateMap(frame_k, timestamp_k, measurements, X_world_k,
+                    motion_frame);
 
     if (!update_smoother) {
       return;
@@ -173,12 +174,12 @@ class ParallelObjectISAM {
 
  private:
   template <typename DERIVEDSTATUS>
-  void updateMap(FrameId frame_k,
+  void updateMap(FrameId frame_k, Timestamp timestamp,
                  const MeasurementStatusVector<DERIVEDSTATUS>& measurements,
                  const Pose3Measurement& X_world_k,
                  const Motion3ReferenceFrame& motion_frame) {
     map_->updateObservations(measurements);
-    map_->updateSensorPoseMeasurement(frame_k, X_world_k);
+    map_->updateSensorPoseMeasurement(frame_k, timestamp, X_world_k);
     const FrameId to = motion_frame.to();
     if (to != frame_k) {
       throw DynosamException(

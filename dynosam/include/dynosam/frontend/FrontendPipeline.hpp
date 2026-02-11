@@ -33,7 +33,6 @@
 #include "dynosam/frontend/FrontendInputPacket.hpp"
 #include "dynosam/frontend/VisionImuOutputPacket.hpp"
 #include "dynosam/pipeline/PipelineModuleProcessor.hpp"
-#include "dynosam/pipeline/PipelinePayload.hpp"
 #include "dynosam_common/logger/Logger.hpp"
 
 namespace dyno {
@@ -45,10 +44,10 @@ using FrontendPipeline =
 /// @tparam MODULE_TRAITS
 template <class MODULE_TRAITS>
 class FrontendOfflinePipeline
-    : public MIMOPipelineModule<NullPipelinePayload, VisionImuPacket> {
+    : public MIMOPipelineModule<EmptyPayload, VisionImuPacket> {
  public:
   using This = FrontendOfflinePipeline<MODULE_TRAITS>;
-  using Base = MIMOPipelineModule<NullPipelinePayload, VisionImuPacket>;
+  using Base = MIMOPipelineModule<EmptyPayload, VisionImuPacket>;
   using ModuleTraits = MODULE_TRAITS;
   // A Dervied BackedInputPacket type (e.g. RGBDOutputPacketType)
   using DerivedPacketType = typename ModuleTraits::DerivedPacketType;
@@ -83,7 +82,7 @@ class FrontendOfflinePipeline
   }
 
   InputConstSharedPtr getInputPacket() override {
-    static auto output = std::make_shared<NullPipelinePayload>();
+    static auto output = std::make_shared<EmptyPayload>();
     return output;
   }
 

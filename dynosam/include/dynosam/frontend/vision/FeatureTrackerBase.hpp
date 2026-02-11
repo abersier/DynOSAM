@@ -34,7 +34,7 @@
 
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/TrackerParams.hpp"
-#include "dynosam/visualizer/Visualizer-Definitions.hpp"
+#include "dynosam/visualizer/VisualizerPipelines.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_cv/Camera.hpp"
 

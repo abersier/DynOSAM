@@ -31,6 +31,44 @@ class PoseChangeVIFrontend : public VIFrontend {
                           ObjectPoseChangeInfoMap& infos, Frame::Ptr frame_k,
                           Frame::Ptr frame_km1);
 
+  bool shouldFrameBeKeyFrame(Frame::Ptr frame_k, Frame::Ptr frame_km1) const;
+
+  size_t extractKeyFramedMotions(
+      ObjectPoseChangeInfoMap& kf_infos,
+      const ObjectPoseChangeInfoMap& all_infos) const;
+
+  void constructVisualFactors(const UpdateObservationParams& update_params,
+                              FrameId frame_k, gtsam::Values& new_values,
+                              gtsam::NonlinearFactorGraph& new_factors,
+                              PostUpdateData& post_update_data);
+
+  struct IntermediateMotion {
+    //! Should be from a Keyframe
+    FrameId from;
+    //! To the current frame
+    FrameId to;
+    //! Timestamp at the current (ie. to) frame
+    Timestamp timestamp;
+
+    Frame::Ptr frame;
+    gtsam::NavState frontend_nav_state;
+
+    ImuFrontend::PimPtr pim;
+    //! Should exist only if PIM is non null
+    ImuMeasurements imu_measurements;
+    gtsam::Pose3 T_from_to;
+  };
+
+  struct KeyFrameData {
+    FrameId kf_id;
+    FrameId kf_id_prev;
+    Frame::Ptr frame;
+    gtsam::NavState nav_state;
+    //! Only holds those with keyframes
+    // not sure we actually need this!
+    ObjectPoseChangeInfoMap object_infos;
+  };
+
  private:
   HybridFormulationKeyFrame::Ptr formulation_;
   MapVision::Ptr map_;
@@ -44,10 +82,17 @@ class PoseChangeVIFrontend : public VIFrontend {
   gtsam::Pose3 T_km1_k_;
   gtsam::Pose3 T_lkf_k_;
 
+  //! Last keyframe id
+  FrameId lkf_id_;
+
   //! Current trajectories. Copied to the DynoState output
   DynoStateTrajectories dyno_state_;
 
   PoseChangeBackendSink pose_change_backend_sink_;
+
+  // Mapping of intermediate relative motions. Stored by to frame.
+  gtsam::FastMap<FrameId, IntermediateMotion> intermediate_motions_;
+  gtsam::FastMap<FrameId, KeyFrameData> keyframes_;
 };
 
 }  // namespace dyno

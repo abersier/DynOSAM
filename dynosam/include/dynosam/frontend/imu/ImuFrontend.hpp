@@ -61,6 +61,8 @@ class ImuFrontend {
   // Returns a copy of the interal pim
   PimPtr getPim() const { return copyPimShared(); }
 
+  static PimPtr copyPim(const PimPtr& pim);
+
  private:
   PimPtr copyPimShared() const;
   PimUniquePtr copyPimUnique() const;

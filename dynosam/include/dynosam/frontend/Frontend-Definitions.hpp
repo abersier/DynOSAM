@@ -111,23 +111,6 @@ inline std::string to_string(const ObjectKeyFrameStatus& status) {
   return status_str;
 }
 
-/**
- * @brief Struct containing debug imagery from the frontend that (optionally) is
- * included in the frontend output
- *
- */
-struct DebugImagery {
-  DYNO_POINTER_TYPEDEFS(DebugImagery)
-
-  // TODO: make const!!
-  cv::Mat tracking_image;
-  // TODO: for now!
-  cv::Mat rgb_viz;
-  cv::Mat flow_viz;
-  cv::Mat depth_viz;
-  cv::Mat mask_viz;
-};
-
 using json = nlohmann::json;
 
 // map KeyPointType values to JSON as strings

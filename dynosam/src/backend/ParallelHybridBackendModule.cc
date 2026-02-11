@@ -353,7 +353,8 @@ Pose3Measurement ParallelHybridBackendModule::bootstrapUpdateStaticEstimator(
   const auto& X_k_initial = input->cameraPose();
 
   map->updateObservations(input->staticMeasurements());
-  map->updateSensorPoseMeasurement(frame_k, Pose3Measurement(X_k_initial));
+  map->updateSensorPoseMeasurement(frame_k, timestamp_k,
+                                   Pose3Measurement(X_k_initial));
 
   gtsam::Values new_values;
   gtsam::NonlinearFactorGraph new_factors;
@@ -419,7 +420,7 @@ Pose3Measurement ParallelHybridBackendModule::nominalUpdateStaticEstimator(
 
   // we dont have an uncertainty from the frontend
   map->updateSensorPoseMeasurement(
-      frame_k, Pose3Measurement(predicted_nav_state.pose()));
+      frame_k, timestamp_k, Pose3Measurement(predicted_nav_state.pose()));
 
   UpdateObservationParams update_params;
   update_params.enable_debug_info = true;
@@ -556,16 +557,18 @@ void ParallelHybridBackendModule::parallelObjectSolve(
     VisionImuPacket::ConstPtr input, const Pose3Measurement& X_W_k) {
   utils::ChronoTimingStats timer("parallel_object_sam.dynamic_estimator");
   const auto frame_id = input->frameId();
+  const auto timestamp = input->timestamp();
   const auto& object_tracks = input->objectTracks();
   tbb::parallel_for_each(
       object_tracks.begin(), object_tracks.end(),
       [&](const std::pair<ObjectId, VisionImuPacket::ObjectTracks>& update) {
-        this->implSolvePerObject(frame_id, update.first, update.second, X_W_k);
+        this->implSolvePerObject(frame_id, timestamp, update.first,
+                                 update.second, X_W_k);
       });
 }
 
 void ParallelHybridBackendModule::implSolvePerObject(
-    FrameId frame_id_k, ObjectId object_id,
+    FrameId frame_id_k, Timestamp timestamp_k, ObjectId object_id,
     const VisionImuPacket::ObjectTracks& object_update,
     const Pose3Measurement& X_W_k) {
   bool is_object_new;
@@ -609,8 +612,8 @@ void ParallelHybridBackendModule::implSolvePerObject(
   //    needs_new_key_frame = true;
   //  }
 
-  estimator->update(frame_id_k, object_update.measurements, X_W_k, H_W_k_1_k,
-                    should_update_smoother);
+  estimator->update(frame_id_k, timestamp_k, object_update.measurements, X_W_k,
+                    H_W_k_1_k, should_update_smoother);
 
   if (needs_new_key_frame) {
     // needs the map to be updated for frame_id_k

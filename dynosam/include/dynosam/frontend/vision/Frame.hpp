@@ -396,6 +396,9 @@ class Frame {
   FeatureFilterIterator usableDynamicFeaturesBegin();
   FeatureFilterIterator usableDynamicFeaturesBegin() const;
 
+  FeatureFilterIterator usableDynamicFeaturesBegin(ObjectId object_id);
+  FeatureFilterIterator usableDynamicFeaturesBegin(ObjectId object_id) const;
+
  protected:
   // these do not do distortion or projection along the ray
   bool getStaticCorrespondences(FeaturePairs& correspondences,

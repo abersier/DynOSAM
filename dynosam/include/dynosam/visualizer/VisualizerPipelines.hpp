@@ -30,19 +30,50 @@
 
 #pragma once
 
-#include <glog/logging.h>
-
-// #include "dynosam/backend/BackendOutputPacket.hpp"
-// #include "dynosam/frontend/VisionImuOutputPacket.hpp"
-
-#include "dynosam/frontend/VIFrontend.hpp"  // for realtimeoutput!!
 #include "dynosam/pipeline/PipelineBase.hpp"
-#include "dynosam/pipeline/PipelinePayload.hpp"
-#include "dynosam/visualizer/Display.hpp"
 #include "dynosam_common/DynoState.hpp"
+#include "dynosam_common/GroundTruthPacket.hpp"
+#include "dynosam_common/RealtimeOutput.hpp"
 #include "dynosam_common/Types.hpp"
 
 namespace dyno {
+
+struct ImageToDisplay {
+  ImageToDisplay() = default;
+  ImageToDisplay(const std::string& name, const cv::Mat& image)
+      // clone necessary?
+      : name_(name), image_(image.clone()) {}
+
+  std::string name_;
+  cv::Mat image_;
+};
+using ImageDisplayQueue = ThreadsafeQueue<ImageToDisplay>;
+
+class OpenCVImageDisplayQueue {
+ public:
+  OpenCVImageDisplayQueue(ImageDisplayQueue* display_queue, bool parallel_run);
+
+  void process();
+
+ private:
+  ImageDisplayQueue* display_queue_;
+  bool parallel_run_;
+};
+
+template <typename TYPE>
+class DisplayBase {
+ public:
+  using Type = TYPE;
+  using This = DisplayBase<TYPE>;
+  DYNO_POINTER_TYPEDEFS(This)
+
+  using TypeConstPtr = typename TYPE::ConstPtr;
+
+  DisplayBase() {}
+  virtual ~DisplayBase() {}
+
+  virtual void spinOnce(const TypeConstPtr& input) = 0;
+};
 
 /**
  * @brief Generic pipeline for display
@@ -50,33 +81,50 @@ namespace dyno {
  * @tparam INPUT
  */
 template <typename INPUT>
-class DisplayPipeline : public SIMOPipelineModule<INPUT, NullPipelinePayload> {
+class DisplayPipeline : public SIMOPipelineModule<INPUT, EmptyPayload> {
  public:
   using Input = INPUT;
   using This = DisplayPipeline<Input>;
-  using Base = SIMOPipelineModule<Input, NullPipelinePayload>;
+  using Base = SIMOPipelineModule<Input, EmptyPayload>;
   using Display = DisplayBase<Input>;
   DYNO_POINTER_TYPEDEFS(This)
 
   using InputQueue = typename Base::InputQueue;
-  using InputConstPtr = typename Display::InputConstPtr;
+  using InputConstPtr = typename Display::TypeConstPtr;
 
   DisplayPipeline(const std::string& name, InputQueue* input_queue,
                   typename Display::Ptr display)
-      : Base(name, input_queue), display_(CHECK_NOTNULL(display)) {}
+      : Base(name, input_queue), display_(CHECK_NOTNULL(display)) {
+    empty_payload_ = std::make_shared<EmptyPayload>();
+  }
 
-  NullPipelinePayload::ConstPtr process(const InputConstPtr& input) override {
+  EmptyPayload::ConstPtr process(const InputConstPtr& input) override {
     display_->spinOnce(CHECK_NOTNULL(input));
-    static auto null_payload = std::make_shared<NullPipelinePayload>();
-    return null_payload;
+    return empty_payload_;
   }
 
  private:
+  EmptyPayload::Ptr empty_payload_;
   typename Display::Ptr display_;
 };
 
-using FrontendVizPipeline = DisplayPipeline<RealtimeOutput>;
-using BackendVizPipeline = DisplayPipeline<DynoState>;
+class FrontendDisplay : public DisplayBase<RealtimeOutput> {
+ public:
+  FrontendDisplay() = default;
+  virtual ~FrontendDisplay() = default;
+
+  inline void addSharedGroundTruth(
+      const SharedGroundTruth& shared_ground_truth) {
+    shared_ground_truth_ = shared_ground_truth;
+  }
+
+ protected:
+  SharedGroundTruth shared_ground_truth_;
+};
+using BackendDisplay = DisplayBase<DynoState>;
+
+using FrontendVizPipeline = DisplayPipeline<FrontendDisplay::Type>;
+using BackendVizPipeline = DisplayPipeline<BackendDisplay::Type>;
 
 /**
  * @brief Vizualisation class that can be associated with a
@@ -85,14 +133,12 @@ using BackendVizPipeline = DisplayPipeline<DynoState>;
  * output
  *
  */
-class BackendModuleDisplay {
+class BackendModuleDisplay : public DisplayBase<DynoState> {
  public:
   DYNO_POINTER_TYPEDEFS(BackendModuleDisplay)
 
   BackendModuleDisplay() = default;
   virtual ~BackendModuleDisplay() = default;
-
-  virtual void spin(const DynoState::ConstPtr& output) = 0;
 };
 
 }  // namespace dyno

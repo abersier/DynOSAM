@@ -6,6 +6,7 @@
 #include "dynosam/pipeline/PipelineParams.hpp"
 #include "dynosam_common/DynoState.hpp"
 #include "dynosam_common/ModuleBase.hpp"
+#include "dynosam_common/RealtimeOutput.hpp"
 #include "dynosam_common/Trajectories.hpp"
 
 namespace dyno {
@@ -29,18 +30,6 @@ class RGBDFrontendLogger : public EstimationModuleLogger {
  private:
   std::string tracking_length_hist_file_name_;
   json tracklet_length_json_;
-};
-
-struct RealtimeOutput {
-  DYNO_POINTER_TYPEDEFS(RealtimeOutput)
-  //! Current state data
-  DynoState state;
-  //! Possible dense point cloud (with label and RGB) in camera frame
-  PointCloudLabelRGB::Ptr dense_labelled_cloud;
-  //! Debug/visualiation imagery for this frame. Internal data may be empty
-  DebugImagery debug_imagery;
-  //! Optional ground truth information for this frame
-  GroundTruthInputPacket::Optional ground_truth;
 };
 
 class Frontend : public ModuleBase<FrontendInputPacketBase, RealtimeOutput> {

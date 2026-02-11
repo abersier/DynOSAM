@@ -575,6 +575,22 @@ FeatureFilterIterator Frame::usableDynamicFeaturesBegin() const {
   return dynamic_features_.beginUsable();
 }
 
+FeatureFilterIterator Frame::usableDynamicFeaturesBegin(ObjectId object_id) {
+  return FeatureFilterIterator(
+      this->dynamic_features_, [object_id](const Feature::Ptr& f) -> bool {
+        return Feature::IsUsable(f) && f->objectId() == object_id;
+      });
+}
+
+FeatureFilterIterator Frame::usableDynamicFeaturesBegin(
+    ObjectId object_id) const {
+  return FeatureFilterIterator(
+      const_cast<FeatureContainer&>(this->dynamic_features_),
+      [object_id](const Feature::Ptr& f) -> bool {
+        return Feature::IsUsable(f) && f->objectId() == object_id;
+      });
+}
+
 Landmark Frame::getLandmarkFromCache(LandmarkMap& cache, Feature::Ptr feature,
                                      const gtsam::Pose3& X_world) const {
   // TODO: dont cache as we now update the optical flow and the depth in the

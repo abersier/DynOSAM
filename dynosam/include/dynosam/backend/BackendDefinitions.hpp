@@ -68,18 +68,6 @@ enum BackendType : int {
   KF_HYBRID = 8
 };
 
-// TODO: this information is sort of duplicated when the ROS odometry messages
-// are constructed.
-//  streamline!!
-// TODO: can now get rid of this becuase we have trajectrorie!!
-struct TemporalObjectMetaData {
-  //! ID of the object
-  ObjectId object_id;
-
-  FrameId first_seen;
-  FrameId last_seen;
-};
-
 struct NoiseModels {
   gtsam::SharedNoiseModel initial_pose_prior;
   //! Between factor noise for between two consequative poses
@@ -131,18 +119,6 @@ struct BackendMetaData {
   //! further nameing specificity is needed; this is mostly helpful during
   //! testing
   std::string logging_suffix;
-};
-
-// TODO: remove! Module can have an iteration variable!!
-struct BackendSpinState {
-  FrameId frame_id{0u};
-  Timestamp timestamp{0.0};
-  size_t iteration{0u};  //! Indexed from 1, such that when iteration==1, this
-                         //! is the first iteration
-
-  BackendSpinState() {}
-  BackendSpinState(FrameId frame, Timestamp t, size_t itr)
-      : frame_id(frame), timestamp(t), iteration(itr) {}
 };
 
 using CalibrationType =

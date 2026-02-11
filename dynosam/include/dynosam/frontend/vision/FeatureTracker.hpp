@@ -37,7 +37,6 @@
 #include "dynosam/frontend/vision/FeatureTrackerBase.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/StaticFeatureTracker.hpp"
-#include "dynosam/visualizer/Visualizer-Definitions.hpp"
 #include "dynosam_cv/Camera.hpp"
 #include "dynosam_cv/Feature.hpp"
 

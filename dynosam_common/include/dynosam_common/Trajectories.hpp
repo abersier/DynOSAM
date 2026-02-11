@@ -89,6 +89,11 @@ class TrajectoryBase {
 
   TrajectoryBase& insert(FrameId frame_id, Timestamp timestamp,
                          const TData& data) {
+    if (timestamp < 0) {
+      throw DynosamException("Negative timestamp provided to Trajectory<" +
+                             type_name<TData>() + "> at frame id " +
+                             std::to_string(frame_id));
+    }
     return insert(Entry{frame_id, timestamp, data});
   }
 
@@ -224,6 +229,14 @@ class TrajectoryBase {
     return ConstEntryIterator(trajectory_.cend());
   }
 
+  friend std::ostream& operator<<(std::ostream& os, const This& trajectory) {
+    os << "Trajectory (" << type_name<TData>()
+       << ") size: " << trajectory.size()
+       << " start frame: " << trajectory.minFrame()
+       << " end frame: " << trajectory.maxFrame();
+    return os;
+  }
+
  protected:
   TrajectoryBase(const TrajectoryImpl& trajectory) : trajectory_(trajectory) {}
   TrajectoryBase& insert(const Entry& entry) {
@@ -307,6 +320,15 @@ class MultiObjectTrajectories
   // TODO: actually not needed I think!!
   ObjectPoseMap toObjectPoseMap() const;
   ObjectMotionMap toObjectMotionMap() const;
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const MultiObjectTrajectories& trajectory) {
+    os << "MultiObjectTrajectories: (# objects=" << trajectory.size() << ")\n";
+    for (const auto& [object_id, traj] : trajectory) {
+      os << "Object " << object_id << " " << traj << "\n";
+    }
+    return os;
+  }
 
  private:
   // only searches by frame and assumes that timestamps in all entries are

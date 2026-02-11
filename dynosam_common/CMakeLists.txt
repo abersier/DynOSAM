@@ -83,7 +83,6 @@ add_library(${PROJECT_NAME} SHARED
     src/DynamicObjects.cc
     src/PointCloudProcess.cc
     src/Algorithms.cc
-    src/SharedModuleInfo.cc
     src/SensorModels.cc
     src/Trajectories.cc
     src/DynoState.cc

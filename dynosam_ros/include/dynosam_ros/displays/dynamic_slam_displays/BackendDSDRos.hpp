@@ -29,8 +29,8 @@
  *   SOFTWARE.
  */
 
-#include "dynosam/backend/BackendOutputPacket.hpp"
-#include "dynosam/visualizer/Display.hpp"
+#include <dynosam/visualizer/VisualizerPipelines.hpp>
+
 #include "dynosam_ros/Display-Definitions.hpp"
 #include "dynosam_ros/displays/DisplaysCommon.hpp"
 #include "dynosam_ros/displays/dynamic_slam_displays/DSDCommonRos.hpp"
@@ -43,7 +43,7 @@ class BackendDSDRos : public BackendDisplay {
   BackendDSDRos(const DisplayParams params, rclcpp::Node::SharedPtr node);
   ~BackendDSDRos() = default;
 
-  void spinOnceImpl(const DynoState::ConstPtr& backend_output) override;
+  void spinOnce(const DynoState::ConstPtr& backend_output) override;
 
  private:
   void publishTemporalDynamicMaps(

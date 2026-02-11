@@ -369,11 +369,11 @@ class FunctionalSIMOPipelineModule : public SIMOPipelineModule<INPUT, OUTPUT> {
    * When constructing ProcessFunc the argument and return types must be
    explicit
    * e.g.
-   * using VarPipeline = FunctionalSIMOPipelineModule<int, NullPipelinePayload>;
+   * using VarPipeline = FunctionalSIMOPipelineModule<int, EmptyPayload>;
    * VarPipeline p("var_module", &input_queue,
       [](const VarPipeline::InputConstSharedPtr& var_ptr) ->
    VarPipeline::OutputConstSharedPtr { return
-   std::make_shared<NullPipelinePayload>;
+   std::make_shared<EmptyPayload>;
       });
 
       when defining the lambda.
@@ -394,6 +394,10 @@ class FunctionalSIMOPipelineModule : public SIMOPipelineModule<INPUT, OUTPUT> {
 
  private:
   ProcessFunc func_;
+};
+
+struct EmptyPayload {
+  DYNO_POINTER_TYPEDEFS(EmptyPayload)
 };
 
 }  // namespace dyno

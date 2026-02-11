@@ -32,7 +32,7 @@
 
 #include <dynosam/common/GroundTruthPacket.hpp>
 #include <dynosam/frontend/RGBDInstance-Definitions.hpp>
-#include <dynosam/visualizer/Display.hpp>
+#include <dynosam/visualizer/VisualizerPipelines.hpp>
 #include <opencv4/opencv2/videoio.hpp>
 
 #include "dynosam_ros/Display-Definitions.hpp"

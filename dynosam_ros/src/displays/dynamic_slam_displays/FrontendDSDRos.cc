@@ -31,13 +31,12 @@
 #include "dynosam_ros/displays/dynamic_slam_displays/FrontendDSDRos.hpp"
 
 #include "cv_bridge/cv_bridge.hpp"
-#include "dynosam_common/utils/SafeCast.hpp"
 #include "dynosam_ros/RosUtils.hpp"
 #include "rclcpp/qos.hpp"
 
 namespace dyno {
 
-FrontendDSDRos::FrontendDSDRos(const DisplayParams params,
+FrontendDSDRos::FrontendDSDRos(const DisplayParams& params,
                                rclcpp::Node::SharedPtr node,
                                rclcpp::Node::SharedPtr ground_truth_node)
     : FrontendDisplay(), dyno_state_publisher_(params, node) {
@@ -51,21 +50,22 @@ FrontendDSDRos::FrontendDSDRos(const DisplayParams params,
 
   if (ground_truth_node) {
     RCLCPP_INFO_STREAM(node->get_logger(), "Creating ground truth publishers");
-    ground_truth_publishers_ = GroundTruthPublishers(ground_truth_node);
+    ground_truth_publishers_.emplace(params, ground_truth_node);
   }
 }
 
 FrontendDSDRos::GroundTruthPublishers::GroundTruthPublishers(
-    rclcpp::Node::SharedPtr ground_truth_node)
-    : dsd_transport_(CHECK_NOTNULL(ground_truth_node)) {
-  vo_publisher_ = ground_truth_node->create_publisher<nav_msgs::msg::Odometry>(
-      "odometry", rclcpp::SensorDataQoS());
-  vo_path_publisher_ = ground_truth_node->create_publisher<nav_msgs::msg::Path>(
-      "odometry_path", rclcpp::SensorDataQoS());
+    const DisplayParams& params, rclcpp::Node::SharedPtr ground_truth_node)
+    : dyno_state_publisher_(params, CHECK_NOTNULL(ground_truth_node)) {
+  // vo_publisher_ =
+  // ground_truth_node->create_publisher<nav_msgs::msg::Odometry>(
+  //     "odometry", rclcpp::SensorDataQoS());
+  // vo_path_publisher_ =
+  // ground_truth_node->create_publisher<nav_msgs::msg::Path>(
+  //     "odometry_path", rclcpp::SensorDataQoS());
 }
 
-void FrontendDSDRos::spinOnceImpl(
-    const RealtimeOutput::ConstPtr& frontend_output) {
+void FrontendDSDRos::spinOnce(const RealtimeOutput::ConstPtr& frontend_output) {
   VLOG(20) << "Spinning FrontendDSDRos k=" << frontend_output->state.frame_id;
   // updateAccumulatedDataStructured(frontend_output);
   dyno_state_publisher_.publish(frontend_output->state);

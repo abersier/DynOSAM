@@ -30,9 +30,8 @@
 
 #pragma once
 
-#include "dynamic_slam_interfaces/msg/object_odometry.hpp"
-#include "dynosam/frontend/VisionImuOutputPacket.hpp"
-#include "dynosam/visualizer/Display.hpp"
+#include <dynosam/visualizer/VisualizerPipelines.hpp>
+
 #include "dynosam_common/GroundTruthPacket.hpp"
 #include "dynosam_ros/Display-Definitions.hpp"
 #include "dynosam_ros/displays/DisplaysCommon.hpp"
@@ -44,11 +43,11 @@ namespace dyno {
 
 class FrontendDSDRos : public FrontendDisplay {
  public:
-  FrontendDSDRos(const DisplayParams params, rclcpp::Node::SharedPtr node,
+  FrontendDSDRos(const DisplayParams& params, rclcpp::Node::SharedPtr node,
                  rclcpp::Node::SharedPtr ground_truth_node = nullptr);
   ~FrontendDSDRos() = default;
 
-  void spinOnceImpl(const RealtimeOutput::ConstPtr& frontend_output) override;
+  void spinOnce(const RealtimeOutput::ConstPtr& frontend_output) override;
 
  private:
   void tryPublishDebugImagery(const RealtimeOutput::ConstPtr& frontend_output);
@@ -65,11 +64,13 @@ class FrontendDSDRos : public FrontendDisplay {
  private:
   struct GroundTruthPublishers {
     //! Transport for ground truth publishing
-    DSDTransport dsd_transport_;
-    OdometryPub::SharedPtr vo_publisher_;
-    PathPub::SharedPtr vo_path_publisher_;
+    DynoStatePublisher dyno_state_publisher_;
 
-    GroundTruthPublishers(rclcpp::Node::SharedPtr ground_truth_node);
+    //! Accumulated ground truth state
+    DynoState ground_truth_state_;
+
+    GroundTruthPublishers(const DisplayParams& params,
+                          rclcpp::Node::SharedPtr ground_truth_node);
   };
   DynoStatePublisher dyno_state_publisher_;
   //! Image Transport for tracking image
@@ -78,13 +79,6 @@ class FrontendDSDRos : public FrontendDisplay {
       dense_dynamic_cloud_pub_;
 
   std::optional<GroundTruthPublishers> ground_truth_publishers_;
-
-  //! Accumulated camera poses
-  gtsam::Pose3Vector camera_poses_;
-  //! Accumulated object motions
-  ObjectMotionMap object_motions_;
-  //! Accumulated object poses
-  ObjectPoseMap object_poses_;
 };
 
 }  // namespace dyno
