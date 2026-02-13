@@ -103,11 +103,30 @@ struct FormulationHooks {
  *
  */
 struct SharedFormulationData {
-  const gtsam::Values* values;
-  const FormulationHooks* hooks;
+  DYNO_POINTER_TYPEDEFS(SharedFormulationData)
 
-  SharedFormulationData(const gtsam::Values* v, const FormulationHooks* h)
-      : values(v), hooks(h) {}
+  //! Current linearization shared between the accessor and formulation and
+  //! represents the current state
+  gtsam::Values theta;
+  mutable std::mutex theta_mutex;
+
+  //! Shared formulation hooks
+  FormulationHooks hooks;
+
+  void threadSafeSetTheta(const gtsam::Values& linearization) {
+    std::lock_guard<std::mutex> lock(this->theta_mutex);
+    this->theta = linearization;
+  }
+
+  void threadSafeInsertOrAssignTheta(const gtsam::Values& linearization) {
+    std::lock_guard<std::mutex> lock(this->theta_mutex);
+    this->theta.insert_or_assign(linearization);
+  }
+
+  void threadSafeInsertTheta(const gtsam::Values& linearization) {
+    std::lock_guard<std::mutex> lock(this->theta_mutex);
+    this->theta.insert(linearization);
+  }
 };
 
 struct BackendMetaData {

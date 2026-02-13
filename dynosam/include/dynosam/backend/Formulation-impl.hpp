@@ -452,25 +452,20 @@ Formulation<MAP>::Formulation(const FormulationParams& params,
       map_(map),
       noise_models_(noise_models),
       sensors_(sensors),
-      hooks_(hooks) {
+      shared_data_(std::make_shared<SharedFormulationData>()) {
+  shared_data_->hooks = hooks;
   static_updater_ =
       std::make_unique<internal::StaticFormulationUpdater<MAP>>(this);
 }
 
 template <typename MAP>
 void Formulation<MAP>::setTheta(const gtsam::Values& linearization) {
-  theta_ = linearization;
-  // TODO: comment backed in!!
-  //  accessorFromTheta()->postUpdateCallback();
+  shared_data_->threadSafeSetTheta(linearization);
 }
 
 template <typename MAP>
 void Formulation<MAP>::updateTheta(const gtsam::Values& linearization) {
-  // theta_.update(linearization);
-  // why would we need to assign new values?
-  theta_.insert_or_assign(linearization);
-  // TODO: comment backed in!!
-  //  accessorFromTheta()->postUpdateCallback();
+  shared_data_->threadSafeInsertOrAssignTheta(linearization);
 }
 
 template <typename MAP>
@@ -510,7 +505,7 @@ void Formulation<MAP>::addValue(gtsam::Values& new_values, const V& value,
   values.insert(key, value);
 
   new_values.insert_or_assign(values);
-  theta_.insert_or_assign(values);
+  shared_data_->threadSafeInsertOrAssignTheta(values);
 }
 
 template <typename MAP>
@@ -554,7 +549,7 @@ UpdateObservationResult Formulation<MAP>::updateStaticObservations(
   }
 
   // update internal data structures
-  theta_.insert_or_assign(new_values);
+  shared_data_->threadSafeInsertOrAssignTheta(new_values);
   factors_ += internal_new_factors;
   new_factors += internal_new_factors;
 
@@ -857,7 +852,8 @@ UpdateObservationResult Formulation<MAP>::updateDynamicObservations(
   factors_ += internal_new_factors;
   new_factors += internal_new_factors;
   // update internal theta and factors
-  theta_.insert(internal_new_values);
+  shared_data_->threadSafeInsertTheta(internal_new_values);
+  // theta_.insert(internal_new_values);
   // add to the external new_values
   new_values.insert(internal_new_values);
 
@@ -961,8 +957,8 @@ template <typename MAP>
 typename Formulation<MAP>::AccessorType::Ptr
 Formulation<MAP>::accessorFromTheta() const {
   if (!accessor_theta_) {
-    SharedFormulationData shared_data(&theta_, &hooks_);
-    accessor_theta_ = createAccessor(shared_data);
+    CHECK_NOTNULL(shared_data_);
+    accessor_theta_ = createAccessor(shared_data_);
   }
   return accessor_theta_;
 }

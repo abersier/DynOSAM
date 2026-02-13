@@ -119,6 +119,8 @@ sudo apt autoremove
 ```
 _compute_120_ should then appear under the list displayed by `nvcc --list-gpu-arch` and _release 12.9_ should be shown when `nvcc --version`.
 
+If after installing you are still on the old (ie. 12.6) version you may need to update the symlink path: `sudo ln -sfn /usr/local/cuda-12.9 /usr/local/cuda`
+
 OpenCV was upgraded to 4.12.0 as earlier versions do not support the correct compute architecure (i.e the Blackwell generation). Set
 ```
 -DCMAKE_CUDA_ARCHITECTURES="120"

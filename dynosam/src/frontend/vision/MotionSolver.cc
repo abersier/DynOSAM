@@ -69,6 +69,8 @@
 // #include <gtsam/base/FullLinearSolver.h>
 
 #include "dynosam/factors/HybridFormulationFactors.hpp"
+#include "dynosam/frontend/solvers/MotionOnlySolver.hpp"
+#include "dynosam/frontend/solvers/OpticalFlowAndPoseSolver.hpp"
 
 namespace dyno {
 
@@ -129,187 +131,194 @@ Pose3SolverResult EgoMotionSolver::geometricOutlierRejection2d2d(
     Frame::Ptr frame_k_1, Frame::Ptr frame_k,
     std::optional<gtsam::Rot3> R_curr_ref) {
   // get correspondences
-  RelativePoseCorrespondences correspondences;
-  // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
-  // solve) bearing vectors are also not undistorted atm!!
-  {
-    utils::ChronoTimingStats track_dynamic_timer("mono_frame_correspondences");
-    frame_k->getCorrespondences(correspondences, *frame_k_1,
-                                KeyPointType::STATIC,
-                                frame_k->imageKeypointCorrespondance());
-  }
+  // RelativePoseCorrespondences correspondences;
+  // // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
+  // // solve) bearing vectors are also not undistorted atm!!
+  // {
+  //   utils::ChronoTimingStats
+  //   track_dynamic_timer("mono_frame_correspondences");
+  //   frame_k->getCorrespondences(correspondences, *frame_k_1,
+  //                               KeyPointType::STATIC,
+  //                               frame_k->imageKeypointCorrespondance());
+  // }
 
-  Pose3SolverResult result;
+  // Pose3SolverResult result;
 
-  const size_t& n_matches = correspondences.size();
+  // const size_t& n_matches = correspondences.size();
 
-  if (n_matches < 5u) {
-    result.status = TrackingStatus::FEW_MATCHES;
-    return result;
-  }
+  // if (n_matches < 5u) {
+  //   result.status = TrackingStatus::FEW_MATCHES;
+  //   return result;
+  // }
 
-  gtsam::Matrix K = camera_params_.getCameraMatrixEigen();
-  K = K.inverse();
+  // gtsam::Matrix K = camera_params_.getCameraMatrixEigen();
+  // K = K.inverse();
 
-  TrackletIds tracklets;
-  // NOTE: currently without distortion! the correspondences should be made into
-  // bearing vector elsewhere!
-  BearingVectors ref_bearing_vectors, cur_bearing_vectors;
-  for (size_t i = 0u; i < n_matches; i++) {
-    const auto& corres = correspondences.at(i);
-    const Keypoint& ref_kp = corres.ref_;
-    const Keypoint& cur_kp = corres.cur_;
+  // TrackletIds tracklets;
+  // // NOTE: currently without distortion! the correspondences should be made
+  // into
+  // // bearing vector elsewhere!
+  // BearingVectors ref_bearing_vectors, cur_bearing_vectors;
+  // for (size_t i = 0u; i < n_matches; i++) {
+  //   const auto& corres = correspondences.at(i);
+  //   const Keypoint& ref_kp = corres.ref_;
+  //   const Keypoint& cur_kp = corres.cur_;
 
-    gtsam::Vector3 ref_versor = (K * gtsam::Vector3(ref_kp(0), ref_kp(1), 1.0));
-    gtsam::Vector3 cur_versor = (K * gtsam::Vector3(cur_kp(0), cur_kp(1), 1.0));
+  //   gtsam::Vector3 ref_versor = (K * gtsam::Vector3(ref_kp(0),
+  //   ref_kp(1), 1.0)); gtsam::Vector3 cur_versor = (K *
+  //   gtsam::Vector3(cur_kp(0), cur_kp(1), 1.0));
 
-    ref_versor = ref_versor.normalized();
-    cur_versor = cur_versor.normalized();
+  //   ref_versor = ref_versor.normalized();
+  //   cur_versor = cur_versor.normalized();
 
-    ref_bearing_vectors.push_back(ref_versor);
-    cur_bearing_vectors.push_back(cur_versor);
+  //   ref_bearing_vectors.push_back(ref_versor);
+  //   cur_bearing_vectors.push_back(cur_versor);
 
-    tracklets.push_back(corres.tracklet_id_);
-  }
+  //   tracklets.push_back(corres.tracklet_id_);
+  // }
 
-  RelativePoseAdaptor adapter(ref_bearing_vectors, cur_bearing_vectors);
+  // RelativePoseAdaptor adapter(ref_bearing_vectors, cur_bearing_vectors);
 
-  const bool use_2point_mono = params_.ransac_use_2point_mono && R_curr_ref;
-  if (use_2point_mono) {
-    adapter.setR12((*R_curr_ref).matrix());
-  }
+  // const bool use_2point_mono = params_.ransac_use_2point_mono && R_curr_ref;
+  // if (use_2point_mono) {
+  //   adapter.setR12((*R_curr_ref).matrix());
+  // }
 
-  gtsam::Pose3 best_result;
-  std::vector<int> ransac_inliers;
-  bool success = false;
-  if (use_2point_mono) {
-    success = runRansac<RelativePoseProblemGivenRot>(
-        std::make_shared<RelativePoseProblemGivenRot>(adapter,
-                                                      params_.ransac_randomize),
-        params_.ransac_threshold_mono, params_.ransac_iterations,
-        params_.ransac_probability, params_.optimize_2d2d_pose_from_inliers,
-        best_result, ransac_inliers);
-  } else {
-    success = runRansac<RelativePoseProblem>(
-        std::make_shared<RelativePoseProblem>(
-            adapter, RelativePoseProblem::NISTER, params_.ransac_randomize),
-        params_.ransac_threshold_mono, params_.ransac_iterations,
-        params_.ransac_probability, params_.optimize_2d2d_pose_from_inliers,
-        best_result, ransac_inliers);
-  }
+  // gtsam::Pose3 best_result;
+  // std::vector<int> ransac_inliers;
+  // bool success = false;
+  // if (use_2point_mono) {
+  //   success = runRansac<RelativePoseProblemGivenRot>(
+  //       std::make_shared<RelativePoseProblemGivenRot>(adapter,
+  //                                                     params_.ransac_randomize),
+  //       params_.ransac_threshold_mono, params_.ransac_iterations,
+  //       params_.ransac_probability, params_.optimize_2d2d_pose_from_inliers,
+  //       best_result, ransac_inliers);
+  // } else {
+  //   success = runRansac<RelativePoseProblem>(
+  //       std::make_shared<RelativePoseProblem>(
+  //           adapter, RelativePoseProblem::NISTER, params_.ransac_randomize),
+  //       params_.ransac_threshold_mono, params_.ransac_iterations,
+  //       params_.ransac_probability, params_.optimize_2d2d_pose_from_inliers,
+  //       best_result, ransac_inliers);
+  // }
 
-  if (!success) {
-    result.status = TrackingStatus::INVALID;
-  } else {
-    constructTrackletInliers(result.inliers, result.outliers, correspondences,
-                             ransac_inliers, tracklets);
-    // NOTE: 2-point always returns the identity rotation, hence we have to
-    // substitute it:
-    if (use_2point_mono) {
-      CHECK(R_curr_ref->equals(best_result.rotation()));
-    }
-    result.status = TrackingStatus::VALID;
-    result.best_result = best_result;
-  }
+  // if (!success) {
+  //   result.status = TrackingStatus::INVALID;
+  // } else {
+  //   constructTrackletInliers(result.inliers, result.outliers,
+  //   correspondences,
+  //                            ransac_inliers, tracklets);
+  //   // NOTE: 2-point always returns the identity rotation, hence we have to
+  //   // substitute it:
+  //   if (use_2point_mono) {
+  //     CHECK(R_curr_ref->equals(best_result.rotation()));
+  //   }
+  //   result.status = TrackingStatus::VALID;
+  //   result.best_result = best_result;
+  // }
 
-  return result;
+  // return result;
 }
 
 Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d2d(
     Frame::Ptr frame_k_1, Frame::Ptr frame_k,
     std::optional<gtsam::Rot3> R_curr_ref) {
-  AbsolutePoseCorrespondences correspondences;
-  // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
-  // solve) bearing vectors are also not undistorted atm!!
-  // TODO: change to use landmarkWorldProjectedBearingCorrespondance and then
-  // change motion solver to take already projected bearing vectors
-  {
-    utils::ChronoTimingStats timer("motion_solver.solve_3d2d.correspondances");
-    frame_k->getCorrespondences(correspondences, *frame_k_1,
-                                KeyPointType::STATIC,
-                                frame_k->landmarkWorldKeypointCorrespondance());
-  }
+  // AbsolutePoseCorrespondences correspondences;
+  // // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
+  // // solve) bearing vectors are also not undistorted atm!!
+  // // TODO: change to use landmarkWorldProjectedBearingCorrespondance and then
+  // // change motion solver to take already projected bearing vectors
+  // {
+  //   utils::ChronoTimingStats
+  //   timer("motion_solver.solve_3d2d.correspondances");
+  //   frame_k->getCorrespondences(correspondences, *frame_k_1,
+  //                               KeyPointType::STATIC,
+  //                               frame_k->landmarkWorldKeypointCorrespondance());
+  // }
 
-  return geometricOutlierRejection3d2d(correspondences, R_curr_ref);
+  // return geometricOutlierRejection3d2d(correspondences, R_curr_ref);
 }
 
 Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d2d(
     const AbsolutePoseCorrespondences& correspondences,
     std::optional<gtsam::Rot3> R_curr_ref) {
-  utils::ChronoTimingStats timer("motion_solver.solve_3d2d");
-  Pose3SolverResult result;
-  const size_t& n_matches = correspondences.size();
+  // utils::ChronoTimingStats timer("motion_solver.solve_3d2d");
+  // Pose3SolverResult result;
+  // const size_t& n_matches = correspondences.size();
 
-  if (n_matches < 5u) {
-    result.status = TrackingStatus::FEW_MATCHES;
-    VLOG(5) << "3D2D tracking failed as there are to few matches" << n_matches;
-    return result;
-  }
+  // if (n_matches < 5u) {
+  //   result.status = TrackingStatus::FEW_MATCHES;
+  //   VLOG(5) << "3D2D tracking failed as there are to few matches" <<
+  //   n_matches; return result;
+  // }
 
-  gtsam::Matrix K = camera_params_.getCameraMatrixEigen();
-  K = K.inverse();
+  // gtsam::Matrix K = camera_params_.getCameraMatrixEigen();
+  // K = K.inverse();
 
-  TrackletIds tracklets, inliers, outliers;
-  // NOTE: currently without distortion! the correspondences should be made into
-  // bearing vector elsewhere!
-  BearingVectors bearing_vectors;
-  Landmarks points;
-  for (size_t i = 0u; i < n_matches; i++) {
-    const AbsolutePoseCorrespondence& corres = correspondences.at(i);
-    const Keypoint& kp = corres.cur_;
-    // make Bearing vector
-    gtsam::Vector3 versor = (K * gtsam::Vector3(kp(0), kp(1), 1.0));
-    versor = versor.normalized();
-    bearing_vectors.push_back(versor);
+  // TrackletIds tracklets, inliers, outliers;
+  // // NOTE: currently without distortion! the correspondences should be made
+  // into
+  // // bearing vector elsewhere!
+  // BearingVectors bearing_vectors;
+  // Landmarks points;
+  // for (size_t i = 0u; i < n_matches; i++) {
+  //   const AbsolutePoseCorrespondence& corres = correspondences.at(i);
+  //   const Keypoint& kp = corres.cur_;
+  //   // make Bearing vector
+  //   gtsam::Vector3 versor = (K * gtsam::Vector3(kp(0), kp(1), 1.0));
+  //   versor = versor.normalized();
+  //   bearing_vectors.push_back(versor);
 
-    points.push_back(corres.ref_);
-    tracklets.push_back(corres.tracklet_id_);
-  }
+  //   points.push_back(corres.ref_);
+  //   tracklets.push_back(corres.tracklet_id_);
+  // }
 
-  VLOG(20) << "Collected " << tracklets.size() << " initial correspondances";
+  // VLOG(20) << "Collected " << tracklets.size() << " initial correspondances";
 
-  const double reprojection_error = params_.ransac_threshold_pnp;
-  const double avg_focal_length =
-      0.5 * static_cast<double>(camera_params_.fx() + camera_params_.fy());
-  const double threshold =
-      1.0 - std::cos(std::atan(std::sqrt(2.0) * reprojection_error /
-                               avg_focal_length));
+  // const double reprojection_error = params_.ransac_threshold_pnp;
+  // const double avg_focal_length =
+  //     0.5 * static_cast<double>(camera_params_.fx() + camera_params_.fy());
+  // const double threshold =
+  //     1.0 - std::cos(std::atan(std::sqrt(2.0) * reprojection_error /
+  //                              avg_focal_length));
 
-  AbsolutePoseAdaptor adapter(bearing_vectors, points);
+  // AbsolutePoseAdaptor adapter(bearing_vectors, points);
 
-  if (R_curr_ref) {
-    adapter.setR(R_curr_ref->matrix());
-  }
+  // if (R_curr_ref) {
+  //   adapter.setR(R_curr_ref->matrix());
+  // }
 
-  gtsam::Pose3 best_result;
-  std::vector<int> ransac_inliers;
+  // gtsam::Pose3 best_result;
+  // std::vector<int> ransac_inliers;
 
-  bool success;
-  {
-    utils::ChronoTimingStats timer("motion_solver.solve_3d2d.ransac");
-    success = runRansac<AbsolutePoseProblem>(
-        std::make_shared<AbsolutePoseProblem>(adapter,
-                                              AbsolutePoseProblem::KNEIP),
-        threshold, params_.ransac_iterations, params_.ransac_probability,
-        params_.optimize_3d2d_pose_from_inliers, best_result, ransac_inliers);
-  }
+  // bool success;
+  // {
+  //   utils::ChronoTimingStats timer("motion_solver.solve_3d2d.ransac");
+  //   success = runRansac<AbsolutePoseProblem>(
+  //       std::make_shared<AbsolutePoseProblem>(adapter,
+  //                                             AbsolutePoseProblem::KNEIP),
+  //       threshold, params_.ransac_iterations, params_.ransac_probability,
+  //       params_.optimize_3d2d_pose_from_inliers, best_result,
+  //       ransac_inliers);
+  // }
 
-  constructTrackletInliers(result.inliers, result.outliers, correspondences,
-                           ransac_inliers, tracklets);
+  // constructTrackletInliers(result.inliers, result.outliers, correspondences,
+  //                          ransac_inliers, tracklets);
 
-  if (success) {
-    if (result.inliers.size() < 5u) {
-      result.status = TrackingStatus::FEW_MATCHES;
-    } else {
-      result.status = TrackingStatus::VALID;
-      result.best_result = best_result;
-    }
+  // if (success) {
+  //   if (result.inliers.size() < 5u) {
+  //     result.status = TrackingStatus::FEW_MATCHES;
+  //   } else {
+  //     result.status = TrackingStatus::VALID;
+  //     result.best_result = best_result;
+  //   }
 
-  } else {
-    result.status = TrackingStatus::INVALID;
-  }
+  // } else {
+  //   result.status = TrackingStatus::INVALID;
+  // }
 
-  return result;
+  // return result;
 }
 
 void OpticalFlowAndPoseOptimizer::updateFrameOutliersWithResult(
@@ -408,15 +417,15 @@ void OpticalFlowAndPoseOptimizer::updateFrameOutliersWithResult(
 Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d3d(
     Frame::Ptr frame_k_1, Frame::Ptr frame_k,
     std::optional<gtsam::Rot3> R_curr_ref) {
-  PointCloudCorrespondences correspondences;
-  {
-    utils::ChronoTimingStats("pc_correspondences");
-    frame_k->getCorrespondences(
-        correspondences, *frame_k_1, KeyPointType::STATIC,
-        frame_k->landmarkWorldPointCloudCorrespondance());
-  }
+  // PointCloudCorrespondences correspondences;
+  // {
+  //   utils::ChronoTimingStats("pc_correspondences");
+  //   frame_k->getCorrespondences(
+  //       correspondences, *frame_k_1, KeyPointType::STATIC,
+  //       frame_k->landmarkWorldPointCloudCorrespondance());
+  // }
 
-  return geometricOutlierRejection3d3d(correspondences, R_curr_ref);
+  // return geometricOutlierRejection3d3d(correspondences, R_curr_ref);
 }
 
 Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d3d(
@@ -424,52 +433,53 @@ Pose3SolverResult EgoMotionSolver::geometricOutlierRejection3d3d(
     std::optional<gtsam::Rot3> R_curr_ref) {
   const size_t& n_matches = correspondences.size();
 
-  Pose3SolverResult result;
-  if (n_matches < 5) {
-    result.status = TrackingStatus::FEW_MATCHES;
-    return result;
-  }
+  // Pose3SolverResult result;
+  // if (n_matches < 5) {
+  //   result.status = TrackingStatus::FEW_MATCHES;
+  //   return result;
+  // }
 
-  TrackletIds tracklets;
-  BearingVectors ref_bearing_vectors, cur_bearing_vectors;
+  // TrackletIds tracklets;
+  // BearingVectors ref_bearing_vectors, cur_bearing_vectors;
 
-  for (size_t i = 0u; i < n_matches; i++) {
-    const auto& corres = correspondences.at(i);
-    const Landmark& ref_lmk = corres.ref_;
-    const Landmark& cur_lmk = corres.cur_;
-    ref_bearing_vectors.push_back(ref_lmk);
-    cur_bearing_vectors.push_back(cur_lmk);
+  // for (size_t i = 0u; i < n_matches; i++) {
+  //   const auto& corres = correspondences.at(i);
+  //   const Landmark& ref_lmk = corres.ref_;
+  //   const Landmark& cur_lmk = corres.cur_;
+  //   ref_bearing_vectors.push_back(ref_lmk);
+  //   cur_bearing_vectors.push_back(cur_lmk);
 
-    tracklets.push_back(corres.tracklet_id_);
-  }
+  //   tracklets.push_back(corres.tracklet_id_);
+  // }
 
-  //! Setup adapter.
-  Adapter3d3d adapter(ref_bearing_vectors, cur_bearing_vectors);
+  // //! Setup adapter.
+  // Adapter3d3d adapter(ref_bearing_vectors, cur_bearing_vectors);
 
-  if (R_curr_ref) {
-    adapter.setR12((*R_curr_ref).matrix());
-  }
+  // if (R_curr_ref) {
+  //   adapter.setR12((*R_curr_ref).matrix());
+  // }
 
-  gtsam::Pose3 best_result;
-  std::vector<int> ransac_inliers;
+  // gtsam::Pose3 best_result;
+  // std::vector<int> ransac_inliers;
 
-  bool success = runRansac<Problem3d3d>(
-      std::make_shared<Problem3d3d>(adapter, params_.ransac_randomize),
-      params_.ransac_threshold_stereo, params_.ransac_iterations,
-      params_.ransac_probability, params_.optimize_3d3d_pose_from_inliers,
-      best_result, ransac_inliers);
+  // bool success = runRansac<Problem3d3d>(
+  //     std::make_shared<Problem3d3d>(adapter, params_.ransac_randomize),
+  //     params_.ransac_threshold_stereo, params_.ransac_iterations,
+  //     params_.ransac_probability, params_.optimize_3d3d_pose_from_inliers,
+  //     best_result, ransac_inliers);
 
-  if (success) {
-    constructTrackletInliers(result.inliers, result.outliers, correspondences,
-                             ransac_inliers, tracklets);
+  // if (success) {
+  //   constructTrackletInliers(result.inliers, result.outliers,
+  //   correspondences,
+  //                            ransac_inliers, tracklets);
 
-    result.status = TrackingStatus::VALID;
-    result.best_result = best_result;
-  } else {
-    result.status = TrackingStatus::INVALID;
-  }
+  //   result.status = TrackingStatus::VALID;
+  //   result.best_result = best_result;
+  // } else {
+  //   result.status = TrackingStatus::INVALID;
+  // }
 
-  return result;
+  // return result;
 }
 
 MultiObjectTrajectories ObjectMotionSolver::solve(Frame::Ptr frame_k,
@@ -752,358 +762,6 @@ ConsecutiveFrameObjectMotionSolver::geometricOutlierRejection3d2d(
 
 ///////////////////////////////////////////////////////////////////////////
 
-HybridObjectMotionSRIF::HybridObjectMotionSRIF(
-    const gtsam::Pose3& initial_state_H, const gtsam::Pose3& L_e,
-    const FrameId& frame_id_e, const gtsam::Matrix66& initial_P,
-    const gtsam::Matrix66& Q, const gtsam::Matrix33& R, Camera::Ptr camera,
-    double huber_k)
-    : H_linearization_point_(initial_state_H),
-      Q_(Q),
-      R_noise_(R),
-      R_inv_(R.inverse()),
-      initial_P_(initial_P),
-      huber_k_(huber_k),
-      motion_track_status_(ObjectTrackingStatus::New) {
-  // set camera
-  rgbd_camera_ = CHECK_NOTNULL(camera)->safeGetRGBDCamera();
-  CHECK(rgbd_camera_);
-  stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
-
-  resetState(L_e, frame_id_e);
-}
-
-void HybridObjectMotionSRIF::predictAndUpdate(
-    const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
-    const TrackletIds& tracklets, const int num_irls_iterations) {
-  utils::ChronoTimingStats timer("motion_solver.ekf_predict&update");
-  predict(H_w_km1_k_predict);
-
-  const FrameId frame_id_before_update = frame_id_;
-  const ObjectTrackingStatus motion_track_status_before = motion_track_status_;
-  update(frame, tracklets, num_irls_iterations);
-  const FrameId frame_id_after_update = frame_id_;
-}
-
-/**
- * @brief Recovers the state perturbation delta_w by solving R * delta_w = d.
- */
-gtsam::Vector6 HybridObjectMotionSRIF::getStatePerturbation() const {
-  // R is upper triangular, so this is a fast back-substitution
-  return R_info_.triangularView<Eigen::Upper>().solve(d_info_);
-}
-
-const gtsam::Pose3& HybridObjectMotionSRIF::getCurrentLinearization() const {
-  return H_linearization_point_;
-}
-
-gtsam::Pose3 HybridObjectMotionSRIF::getKeyFramedMotion() const {
-  return H_linearization_point_.retract(getStatePerturbation());
-}
-
-Motion3ReferenceFrame HybridObjectMotionSRIF::getKeyFramedMotionReference()
-    const {
-  return Motion3ReferenceFrame(
-      getKeyFramedMotion(), Motion3ReferenceFrame::Style::KF,
-      ReferenceFrame::GLOBAL, getKeyFrameId(), getFrameId());
-}
-
-gtsam::Pose3 HybridObjectMotionSRIF::getF2FMotion() const {
-  gtsam::Pose3 H_W_e_k = H_linearization_point_.retract(getStatePerturbation());
-  gtsam::Pose3 H_W_e_km1 = previous_H_;
-  return H_W_e_k * H_W_e_km1.inverse();
-}
-
-gtsam::Matrix66 HybridObjectMotionSRIF::getCovariance() const {
-  gtsam::Matrix66 Lambda = R_info_.transpose() * R_info_;
-  return Lambda.inverse();
-}
-
-gtsam::Matrix66 HybridObjectMotionSRIF::getInformationMatrix() const {
-  return R_info_.transpose() * R_info_;
-}
-
-void HybridObjectMotionSRIF::predict(const gtsam::Pose3&) {
-  // 1. Get current mean state and covariance
-  gtsam::Vector6 delta_w = getStatePerturbation();
-  gtsam::Pose3 H_current_mean = H_linearization_point_.retract(delta_w);
-  gtsam::Matrix66 P_current = getCovariance();  // Slow step
-
-  // call before updating the previous_H_
-  // previous motion -> assume constant!
-  gtsam::Pose3 H_W_km1_k = getF2FMotion();
-
-  // gtsam::Pose3 L_km1 = previous_H_ * L_e_;
-  // gtsam::Pose3 L_k = H_current_mean * L_e_;
-
-  // //calculate motion relative to object
-  // gtsam::Pose3 local_motion = L_km1.inverse() * L_k;
-  // // forward predict pose using constant velocity model
-  // gtsam::Pose3 predicted_pose = L_k * local_motion;
-  // // convert pose back to motion
-  // gtsam::Pose3 predicted_motion = predicted_pose * L_e_.inverse();
-
-  previous_H_ = H_current_mean;
-
-  // 2. Perform EKF prediction (add process noise)
-  // P_k = P_{k-1} + Q
-  gtsam::Matrix66 P_predicted = P_current + Q_;
-
-  // 3. Re-linearize: Set new linearization point to the current mean
-  H_linearization_point_ = H_W_km1_k * H_current_mean;
-  // predict forward with constant velocity model
-  //  H_linearization_point_ = predicted_motion;
-
-  // 4. Recalculate R and d based on new P and new linearization point
-  // The new perturbation is 0 relative to the new linearization point.
-  d_info_ = gtsam::Vector6::Zero();
-  gtsam::Matrix66 Lambda_predicted = P_predicted.inverse();
-  R_info_ =
-      Lambda_predicted.llt().matrixU();  // R_info_ = L^T where L*L^T = Lambda
-}
-
-HybridObjectMotionSRIF::Result HybridObjectMotionSRIF::update(
-    Frame::Ptr frame, const TrackletIds& tracklets,
-    const int num_irls_iterations) {
-  const size_t num_measurements = tracklets.size();
-  const size_t total_rows = num_measurements * ZDim;
-
-  const gtsam::Pose3& X_W_k = frame->getPose();
-  const gtsam::Pose3 X_W_k_inv = X_W_k.inverse();
-  X_K_ = X_W_k;
-  frame_id_ = frame->getFrameId();
-
-  // 1. Calculate Jacobians (H) and Linearized Residuals (y_lin)
-  // These are calculated ONCE at the linearization point and are fixed
-  // for all IRLS iterations.
-  gtsam::Matrix H_stacked = gtsam::Matrix ::Zero(total_rows, StateDim);
-  gtsam::Vector y_linearized = gtsam::Vector::Zero(total_rows);
-
-  const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
-  // G will project the point from the object frame into the camera frame
-  const gtsam::Pose3 G_w = A * L_e_;
-  const gtsam::Matrix6 J_correction = -A.AdjointMap();
-
-  gtsam::StereoCamera gtsam_stereo_camera(G_w.inverse(), stereo_calibration_);
-  // whitened error
-  gtsam::Vector initial_error = gtsam::Vector::Zero(num_measurements);
-  gtsam::Vector re_weighted_error = gtsam::Vector::Zero(num_measurements);
-
-  size_t num_new_features = 0u, num_tracked_features = 0u;
-
-  for (size_t i = 0; i < num_measurements; ++i) {
-    const TrackletId& tracklet_id = tracklets.at(i);
-    const Feature::Ptr feature = frame->at(tracklet_id);
-    CHECK(feature);
-
-    if (!m_linearized_.exists(tracklet_id)) {
-      // this is initalising from a predicted motion (bad!) Should use previous
-      // linearization (ie k-1)
-      const gtsam::Point3 m_X_k = frame->backProjectToCamera(tracklet_id);
-      Landmark m_init = HybridObjectMotion::projectToObject3(
-          X_W_k, H_linearization_point_, L_e_, m_X_k);
-      m_linearized_.insert2(tracklet_id, m_init);
-      // VLOG(10) << "Initalising new point i=" << tracklet_id << " Le " <<
-      // L_e_;
-      num_new_features++;
-    } else {
-      num_tracked_features++;
-    }
-
-    gtsam::Point3 m_L = m_linearized_.at(tracklet_id);
-
-    const auto [stereo_keypoint_status, stereo_measurement] =
-        rgbd_camera_->getStereo(feature);
-    if (!stereo_keypoint_status) {
-      continue;
-    }
-
-    const auto& z_obs = stereo_measurement;
-
-    // const Point2& z_obs = feature->keypoint();
-    gtsam::Matrix36 J_pi;  // 2x6
-    gtsam::StereoPoint2 z_pred;
-    try {
-      // Project using the *linearization point*
-      // z_pred = camera.project(m_L, J_pi);
-      z_pred = gtsam_stereo_camera.project2(m_L, J_pi);
-    } catch (const gtsam::StereoCheiralityException& e) {
-      LOG(WARNING) << "Warning: Point " << i << " behind camera. Skipping.";
-      continue;  // Skip this measurement
-    }
-
-    // Calculate linearized residual y_lin = z - h(x_nom)
-    gtsam::Vector3 y_i_lin = (z_obs - z_pred).vector();
-    Eigen::Matrix<double, ZDim, StateDim> H_ekf_i = J_pi * J_correction;
-
-    size_t row_idx = i * ZDim;
-
-    H_stacked.block<ZDim, StateDim>(row_idx, 0) = H_ekf_i;
-    y_linearized.segment<ZDim>(row_idx) = y_i_lin;
-
-    double error_sq = y_i_lin.transpose() * R_inv_ * y_i_lin;
-    double error = std::sqrt(error_sq);
-    initial_error(i) = error;
-  }
-
-  VLOG(30) << "Feature stats. New features: " << num_new_features << "/"
-           << num_measurements << " Tracked features " << num_tracked_features
-           << "/" << num_measurements;
-
-  // 2. Store the prior information
-  gtsam::Matrix6 R_info_prior = R_info_;
-  gtsam::Vector6 d_info_prior = d_info_;
-
-  // 3. --- Start Iteratively Reweighted Least Squares (IRLS) Loop ---
-  // cout << "\n--- SRIF Robust Update (IRLS) Started ---" << endl;
-  for (int iter = 0; iter < num_irls_iterations; ++iter) {
-    // 3a. Get current state estimate (from previous iteration)
-    const gtsam::Vector6 delta_w =
-        R_info_.triangularView<Eigen::Upper>().solve(d_info_);
-    const gtsam::Pose3 H_current_mean = H_linearization_point_.retract(delta_w);
-    // Need to validate this:
-    //  We intentionally do not recalculate the Jacobian block (H_stacked).
-    //  to solve for the single best perturbation (delta_w) relative to the
-    //  single linearization point (W_linearization_point_) that we had at the
-    //  start of the update.
-    const gtsam::Pose3 A = X_W_k_inv * H_current_mean;
-    const gtsam::Pose3 G_w = A * L_e_;
-    gtsam::StereoCamera gtsam_stereo_camera_current(G_w.inverse(),
-                                                    stereo_calibration_);
-
-    gtsam::Vector weights = gtsam::Vector::Ones(num_measurements);
-
-    for (size_t i = 0; i < num_measurements; ++i) {
-      const TrackletId& tracklet_id = tracklets.at(i);
-      const Feature::Ptr feature = frame->at(tracklet_id);
-      CHECK(feature);
-
-      const auto [stereo_keypoint_status, stereo_measurement] =
-          rgbd_camera_->getStereo(feature);
-      if (!stereo_keypoint_status) {
-        weights(i) = 0.0;  // Skip point
-        continue;
-      }
-
-      auto z_obs = stereo_measurement;
-
-      gtsam::Point3 m_L = m_linearized_.at(tracklet_id);
-
-      gtsam::StereoPoint2 z_pred_current;
-      try {
-        z_pred_current = gtsam_stereo_camera_current.project(m_L);
-      } catch (const gtsam::StereoCheiralityException& e) {
-        LOG(WARNING) << "Warning: Point " << i << " behind camera. Skipping.";
-        weights(i) = 0.0;  // Skip point
-        continue;
-      }
-
-      // Calculate non-linear residual
-      gtsam::Vector3 y_nonlinear = (z_obs - z_pred_current).vector();
-
-      // //CHECK we cannot do this with gtsam's noise models (we can...)
-      // // Calculate Mahalanobis-like distance (whitened error)
-      double error_sq = y_nonlinear.transpose() * R_inv_ * y_nonlinear;
-      double error = std::sqrt(error_sq);
-
-      re_weighted_error(i) = error;
-
-      // Calculate Huber weight w(e) = min(1, delta / |e|)
-      weights(i) = (error <= huber_k_) ? 1.0 : huber_k_ / error;
-      if (/*weights(i) < 0.99 &&*/ iter == num_irls_iterations - 1) {
-        VLOG(50) << "  [Meas " << i << "] Final Weight: " << weights(i)
-                 << " (Error: " << error << ")";
-      }
-    }
-
-    // 3c. Construct the giant matrix A_qr for this iteration
-    gtsam::Matrix A_qr =
-        gtsam::Matrix::Zero(total_rows + StateDim, StateDim + 1);
-
-    for (size_t i = 0; i < num_measurements; ++i) {
-      double w_i = weights(i);
-      if (w_i < 1e-6) continue;  // Skip 0-weighted points
-
-      // R_robust = R / w_i  (Note: w is |e|^-1, so R_robust = R * |e|/delta)
-      // R_robust_inv = R_inv * w_i
-      // We need W_i such that W_i^T * W_i = R_robust_inv
-      // W_i = sqrt(w_i) * R_inv_sqrt
-
-      gtsam::Matrix33 R_robust_i = R_noise_ / w_i;
-      gtsam::Matrix33 L_robust_i = R_robust_i.llt().matrixL();
-      gtsam::Matrix33 R_robust_inv_sqrt = L_robust_i.inverse();
-
-      size_t row_idx = i * ZDim;
-
-      A_qr.block<ZDim, StateDim>(row_idx, 0) =
-          R_robust_inv_sqrt * H_stacked.block<3, StateDim>(row_idx, 0);
-      A_qr.block<ZDim, 1>(row_idx, StateDim) =
-          R_robust_inv_sqrt * y_linearized.segment<3>(row_idx);
-    }
-
-    // 3d. Fill the prior part of the QR matrix
-    // This is *always* the original prior
-    A_qr.block<StateDim, StateDim>(total_rows, 0) = R_info_prior;
-    A_qr.block<StateDim, 1>(total_rows, StateDim) = d_info_prior;
-
-    // 3e. Perform QR decomposition
-    Eigen::HouseholderQR<gtsam::Matrix> qr(A_qr);
-    gtsam::Matrix R_full = qr.matrixQR().triangularView<Eigen::Upper>();
-
-    // 3f. Extract the new R_info and d_info for the *next* iteration
-    R_info_ = R_full.block<StateDim, StateDim>(0, 0);
-    d_info_ = R_full.block<StateDim, 1>(0, StateDim);
-  }
-
-  // (Optional) Enforce R is upper-triangular
-  R_info_ = R_info_.triangularView<Eigen::Upper>();
-
-  Result result;
-  result.error = initial_error.norm();
-  result.reweighted_error = re_weighted_error.norm();
-  return result;
-
-  // LOG(INFO) << "--- SRIF Robust Update Complete --- initial error "
-  //           << initial_error.norm()
-  //           << " re-weighted error: " << re_weighted_error.norm();
-}
-
-void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
-                                        FrameId frame_id_e) {
-  // 2. Initialize SRIF State (R, d) from EKF State (W, P)
-  // W_linearization_point_ is set to initial_state_W
-  // The initial perturbation is 0, so the initial d_info_ is 0.
-  d_info_ = gtsam::Vector6::Zero();
-
-  // Calculate initial Information Matrix Lambda = P^-1
-  gtsam::Matrix66 Lambda_initial = initial_P_.inverse();
-
-  // Calculate R_info_ from Cholesky decomposition: Lambda = R^T * R
-  // We use LLT (L*L^T) and take the upper-triangular factor of L^T.
-  // Or, more robustly, U^T*U from a U^T*U decomposition.
-  // Eigen's LLT computes L (lower) such that A = L * L^T.
-  // We need U (upper) such that A = U^T * U.
-  // A.llt().matrixU() gives U where A = L*L^T (U is L^T). No.
-  // A.llt().matrixL() gives L where A = L*L^T.
-  // Let's use Eigen's LDLT and reconstruct.
-  // A more direct way:
-  R_info_ = Lambda_initial.llt().matrixU();  // L^T
-
-  // will this give us discontinuinities betweek keyframes?
-  //  reset other variables
-  previous_H_ = gtsam::Pose3::Identity();
-  L_e_ = L_e;
-  frame_id_e_ = frame_id_e;
-  frame_id_ = frame_id_e;
-  X_K_ = gtsam::Pose3::Identity();
-
-  m_linearized_.clear();
-
-  // should always be identity since the deviation from L_e = I when frame = e
-  // the initial H should not be parsed into the constructor by this logic as
-  // well!
-  H_linearization_point_ = gtsam::Pose3::Identity();
-}
-
 ObjectMotionSolverFilter::ObjectMotionSolverFilter(
     const ObjectMotionSolverFilter::Params& params,
     const CameraParams& camera_params)
@@ -1180,6 +838,7 @@ bool ObjectMotionSolverFilter::solveImpl(Frame::Ptr frame_k,
     LOG(WARNING) << "Could not make initial frame for object " << object_id
                  << " as not enough inlier tracks!";
     object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
+
     return false;
   }
 
@@ -1419,58 +1078,6 @@ ObjectMotionSolverFilter::createAndInsertFilter(ObjectId object_id,
   return filter;
 }
 
-// void ObjectMotionSolverFilter::fillHybridInfo(
-//     ObjectId object_id, VisionImuPacket::ObjectTracks& object_track) {
-//   CHECK(filters_.exists(object_id));
-//   auto filter = filters_.at(object_id);
-
-//   CHECK(object_keyframe_statuses_.exists(object_id));
-//   auto object_kf_status = object_keyframe_statuses_.at(object_id);
-
-//   CHECK(object_statuses_.exists(object_id));
-//   auto object_motion_track_status = object_statuses_.at(object_id);
-
-//   VisionImuPacket::ObjectTracks::HybridInfo hybrid_info;
-//   hybrid_info.H_W_KF_k = filter->getKeyFramedMotionReference();
-//   hybrid_info.L_W_KF = filter->getKeyFramePose();
-//   hybrid_info.L_W_k = filter->getPose();
-
-//   hybrid_info.regular_keyframe = false;
-//   hybrid_info.anchor_keyframe = false;
-
-//   object_track.motion_track_status = object_motion_track_status;
-
-//   if (object_track.motion_track_status == ObjectTrackingStatus::New ||
-//       object_track.motion_track_status == ObjectTrackingStatus::WellTracked)
-//       {
-//     if (object_kf_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-//       hybrid_info.regular_keyframe = true;
-//       hybrid_info.anchor_keyframe = true;
-//     } else if (object_kf_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-//       hybrid_info.regular_keyframe = true;
-//     }
-//   }
-
-//   // TODO: check for online inliers or set inliers after RLLS
-//   const auto fixed_points = filter->getCurrentLinearizedPoints();
-//   for (const auto& [tracklet_id, m_L] : fixed_points) {
-//     hybrid_info.initial_object_points.push_back(LandmarkStatus::Dynamic(
-//         // currently no covariance!
-//         Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, NaN,
-//         tracklet_id, object_id, ReferenceFrame::OBJECT));
-//   }
-
-//   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-//             << "motion KF: " << hybrid_info.H_W_KF_k.from()
-//             << " to: " << hybrid_info.H_W_KF_k.to()
-//             << " track status: " << to_string(object_motion_track_status)
-//             << " with regular kf " << std::boolalpha
-//             << hybrid_info.regular_keyframe << " anchor kf "
-//             << hybrid_info.anchor_keyframe;
-
-//   object_track.hybrid_info = hybrid_info;
-// }
-
 void ObjectMotionSolverFilter::updateTrajectories(
     MultiObjectTrajectories& object_trajectories,
     const MotionEstimateMap& motion_estimates, Frame::Ptr frame_k,
@@ -1486,37 +1093,11 @@ void ObjectMotionSolverFilter::updateTrajectories(
 
     auto filter = filters_.at(object_id);
     gtsam::Pose3 L_k_j = filter->getPose();
-    // object_poses_.insert22(object_id, frame_id_k, L_k_j);
     object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
                                 PoseWithMotion{L_k_j, motion_reference_frame});
   }
 
   object_trajectories = object_trajectories_;
 }
-
-// void ObjectMotionSolverFilter::updatePoses(
-//     ObjectPoseMap& object_poses, const MotionEstimateMap& motion_estimates,
-//     Frame::Ptr frame_k, Frame::Ptr /*frame_k_1*/) {
-//   const FrameId frame_id_k = frame_k->getFrameId();
-//   for (const auto& [object_id, _] : motion_estimates) {
-//     CHECK(filters_.exists(object_id));
-
-//     auto filter = filters_.at(object_id);
-//     gtsam::Pose3 L_k_j = filter->getPose();
-//     object_poses_.insert22(object_id, frame_id_k, L_k_j);
-//   }
-//   object_poses = object_poses_;
-// }
-
-// void ObjectMotionSolverFilter::updateMotions(
-//     ObjectMotionMap& object_motions, const MotionEstimateMap&
-//     motion_estimates, Frame::Ptr frame_k, Frame::Ptr frame_k_1) {
-//   // same as ConsecutiveFrameObjectMotionSolver
-//   const FrameId frame_id_k = frame_k->getFrameId();
-//   for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
-//     object_motions_.insert22(object_id, frame_id_k, motion_reference_frame);
-//   }
-//   object_motions = object_motions_;
-// }
 
 }  // namespace dyno

@@ -391,8 +391,8 @@ class AccessorT : public DerivedAccessor {
   DYNO_POINTER_TYPEDEFS(This)
 
   template <typename... DerivedArgs>
-  AccessorT(const SharedFormulationData& shared_data, typename Map::Ptr map,
-            DerivedArgs&&... derived_args);
+  AccessorT(const SharedFormulationData::Ptr& shared_data,
+            typename Map::Ptr map, DerivedArgs&&... derived_args);
   virtual ~AccessorT() {}
 
   /**
@@ -544,15 +544,14 @@ class AccessorT : public DerivedAccessor {
  protected:
   auto map() const { return map_; }
 
-  const gtsam::Values& values() const {
-    return *CHECK_NOTNULL(shared_data_.values);
+  gtsam::Values values() const {
+    const std::lock_guard<std::mutex> lock(shared_data_->theta);
+    return shared_data_->theta;
   }
-  const FormulationHooks& hooks() const {
-    return *CHECK_NOTNULL(shared_data_.hooks);
-  }
+  const FormulationHooks& hooks() const { return shared_data_->hooks; }
 
  private:  //! in the associated formulation
-  const SharedFormulationData shared_data_;
+  const SharedFormulationData::Ptr shared_data_;
   typename Map::Ptr map_;  //! Pointer to internal map structure;
 };
 

@@ -89,6 +89,7 @@ RUN cd opencv/build && \
       -D WITH_CUFFT=ON \
       -D WITH_CUBLAS=ON \
       -D WITH_TBB=ON \
+      -D BUILD_JAVA=OFF \
       -DOPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules .. && \
       make -j$(nproc) install
 

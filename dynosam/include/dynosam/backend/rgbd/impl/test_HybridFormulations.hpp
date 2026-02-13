@@ -225,7 +225,7 @@ using HybridSmartFactorMap = FactorMap<HybridSmartFactor::shared_ptr>;
 class SmartStructurlessAccessor : public HybridAccessor {
  public:
   SmartStructurlessAccessor(
-      const SharedFormulationData& shared_data, MapVision::Ptr map,
+      const SharedFormulationData::Ptr& shared_data, MapVision::Ptr map,
       const SharedHybridFormulationData& shared_hybrid_formulation_data,
       const HybridSmartFactorMap* smart_factor_map)
       : HybridAccessor(shared_data, map, shared_hybrid_formulation_data),
@@ -256,7 +256,7 @@ class SmartStructurlessFormulation : public RegularHybridFormulation {
       gtsam::NonlinearFactorGraph& new_factors) override;
 
   AccessorTypePointer createAccessor(
-      const SharedFormulationData& shared_data) const override {
+      const SharedFormulationData::Ptr& shared_data) const override {
     SharedHybridFormulationData shared_hybrid_data;
     shared_hybrid_data.key_frame_data = &key_frame_data_;
     shared_hybrid_data.tracklet_id_to_keyframe = &all_dynamic_landmarks_;

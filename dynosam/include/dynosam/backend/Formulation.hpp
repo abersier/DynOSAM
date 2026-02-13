@@ -414,11 +414,11 @@ class Formulation {
    * accessor will contain a pointer to This::theta_, so that when the values
    * are updated the accessor has access to the latest values.
    *
-   * @param values const gtsam::Values*
+   * @param values const SharedFormulationData::Ptr&
    * @return AccessorType::Ptr
    */
   virtual typename AccessorType::Ptr createAccessor(
-      const SharedFormulationData& shared_data) const = 0;
+      const SharedFormulationData::Ptr& shared_data) const = 0;
 
   // virtual void
 
@@ -435,9 +435,12 @@ class Formulation {
    * values can be updated after external optimisation and are constructed by
    * the derived formulation during update.
    *
-   * @return const gtsam::Values&
+   * @return gtsam::Values
    */
-  const gtsam::Values& getTheta() const { return theta_; }
+  gtsam::Values getTheta() const {
+    std::lock_guard<std::mutex> lock(shared_data_->theta_mutex);
+    return shared_data_->theta;
+  }
 
   /**
    * @brief Sets the full set of theta values (overrides them). This is used
@@ -466,7 +469,7 @@ class Formulation {
    */
   const gtsam::NonlinearFactorGraph& getGraph() const { return factors_; }
 
-  const FormulationHooks& hooks() const { return hooks_; }
+  const FormulationHooks& hooks() const { return shared_data_->hooks; }
   const NoiseModels& noiseModels() const { return noise_models_; }
   const Sensors& sensors() const { return sensors_; }
   const FormulationParams& params() const { return params_; }
@@ -610,13 +613,13 @@ class Formulation {
   typename Map::Ptr map_;
   const NoiseModels noise_models_;
   Sensors sensors_;
-  FormulationHooks hooks_;
   //! the set of (static related) values managed by this updater. Allows
   //! checking if values have already been added over successive function calls
   gtsam::FastMap<gtsam::Key, bool> is_other_values_in_map;
-  //! Current linearisation that will be associated with the current graph
-  gtsam::Values theta_;
   gtsam::NonlinearFactorGraph factors_;
+  //! For data shared with the accessor. Includes currently linearization
+  //! (theta) and shared hook
+  SharedFormulationData::Ptr shared_data_;
 
   mutable std::mutex mutex_;
 

@@ -54,21 +54,6 @@ template <typename RefType, typename CurType>
 using GenericCorrespondences =
     std::vector<TrackletCorrespondance<RefType, CurType>>;
 
-//! Correspondes format for a 3D->2D PnP solver. In the form of 3D Landmark in
-//! the world frame, and 2D observation in the current camera frame
-using AbsolutePoseCorrespondence = TrackletCorrespondance<Landmark, Keypoint>;
-using AbsolutePoseCorrespondences = std::vector<AbsolutePoseCorrespondence>;
-
-//! Correspondes format for a 2D->2D PnP solver. In the form of 2D observation
-//! in the ref camera frame, and 2D observation in the current camera frame
-using RelativePoseCorrespondence = TrackletCorrespondance<Keypoint, Keypoint>;
-using RelativePoseCorrespondences = std::vector<RelativePoseCorrespondence>;
-
-//! Correspondes format for a 3D->3D PnP solver. In the form of a 3D Landmark in
-//! the world frame
-using PointCloudCorrespondence = TrackletCorrespondance<Landmark, Landmark>;
-using PointCloudCorrespondences = std::vector<PointCloudCorrespondence>;
-
 struct PerObjectStatus {
   ObjectId object_id;
   size_t num_previous_track{0};  // number of (inlier) features tracked in the

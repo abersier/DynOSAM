@@ -38,7 +38,7 @@ namespace dyno {
 
 class WorldPoseAccessor : public AccessorT<MapVision, VIOAccessor> {
  public:
-  WorldPoseAccessor(const SharedFormulationData& shared_data,
+  WorldPoseAccessor(const SharedFormulationData::Ptr& shared_data,
                     MapVision::Ptr map)
       : AccessorT<MapVision, VIOAccessor>(shared_data, map) {}
   virtual ~WorldPoseAccessor() {}
@@ -85,7 +85,7 @@ class WorldPoseFormulation : public VIOFormulation {
 
  protected:
   AccessorTypePointer createAccessor(
-      const SharedFormulationData& shared_data) const override {
+      const SharedFormulationData::Ptr& shared_data) const override {
     return std::make_shared<WorldPoseAccessor>(shared_data, this->map());
   }
 

@@ -50,72 +50,60 @@
 #include "dynosam/backend/BackendDefinitions.hpp"  //for formulation hooks
 #include "dynosam/frontend/Frontend-Definitions.hpp"
 #include "dynosam/frontend/VisionImuOutputPacket.hpp"
+#include "dynosam/frontend/solvers/HybridObjectMotionSRIF.hpp"
+#include "dynosam/frontend/solvers/PnPRansac.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/Vision-Definitions.hpp"
 #include "dynosam/frontend/vision/VisionTools.hpp"
 #include "dynosam_common/DynamicObjects.hpp"
 #include "dynosam_common/Types.hpp"
 
-// PnP (3d2d)
-using AbsolutePoseProblem =
-    opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem;
-using AbsolutePoseAdaptor = opengv::absolute_pose::CentralAbsoluteAdapter;
+// // PnP (3d2d)
+// using AbsolutePoseProblem =
+//     opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem;
+// using AbsolutePoseAdaptor = opengv::absolute_pose::CentralAbsoluteAdapter;
 
-// Mono (2d2d) using 5-point ransac
-using RelativePoseProblem =
-    opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
-// Mono (2d2d, with given rotation) MonoTranslationOnly:
-// TranslationOnlySacProblem 2-point ransac
-using RelativePoseProblemGivenRot =
-    opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
-using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
+// // Mono (2d2d) using 5-point ransac
+// using RelativePoseProblem =
+//     opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
+// // Mono (2d2d, with given rotation) MonoTranslationOnly:
+// // TranslationOnlySacProblem 2-point ransac
+// using RelativePoseProblemGivenRot =
+//     opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
+// using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
 
-// Stereo (3d3d)
-// Arun's problem (3-point ransac)
-using Problem3d3d = opengv::sac_problems::point_cloud::PointCloudSacProblem;
-using Adapter3d3d = opengv::point_cloud::PointCloudAdapter;
+// // Stereo (3d3d)
+// // Arun's problem (3-point ransac)
+// using Problem3d3d = opengv::sac_problems::point_cloud::PointCloudSacProblem;
+// using Adapter3d3d = opengv::point_cloud::PointCloudAdapter;
 
 namespace dyno {
 
-struct RansacProblemParams {
-  double threshold = 1.0;
-  double ransac_iterations = 500;
-  double ransac_probability = 0.995;
-  bool do_nonlinear_optimization = false;
-};
+// struct RansacProblemParams {
+//   double threshold = 1.0;
+//   double ransac_iterations = 500;
+//   double ransac_probability = 0.995;
+//   bool do_nonlinear_optimization = false;
+// };
 
-template <class SampleConsensusProblem>
-bool runRansac(
-    std::shared_ptr<SampleConsensusProblem> sample_consensus_problem_ptr,
-    const double& threshold, const int& max_iterations,
-    const double& probability, const bool& do_nonlinear_optimization,
-    gtsam::Pose3& best_pose, std::vector<int>& inliers);
+// template <class SampleConsensusProblem>
+// bool runRansac(
+//     std::shared_ptr<SampleConsensusProblem> sample_consensus_problem_ptr,
+//     const double& threshold, const int& max_iterations,
+//     const double& probability, const bool& do_nonlinear_optimization,
+//     gtsam::Pose3& best_pose, std::vector<int>& inliers);
 
-template <class SampleConsensusProblem>
-bool runRansac(
-    std::shared_ptr<SampleConsensusProblem> sample_consensus_problem_ptr,
-    const RansacProblemParams& params, gtsam::Pose3& best_pose,
-    std::vector<int>& inliers) {
-  return runRansac<SampleConsensusProblem>(
-      sample_consensus_problem_ptr, params.threshold, params.ransac_iterations,
-      params.ransac_probability, params.do_nonlinear_optimization, best_pose,
-      inliers);
-}
+// template <class SampleConsensusProblem>
+// bool runRansac(
+//     std::shared_ptr<SampleConsensusProblem> sample_consensus_problem_ptr,
+//     const RansacProblemParams& params, gtsam::Pose3& best_pose,
+//     std::vector<int>& inliers) {
+//   return runRansac<SampleConsensusProblem>(
+//       sample_consensus_problem_ptr, params.threshold,
+//       params.ransac_iterations, params.ransac_probability,
+//       params.do_nonlinear_optimization, best_pose, inliers);
+// }
 
-class EssentialDecompositionResult;  // forward declare
-
-template <typename T>
-struct SolverResult {
-  T best_result;
-  TrackletIds inliers;
-  TrackletIds outliers;
-  TrackingStatus status;
-
-  std::optional<double> error_before{};
-  std::optional<double> error_after{};
-};
-
-using Pose3SolverResult = SolverResult<gtsam::Pose3>;
 using Motion3SolverResult = SolverResult<Motion3ReferenceFrame>;
 
 /**
@@ -347,8 +335,6 @@ class ObjectMotionSolver {
   ObjectMotionSolver() = default;
   virtual ~ObjectMotionSolver() = default;
 
-  // using Result = std::pair<ObjectMotionMap, ObjectPoseMap>;
-
   virtual MultiObjectTrajectories solve(Frame::Ptr frame_k,
                                         Frame::Ptr frame_k_1);
 
@@ -360,14 +346,6 @@ class ObjectMotionSolver {
   virtual void updateTrajectories(MultiObjectTrajectories& object_trajectories,
                                   const MotionEstimateMap& motion_estimates,
                                   Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
-
-  // virtual void updatePoses(ObjectPoseMap& object_poses,
-  //                          const MotionEstimateMap& motion_estimates,
-  //                          Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
-
-  // virtual void updateMotions(ObjectMotionMap& object_motions,
-  //                            const MotionEstimateMap& motion_estimates,
-  //                            Frame::Ptr frame_k, Frame::Ptr frame_k_1) = 0;
 };
 
 class ConsecutiveFrameObjectMotionSolver : public ObjectMotionSolver,
@@ -418,147 +396,6 @@ class ConsecutiveFrameObjectMotionSolver : public ObjectMotionSolver,
   const ConsecutiveFrameObjectMotionSolver::Params object_motion_params;
 };
 
-/**
- * @brief Hybrid Object motion Square-Root Information Filter
- *
- */
-class HybridObjectMotionSRIF {
- public:
-  struct Result {
-    double error{0.0};
-    double reweighted_error{0.0};
-    // gtsam::Pose3 H_W_e_k;
-    // gtsam::Pose3 H_W_km1_k;
-  };
-
-  // FOR TESTING!
- public:
-  // --- SRIF State Variables ---
-  gtsam::Pose3 H_linearization_point_;  // Nominal state (linearization point)
-  const gtsam::Matrix66 Q_;  // Process Noise Covariance (for prediction step)
-  const gtsam::Matrix33 R_noise_;  // 3x3 Measurement Noise
-  //! Cached R_noise inverse
-  const gtsam::Matrix33 R_inv_;
-  const gtsam::Matrix66 initial_P_;
-
-  gtsam::Pose3 L_e_;
-  // Frame Id for the reference KF
-  FrameId frame_id_e_;
-  //! Last camera pose used within predict
-  gtsam::Pose3 X_K_;
-  //! Frame id used for last update
-  FrameId frame_id_;
-
-  gtsam::Matrix66
-      R_info_;  // R (6x6) - Upper triangular Cholesky factor of Info Matrix
-  gtsam::Vector6 d_info_;  // d (6x1) - Transformed information vector
-
-  // --- System Parameters ---
-  std::shared_ptr<RGBDCamera> rgbd_camera_;
-  gtsam::Cal3_S2Stereo::shared_ptr stereo_calibration_;
-
-  //! Points in L (current linearization)
-  gtsam::FastMap<TrackletId, gtsam::Point3> m_linearized_;
-
-  ObjectTrackingStatus motion_track_status_;
-
-  //! should be from e to k-1. Currently set in predict
-  gtsam::Pose3 previous_H_;
-  double huber_k_{1.23};
-
-  constexpr static int StateDim = gtsam::traits<gtsam::Pose3>::dimension;
-  constexpr static int ZDim = gtsam::traits<gtsam::StereoPoint2>::dimension;
-
- public:
- public:
-  HybridObjectMotionSRIF(const gtsam::Pose3& initial_state_H,
-                         const gtsam::Pose3& L_e, const FrameId& frame_id_e,
-                         const gtsam::Matrix66& initial_P,
-                         const gtsam::Matrix66& Q, const gtsam::Matrix33& R,
-                         Camera::Ptr camera, double huber_k = 1.23);
-
-  inline const gtsam::Pose3& getKeyFramePose() const { return L_e_; }
-  inline const gtsam::Pose3& lastCameraPose() const { return X_K_; }
-  inline FrameId getKeyFrameId() const { return frame_id_e_; }
-  inline ObjectTrackingStatus getMotionTrackingStatus() const {
-    return motion_track_status_;
-  }
-  inline FrameId getFrameId() const { return frame_id_; }
-
-  inline const gtsam::FastMap<TrackletId, gtsam::Point3>&
-  getCurrentLinearizedPoints() const {
-    return m_linearized_;
-  }
-
-  gtsam::Pose3 getPose() const {
-    return getKeyFramedMotion() * getKeyFramePose();
-  }
-
-  void predictAndUpdate(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
-                        const TrackletIds& tracklets,
-                        const int num_irls_iterations = 1);
-
-  /**
-   * @brief Recovers the state perturbation delta_w by solving R * delta_w = d.
-   */
-  gtsam::Vector6 getStatePerturbation() const;
-
-  // this is H_W_e_k
-  const gtsam::Pose3& getCurrentLinearization() const;
-
-  // this is H_W_e_k
-  // calculate best estimate!!
-  gtsam::Pose3 getKeyFramedMotion() const;
-
-  Motion3ReferenceFrame getKeyFramedMotionReference() const;
-
-  /**
-   * @brief Recovers the full state pose W by applying the perturbation
-   * to the linearization point.
-   *
-   * LIES: thie is H_W_km1_k
-   */
-  gtsam::Pose3 getF2FMotion() const;
-
-  /**
-   * @brief Recovers the state covariance P by inverting the information matrix.
-   * @note This is a slow operation (O(N^3)) and should only be called
-   * for inspection, not inside the filter loop.
-   */
-  gtsam::Matrix66 getCovariance() const;
-
-  /**
-   * @brief Recovers the information matrix Lambda = R^T * R.
-   */
-  gtsam::Matrix66 getInformationMatrix() const;
-
-  /**
-   * @brief Resets information d_info_ and R_info.
-   * d_inifo is set to zero and R_info is constructed from the initial
-   * covariance P. L_e_ is updated with new value and previous_H_ reset to
-   * identity
-   *
-   * @param L_e
-   * @param frame_id_e
-   */
-  void resetState(const gtsam::Pose3& L_e, FrameId frame_id_e);
-
- private:
-  /**
-   * @brief EKF Prediction Step (Trivial motion model for W)
-   * @note Prediction is the hard/slow part of an Information Filter.
-   * This implementation is a "hack" that converts to covariance,
-   * adds noise, and converts back. A "pure" SRIF predict is complex.
-   */
-  void predict(const gtsam::Pose3& H_W_km1_k);
-  /**
-   * @brief SRIF Update Step using Iteratively Reweighted Least Squares (IRLS)
-   * with QR decomposition to achieve robustness.
-   */
-  Result update(Frame::Ptr frame, const TrackletIds& tracklets,
-                const int num_irls_iterations = 1);
-};
-
 class ObjectMotionSolverFilter : public ObjectMotionSolver,
                                  protected EgoMotionSolver {
  public:
@@ -589,13 +426,6 @@ class ObjectMotionSolverFilter : public ObjectMotionSolver,
   bool solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_k_1, ObjectId object_id,
                  MotionEstimateMap& motion_estimates) override;
 
-  // void updatePoses(ObjectPoseMap& object_poses,
-  //                  const MotionEstimateMap& motion_estimates,
-  //                  Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
-
-  // void updateMotions(ObjectMotionMap& object_motions,
-  //                    const MotionEstimateMap& motion_estimates,
-  //                    Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;
   void updateTrajectories(MultiObjectTrajectories& object_trajectories,
                           const MotionEstimateMap& motion_estimates,
                           Frame::Ptr frame_k, Frame::Ptr frame_k_1) override;

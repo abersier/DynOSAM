@@ -38,7 +38,12 @@ void DynoStatePublisher::publish(const DynoState& state) {
   DisplayCommon::publishOdometry(vo_publisher_, X_W_k, timestamp,
                                  params_.world_frame_id,
                                  params_.camera_frame_id);
-  // TODO : publish tf?
+  if (publish_vo_tf_) {
+    std_msgs::msg::Header header;
+    header.stamp = utils::toRosTime(timestamp);
+    header.frame_id = params_.world_frame_id;
+    sendTransform(X_W_k, header, params_.camera_frame_id);
+  }
 
   // publish trajectory
   DisplayCommon::publishOdometryPath(vo_path_publisher_,
@@ -153,12 +158,8 @@ ObjectOdometry DynoStatePublisher::constructObjectOdometry(
 
 void DynoStatePublisher::sendObjectOdometryTransform(
     const ObjectOdometry& object_odom) {
-  geometry_msgs::msg::TransformStamped t;
-
-  dyno::convert(object_odom.odom.pose.pose, t.transform);
-  t.header = object_odom.odom.header;
-
-  tf_broadcaster_->sendTransform(t);
+  sendTransform(object_odom.odom.pose.pose, object_odom.odom.header,
+                object_odom.odom.child_frame_id);
 }
 
 }  // namespace dyno

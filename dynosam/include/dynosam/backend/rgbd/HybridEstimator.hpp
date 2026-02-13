@@ -1276,7 +1276,7 @@ class HybridAccessor : public AccessorT<MapVision, HybridAccessorCommon>,
   DYNO_POINTER_TYPEDEFS(HybridAccessor)
 
   HybridAccessor(
-      const SharedFormulationData& shared_data, MapVision::Ptr map,
+      const SharedFormulationData::Ptr& shared_data, MapVision::Ptr map,
       const SharedHybridFormulationData& shared_hybrid_formulation_data)
       : AccessorT<MapVision, HybridAccessorCommon>(shared_data, map),
         shared_hybrid_formulation_data_(shared_hybrid_formulation_data) {}
@@ -1386,7 +1386,7 @@ class HybridFormulation : public VIOFormulation,
   // TODO: make this virtual for now - eventual move structureless etc
   // properties into a class to encapsulate!
   virtual AccessorTypePointer createAccessor(
-      const SharedFormulationData& shared_data) const override {
+      const SharedFormulationData::Ptr& shared_data) const override {
     SharedHybridFormulationData shared_hybrid_data;
     shared_hybrid_data.key_frame_data = &key_frame_data_;
     shared_hybrid_data.tracklet_id_to_keyframe = &all_dynamic_landmarks_;

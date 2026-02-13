@@ -34,7 +34,6 @@
 #include <glog/logging.h>
 
 #include "dynosam/backend/BackendFactory.hpp"
-#include "dynosam/backend/RegularBackendDefinitions.hpp"  //just for the MAP!
 #include "dynosam/dataprovider/DataProviderFactory.hpp"
 #include "dynosam/dataprovider/DataProviderUtils.hpp"
 #include "dynosam/pipeline/PipelineHooks.hpp"

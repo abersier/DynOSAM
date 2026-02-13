@@ -1228,7 +1228,8 @@ UpdateObservationResult HybridFormulationKeyFrame::updateDynamicObservations(
   factors_ += internal_new_factors;
   new_factors += internal_new_factors;
   // update internal theta and factors
-  theta_.insert(internal_new_values);
+  // theta_.insert(internal_new_values);
+  shared_data_->threadSafeInsertTheta(internal_new_values);
   // add to the external new_values
   new_values.insert(internal_new_values);
   return result;

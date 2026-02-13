@@ -73,6 +73,9 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/imu/ImuFrontend.cc
   src/frontend/imu/ImuParams.cc
 
+  src/frontend/solvers/PnPRansac.cc
+  src/frontend/solvers/HybridObjectMotionSRIF.cc
+
   src/frontend/vision/Frame.cc
   src/frontend/FrontendParams.cc
   src/frontend/VIFrontend.cc

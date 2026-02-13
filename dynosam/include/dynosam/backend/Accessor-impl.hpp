@@ -39,14 +39,11 @@ namespace dyno {
 template <class MAP, class DerivedAccessor>
 template <typename... DerivedArgs>
 AccessorT<MAP, DerivedAccessor>::AccessorT(
-    const SharedFormulationData& shared_data, typename Map::Ptr map,
+    const SharedFormulationData::Ptr& shared_data, typename Map::Ptr map,
     DerivedArgs&&... derived_args)
     : DerivedAccessor(std::forward<DerivedArgs>(derived_args)...),
-      shared_data_(shared_data),
-      map_(map) {
-  CHECK_NOTNULL(shared_data.values);
-  CHECK_NOTNULL(shared_data.hooks);
-}
+      shared_data_(CHECK_NOTNULL(shared_data)),
+      map_(map) {}
 
 template <class MAP, class DerivedAccessor>
 StateQuery<gtsam::Point3> AccessorT<MAP, DerivedAccessor>::getStaticLandmark(
@@ -374,9 +371,10 @@ AccessorT<MAP, DerivedAccessor>::computeObjectCentroids(
 template <class MAP, class DerivedAccessor>
 boost::optional<const gtsam::Value&>
 AccessorT<MAP, DerivedAccessor>::getValueImpl(const gtsam::Key key) const {
-  const gtsam::Values* theta = shared_data_.values;
-  if (theta->exists(key)) {
-    return theta->at(key);
+  const std::lock_guard<std::mutex> lock(shared_data_->theta_mutex);
+  const auto& theta = shared_data_->theta;
+  if (theta.exists(key)) {
+    return theta.at(key);
   }
   return boost::none;
 }

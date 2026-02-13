@@ -366,7 +366,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
         keyframe_data.frame = intermediate_motion_lkf_j.frame;
         keyframe_data.nav_state = nav_state_lkf_j;
         // keyframe_data.object_infos = kf_pose_change_infos;
-        keyframes_.insert2(frame_id_k, keyframe_data);
+        keyframes_.insert2(keyframe_data.kf_id, keyframe_data);
 
         // progressively update internal keyframe related properties
         lkf_id_ = intermediate_motion_lkf_j.to;
