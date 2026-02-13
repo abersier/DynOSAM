@@ -1,7 +1,8 @@
 #pragma once
 
 #include "dynosam/frontend/VIFrontend.hpp"
-#include "dynosam/frontend/vision/MotionSolver.hpp"
+#include "dynosam/frontend/VisionImuOutputPacket.hpp"
+#include "dynosam/frontend/solvers/ConsecutiveFrameObjectMotionSolver.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
 
 namespace dyno {

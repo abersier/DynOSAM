@@ -22,6 +22,7 @@ struct HybridObjectMotionSRIFResult {
  */
 class HybridObjectMotionSRIF {
  public:
+  DYNO_POINTER_TYPEDEFS(HybridObjectMotionSRIF)
   HybridObjectMotionSRIF(const gtsam::Pose3& initial_state_H,
                          const gtsam::Pose3& L_e, const FrameId& frame_id_e,
                          const gtsam::Matrix66& initial_P,

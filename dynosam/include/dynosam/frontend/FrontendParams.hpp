@@ -34,8 +34,9 @@
 #include <string>
 
 #include "dynosam/frontend/imu/ImuParams.hpp"
+#include "dynosam/frontend/solvers/ConsecutiveFrameObjectMotionSolver.hpp"
+#include "dynosam/frontend/solvers/PnPRansac.hpp"
 #include "dynosam/frontend/vision/FeatureTrackerBase.hpp"  //for ImageTracksParams
-#include "dynosam/frontend/vision/MotionSolver.hpp"
 #include "dynosam/frontend/vision/TrackerParams.hpp"
 
 namespace dyno {
@@ -63,9 +64,11 @@ struct FrontendParams {
   // Refine the camera pose with oint optical flow optimisation
   bool refine_camera_pose_with_joint_of = true;
 
-  ConsecutiveFrameObjectMotionSolver::Params object_motion_solver_params =
-      ConsecutiveFrameObjectMotionSolver::Params();
-  EgoMotionSolver::Params ego_motion_solver_params = EgoMotionSolver::Params();
+  // TODO: load camera ransac and joint of
+  // TODO: load object ransac and joint of and 3d motion
+  // TODO: load special motion solver params separately? MAYBE?
+  ConsecutiveFrameObjectMotionSolverParams cf_object_motion_solver_params;
+  PnPRansacSolverParams ego_motion_pnp_ransac_params;
 
   TrackerParams tracker_params = TrackerParams();
   ImageTracksParams image_tracks_vis_params = ImageTracksParams();

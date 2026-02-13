@@ -1,8 +1,16 @@
 #pragma once
 
+#include <gtsam/linear/NoiseModel.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/slam/ProjectionFactor.h>
+
+#include "dynosam/factors/LandmarkMotionTernaryFactor.hpp"
 #include "dynosam/frontend/solvers/PnPRansac.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Types.hpp"
+#include "dynosam_common/utils/TimingStats.hpp"
+#include "dynosam_opt/FactorGraphTools.hpp"
+#include "dynosam_opt/Symbols.hpp"
 
 namespace dyno {
 
@@ -22,6 +30,8 @@ template <typename CALIBRATION>
 class MotionOnlyRefinementSolver {
  public:
   using Calibtration = CALIBRATION;
+  using ProjectionFactor =
+      gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, CALIBRATION>;
 
   MotionOnlyRefinementSolver(const MotionOnlyRefinementSolverParams& params)
       : params_(params) {
@@ -100,13 +110,13 @@ class MotionOnlyRefinementSolver {
       values.insert(lmk_k_1_key, lmk_k_1_world);
       values.insert(lmk_k_key, lmk_k_world);
 
-      graph.emplace_shared<GenericProjectionFactor>(
-          kp_k_1, projection_noise_, pose_k_1_key, lmk_k_1_key,
-          gtsam_calibration, false, false);
+      graph.emplace_shared<ProjectionFactor>(kp_k_1, projection_noise_,
+                                             pose_k_1_key, lmk_k_1_key,
+                                             gtsam_calibration, false, false);
 
-      graph.emplace_shared<GenericProjectionFactor>(
-          kp_k, projection_noise_, pose_k_key, lmk_k_key, gtsam_calibration,
-          false, false);
+      graph.emplace_shared<ProjectionFactor>(kp_k, projection_noise_,
+                                             pose_k_key, lmk_k_key,
+                                             gtsam_calibration, false, false);
 
       graph.emplace_shared<LandmarkMotionTernaryFactor>(
           lmk_k_1_key, lmk_k_key, object_motion_key, motion_model_noise_);

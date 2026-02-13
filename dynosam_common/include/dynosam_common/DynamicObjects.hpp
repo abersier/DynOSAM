@@ -47,6 +47,8 @@ enum class ObjectTrackingStatus {
   ReTracked = 3,
   Lost = 4
 };
+std::ostream& operator<<(std::ostream& os,
+                         const dyno::ObjectTrackingStatus& status);
 
 // kind of repeatition of TrackingStatus (which is not really used anywhere!!!)
 enum class ObjectFeatureTrackingStatus {
@@ -170,6 +172,7 @@ enum PropogateType {
 
 using PropogatePoseResult = TemporalObjectCentricMap<PropogateType>;
 
+// TODO: depricate!
 /**
  * @brief Propogated a map of object poses via their motions or otherwise.
  *

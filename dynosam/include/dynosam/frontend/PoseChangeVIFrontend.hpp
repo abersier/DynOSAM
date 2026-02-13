@@ -3,7 +3,7 @@
 #include "dynosam/backend/PoseChangeBackendModule.hpp"
 #include "dynosam/backend/rgbd/HybridEstimator.hpp"
 #include "dynosam/frontend/VIFrontend.hpp"
-#include "dynosam/frontend/vision/MotionSolver.hpp"
+#include "dynosam/frontend/solvers/HybridObjectMotionSolver.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
 
 namespace dyno {
@@ -64,15 +64,28 @@ class PoseChangeVIFrontend : public VIFrontend {
     FrameId kf_id_prev;
     Frame::Ptr frame;
     gtsam::NavState nav_state;
-    //! Only holds those with keyframes
-    // not sure we actually need this!
-    ObjectPoseChangeInfoMap object_infos;
+
+    //! If camera keyframe logic was true for this frame
+    bool camera_keyframe{false};
+
+    bool retroactively_made_keyframe{false};
+
+    //! Signifcies which objects had motion variables added at this frame (with
+    //! the kf_id being the "to" frame of each motion)
+    ObjectIds object_keyframes;
+
+    bool isObjectKeyframe() const { return !object_keyframes.empty(); }
+
+    bool isObjectKeyFrame(const ObjectId object_id) const {
+      return std::find(object_keyframes.begin(), object_keyframes.end(),
+                       object_id) != object_keyframes.end();
+    }
   };
 
  private:
   HybridFormulationKeyFrame::Ptr formulation_;
   MapVision::Ptr map_;
-  std::unique_ptr<ObjectMotionSolverFilter> object_motion_solver_;
+  HybridObjectMotionSolver::UniquePtr object_motion_solver_;
 
   gtsam::NavState nav_state_km1_;
   gtsam::NavState nav_state_lkf_;

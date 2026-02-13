@@ -92,9 +92,6 @@ struct NoiseModels {
  *
  */
 struct FormulationHooks {
-  using GroundTruthPacketsRequest =
-      std::function<std::optional<GroundTruthPacketMap>()>;
-
   GroundTruthPacketsRequest ground_truth_packets_request;
 };
 

@@ -41,21 +41,21 @@ namespace dyno {
 //     opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
 // using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
 
+// // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
+// // solve) bearing vectors are also not undistorted atm!!
+// frame_k->getCorrespondences(correspondences, *frame_km1,
+// KeyPointType::STATIC,
+//                             frame_k->imageKeypointCorrespondance());
+
 PnPRansacSolver::PnPRansacSolver(const PnPRansacSolverParams& pnp_ransac_params,
                                  const CameraParams& camera_params)
     : pnp_ransac_params_(pnp_ransac_params), camera_params_(camera_params) {}
 
 Pose3SolverResult PnPRansacSolver::solve2d2d(
-    Frame::Ptr frame_km1, Frame::Ptr frame_k,
+    const RelativePoseCorrespondences& correspondences,
     std::optional<gtsam::Rot3> R_curr_ref) {
-  RelativePoseCorrespondences correspondences;
-  // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
-  // solve) bearing vectors are also not undistorted atm!!
-  frame_k->getCorrespondences(correspondences, *frame_km1, KeyPointType::STATIC,
-                              frame_k->imageKeypointCorrespondance());
-
+  utils::ChronoTimingStats timer("pnp_ransac.solve2d2d");
   Pose3SolverResult result;
-
   const size_t& n_matches = correspondences.size();
 
   if (n_matches < 5u) {
@@ -67,9 +67,12 @@ Pose3SolverResult PnPRansacSolver::solve2d2d(
   K = K.inverse();
 
   TrackletIds tracklets;
+  tracklets.reserve(n_matches);
   // NOTE: currently without distortion! the correspondences should be made into
   // bearing vector elsewhere!
   BearingVectors ref_bearing_vectors, cur_bearing_vectors;
+  ref_bearing_vectors.reserve(n_matches);
+  cur_bearing_vectors.reserve(n_matches);
   for (size_t i = 0u; i < n_matches; i++) {
     const auto& corres = correspondences.at(i);
     const Keypoint& ref_kp = corres.ref_;
@@ -137,12 +140,9 @@ Pose3SolverResult PnPRansacSolver::solve2d2d(
 }
 
 Pose3SolverResult PnPRansacSolver::solve3d2d(
-    Frame::Ptr frame_km1, Frame::Ptr frame_k,
+    const AbsolutePoseCorrespondences& correspondences,
     std::optional<gtsam::Rot3> R_curr_ref) {
   utils::ChronoTimingStats timer("pnp_ransac.solve3d2d");
-  AbsolutePoseCorrespondences correspondences;
-  frame_k->getCorrespondences(correspondences, *frame_km1, KeyPointType::STATIC,
-                              frame_k->landmarkWorldKeypointCorrespondance());
 
   Pose3SolverResult result;
   const size_t& n_matches = correspondences.size();
@@ -157,10 +157,14 @@ Pose3SolverResult PnPRansacSolver::solve3d2d(
   K = K.inverse();
 
   TrackletIds tracklets, inliers, outliers;
+  tracklets.reserve(n_matches);
   // NOTE: currently without distortion! the correspondences should be made into
   // bearing vector elsewhere!
   BearingVectors bearing_vectors;
+  bearing_vectors.reserve(n_matches);
+
   Landmarks points;
+  points.reserve(n_matches);
   for (size_t i = 0u; i < n_matches; i++) {
     const AbsolutePoseCorrespondence& corres = correspondences.at(i);
     const Keypoint& kp = corres.cur_;

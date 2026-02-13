@@ -260,6 +260,9 @@ class GroundTruthPacketMap
   GroundTruthPacketMap() {}
 };
 
+using GroundTruthPacketsRequest =
+    std::function<std::optional<GroundTruthPacketMap>()>;
+
 /**
  * @brief Thread safe access to ground truth across modules using atomic copy.
  *

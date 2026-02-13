@@ -128,7 +128,7 @@ class ParallelObjectISAM {
     }
   }
 
-  const gtsam::Values& getEstimate() const {
+  gtsam::Values getEstimate() const {
     return decoupled_formulation_->getTheta();
   }
   const Result& getResult() const { return result_; }

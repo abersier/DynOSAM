@@ -61,6 +61,7 @@
 #include "dynosam_common/utils/FileSystem.hpp"
 #include "dynosam_common/utils/OpenCVUtils.hpp"
 #include "dynosam_common/viz/Colour.hpp"
+#include "dynosam_cv/ImageTypes.hpp"
 #include "dynosam_opt/FactorGraphTools.hpp"
 
 std::vector<gtsam::Point3> createPoints() {

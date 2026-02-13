@@ -147,7 +147,7 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
  private:
   // called in ModuleBase immediately before the spin function is called
   virtual inline void validateInput(
-      const typename Base::InputConstPtr& input) const override {}
+      const typename Base::InputConstPtr& /*input*/) const override {}
 
  protected:
   // TODO: maybe put in Backend

@@ -2,6 +2,8 @@
 
 #include "dynosam/frontend/FrontendInputPacket.hpp"
 #include "dynosam/frontend/imu/ImuFrontend.hpp"
+#include "dynosam/frontend/solvers/OpticalFlowAndPoseSolver.hpp"
+#include "dynosam/frontend/solvers/PnPRansac.hpp"
 #include "dynosam/frontend/vision/FeatureTracker.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
 #include "dynosam_common/DynoState.hpp"
@@ -121,7 +123,11 @@ class VIFrontend : public Frontend {
  protected:
   Camera::Ptr camera_;
 
-  EgoMotionSolver ego_motion_solver_;
+  //! PnpRansac solver for ego-motion
+  PnPRansacSolver pnp_ransac_;
+  //! OpticalFlowAndPoseSolver for ego-motion refinement
+  OpticalFlowAndPoseSolver<Camera::CalibrationType> optical_flow_pose_solver_;
+
   ImuFrontend imu_frontend_;
   FeatureTracker::UniquePtr tracker_;
 

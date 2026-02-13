@@ -1,7 +1,5 @@
 #pragma once
 
-#include <opengv/sac/Ransac.hpp>
-
 #include "dynosam/frontend/Frontend-Definitions.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/Vision-Definitions.hpp"
@@ -15,6 +13,7 @@
 #include <opengv/absolute_pose/methods.hpp>
 #include <opengv/relative_pose/CentralRelativeAdapter.hpp>
 #include <opengv/relative_pose/methods.hpp>
+#include <opengv/sac/Ransac.hpp>
 #include <opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp>
 #include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
 #include <opengv/sac_problems/relative_pose/TranslationOnlySacProblem.hpp>
@@ -127,6 +126,7 @@ struct SolverResult {
 
 using Pose3SolverResult = SolverResult<gtsam::Pose3>;
 
+// TODO: config!
 struct PnPRansacSolverParams {
   bool ransac_randomize = true;
 
@@ -159,20 +159,40 @@ class PnPRansacSolver {
   PnPRansacSolver(const PnPRansacSolverParams& pnp_ransac_params,
                   const CameraParams& camera_params);
 
-  Pose3SolverResult solve2d2d(Frame::Ptr frame_km1, Frame::Ptr frame_k,
-                              std::optional<gtsam::Rot3> R_curr_ref = {});
+  Pose3SolverResult solve2d2d(
+      const RelativePoseCorrespondences& correspondences,
+      std::optional<gtsam::Rot3> R_curr_ref = {});
 
-  Pose3SolverResult solve3d2d(Frame::Ptr frame_km1, Frame::Ptr frame_k,
-                              std::optional<gtsam::Rot3> R_curr_ref = {});
+  Pose3SolverResult solve3d2d(
+      const AbsolutePoseCorrespondences& correspondences,
+      std::optional<gtsam::Rot3> R_curr_ref = {});
 
  protected:
+  /**
+   * @brief Helper function to build a set of Tracklet inliers and outliers
+   * from the original set of tracklet ids using the RANSAC inlier set provided
+   * by OpenGV
+   *
+   * @tparam Ref
+   * @tparam Curr
+   * @param inliers
+   * @param outliers
+   * @param correspondences
+   * @param ransac_inliers
+   * @param tracklets
+   */
   template <typename Ref, typename Curr>
-  void constructTrackletInliers(
+  static void constructTrackletInliers(
       TrackletIds& inliers, TrackletIds& outliers,
       const GenericCorrespondences<Ref, Curr>& correspondences,
       const std::vector<int>& ransac_inliers, const TrackletIds& tracklets) {
     CHECK_EQ(correspondences.size(), tracklets.size());
     CHECK(ransac_inliers.size() <= correspondences.size());
+
+    // pre-allocate
+    inliers.reserve(ransac_inliers.size());
+    outliers.reserve(correspondences.size() - ransac_inliers.size());
+
     for (int inlier_idx : ransac_inliers) {
       const auto& corres = correspondences.at(inlier_idx);
       inliers.push_back(corres.tracklet_id_);

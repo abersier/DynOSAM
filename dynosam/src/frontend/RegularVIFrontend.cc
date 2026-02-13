@@ -8,15 +8,22 @@ RegularVIFrontend::RegularVIFrontend(
     const SharedGroundTruth& shared_ground_truth)
     : VIFrontend("regular-frontend", params, camera, display_queue,
                  shared_ground_truth) {
-  auto object_motion_solver_params =
-      dyno_params_.frontend_params_.object_motion_solver_params;
-  // add ground truth hook
-  object_motion_solver_params.ground_truth_packets_request = [&]() {
-    return shared_ground_truth.access();
-  };
-  object_motion_solver_params.refine_motion_with_3d = false;
-  object_motion_solver_ = std::make_unique<ConsecutiveFrameObjectMotionSolver>(
-      object_motion_solver_params, camera_->getParams());
+  // TODO: params from config!!!
+  ConsecutiveFrameObjectMotionSolverParams motion_params;
+  motion_params.refine_motion_with_3d = false;
+
+  if (FLAGS_init_object_pose_from_gt) {
+    LOG(INFO) << "FLAGS_init_object_pose_from_gt is true. Object motion solver "
+                 "will attempt to initalise object poses using provided ground "
+                 "truth pose!";
+    object_motion_solver_ =
+        std::make_unique<ConsecutiveFrameObjectMotionSolver>(
+            motion_params, camera_->getParams(), shared_ground_truth);
+  } else {
+    object_motion_solver_ =
+        std::make_unique<ConsecutiveFrameObjectMotionSolver>(
+            motion_params, camera_->getParams());
+  }
 }
 
 RegularVIFrontend::SpinReturn RegularVIFrontend::boostrapSpin(

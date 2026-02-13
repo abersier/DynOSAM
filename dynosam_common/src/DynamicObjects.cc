@@ -35,6 +35,11 @@
 
 namespace dyno {
 
+std::ostream& operator<<(std::ostream& os,
+                         const dyno::ObjectTrackingStatus& status) {
+  return os << dyno::to_string(status);
+}
+
 cv::Mat ObjectDetectionResult::colouredMask() const {
   // input image should never be empty
   if (num() == 0 || labelled_mask.empty()) {

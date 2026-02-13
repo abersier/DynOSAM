@@ -75,6 +75,9 @@ add_library(${PROJECT_NAME} SHARED
 
   src/frontend/solvers/PnPRansac.cc
   src/frontend/solvers/HybridObjectMotionSRIF.cc
+  src/frontend/solvers/ObjectMotionSolver.cc
+  src/frontend/solvers/ConsecutiveFrameObjectMotionSolver.cc
+  src/frontend/solvers/HybridObjectMotionSolver.cc
 
   src/frontend/vision/Frame.cc
   src/frontend/FrontendParams.cc
@@ -85,7 +88,6 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/vision/ORBextractor.cc
   src/frontend/vision/FeatureTracker.cc
   src/frontend/vision/VisionTools.cc
-  src/frontend/vision/MotionSolver.cc
   src/frontend/vision/StereoMatcher.cc
   src/frontend/vision/StaticFeatureTracker.cc
   src/frontend/vision/TrackerParams.cc

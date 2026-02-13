@@ -143,10 +143,15 @@ void LandmarkNode<MEASUREMENT>::add(FrameNodePtr<MEASUREMENT> frame_node,
   // add measurement to map
   // first check that we dont already have a measurement at this frame
   if (measurements_.exists(frame_node)) {
-    throw DynosamException("Unable to add new measurement to landmark node " +
-                           std::to_string(this->getId()) + " at frame " +
-                           std::to_string(frame_node->getId()) +
-                           " as a measurement already exists at this frame!");
+    const std::string info =
+        this->isStatic()
+            ? "Static"
+            : std::string("Dynamic j=" + std::to_string(object_id));
+    DYNO_THROW_MSG(DynosamException)
+        << "Unable to add new measurement to landmark node "
+        << "i= " << this->tracklet_id << " k=" << frame_node->frame_id << " ("
+        << info << ")"
+        << " as a measurement already exists at this frame!";
   }
 
   measurements_.insert2(frame_node, measurement);

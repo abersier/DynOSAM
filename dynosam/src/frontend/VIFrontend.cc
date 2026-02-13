@@ -1,6 +1,5 @@
 #include "dynosam/frontend/VIFrontend.hpp"
 
-#include "dynosam/frontend/vision/MotionSolver.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
 
 namespace dyno {
@@ -101,8 +100,9 @@ VIFrontend::VIFrontend(const std::string& name, const DynoParams& params,
                        const SharedGroundTruth& shared_ground_truth)
     : Frontend(name, params, display_queue, shared_ground_truth),
       camera_(CHECK_NOTNULL(camera)),
-      ego_motion_solver_(params.frontend_params_.ego_motion_solver_params,
-                         camera->getParams()),
+      pnp_ransac_(params.frontend_params_.ego_motion_pnp_ransac_params,
+                  camera->getParams()),
+      optical_flow_pose_solver_(OpticalFlowAndPoseSolverParams{}),
       imu_frontend_(params.frontend_params_.imu_params) {
   const auto& frontend_params = dyno_params_.frontend_params_;
   tracker_ =
@@ -186,10 +186,13 @@ bool VIFrontend::solveAndRefineEgoMotion(
                     "PnP implemented";
   }
 
+  AbsolutePoseCorrespondences correspondences;
+  frame_k->getCorrespondences(correspondences, *frame_km1, KeyPointType::STATIC,
+                              frame_k->landmarkWorldKeypointCorrespondance());
+
   // solve PnP
   Pose3SolverResult pnp_result =
-      ego_motion_solver_.geometricOutlierRejection3d2d(frame_km1, frame_k,
-                                                       R_km1_k);
+      pnp_ransac_.solve3d2d(correspondences, R_km1_k);
 
   // sanity check
   const TrackletIds tracklets = frame_k->static_features_.collectTracklets();
@@ -234,21 +237,16 @@ bool VIFrontend::solveAndRefineEgoMotion(
       utils::ChronoTimingStats timer(this->moduleName() +
                                      ".camera_motion.refine");
 
-      const auto& joint_optical_flow_opt_params =
-          frontend_params.object_motion_solver_params.joint_of_params;
-      OpticalFlowAndPoseOptimizer flow_optimizer(joint_optical_flow_opt_params);
-
-      const auto joint_optical_flow_result =
-          flow_optimizer.optimizeAndUpdate<CalibrationType>(
+      const auto refinement_result =
+          optical_flow_pose_solver_.optimizeAndUpdate(
               frame_km1, frame_k, pnp_result.inliers, pnp_result.best_result);
 
-      frame_k->T_world_camera_ =
-          joint_optical_flow_result.best_result.refined_pose;
+      frame_k->T_world_camera_ = refinement_result.best_result.refined_pose;
 
       VLOG(15) << "Refined camera pose with optical flow - error before: "
-               << joint_optical_flow_result.error_before.value_or(NaN)
+               << refinement_result.error_before.value_or(NaN)
                << " error_after: "
-               << joint_optical_flow_result.error_after.value_or(NaN);
+               << refinement_result.error_after.value_or(NaN);
     }
     return true;
   }

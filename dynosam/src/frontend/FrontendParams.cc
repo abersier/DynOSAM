@@ -59,20 +59,23 @@ void declare_config(FrontendParams& config) {
   field(config.refine_camera_pose_with_joint_of,
         "refine_camera_pose_with_joint_of");
 
-  field(config.object_motion_solver_params, "object_motion_solver");
-  field(config.ego_motion_solver_params, "camera_motion_solver");
+  // TODO: bring back config!!
+  //   field(config.object_motion_solver_params, "object_motion_solver");
+  //   field(config.ego_motion_solver_params, "camera_motion_solver");
   field(config.tracker_params, "tracker_params");
 
   field(config.image_tracks_vis_params, "image_tracks_vis_params");
 
-  // update with flags
-  config.object_motion_solver_params.refine_motion_with_joint_of =
-      FLAGS_refine_with_optical_flow;
-  config.object_motion_solver_params.refine_motion_with_3d =
-      FLAGS_refine_motion_estimate;
+  //   // update with flags
+  //   config.object_motion_solver_params.refine_motion_with_joint_of =
+  //       FLAGS_refine_with_optical_flow;
+  //   config.object_motion_solver_params.refine_motion_with_3d =
+  //       FLAGS_refine_motion_estimate;
 
-  LOG(INFO) << "config.object_motion_solver_params.refine_motion_with_joint_of "
-            << config.object_motion_solver_params.refine_motion_with_joint_of;
+  //   LOG(INFO) <<
+  //   "config.object_motion_solver_params.refine_motion_with_joint_of "
+  //             <<
+  //             config.object_motion_solver_params.refine_motion_with_joint_of;
 }
 
 }  // namespace dyno
