@@ -1513,6 +1513,8 @@ void HybridFormulationKeyFrame::addObjects(
                 << info_string(H_W_RKF_k.from(), object_id) << " with motion "
                 << H_W_RKF_k.from() << " -> " << H_W_RKF_k.to();
 
+      // the frontend range is always "to" because it indicates the start
+      // of the next range and a single motion represents one
       front_end_keyframes_.startNewActiveRange(object_id, H_W_RKF_k.from(),
                                                object_info.L_W_k);
       LOG(INFO) << "Making Regular KF for NEW object "
@@ -1531,7 +1533,10 @@ void HybridFormulationKeyFrame::addObjects(
           front_end_keyframes_.find(object_id, frame_id);
       CHECK(last_frontend_range)
           << "Failed for tracked object " << info_string(frame_id, object_id);
-      const auto [lRKF_id, L_lRKF] = last_frontend_range->dataPair();
+      auto [lRKF_id, L_lRKF] = last_frontend_range->dataPair();
+
+      // hopefully the last regular KF is the from frame
+      lRKF_id = H_W_RKF_k.from();
       LOG(INFO) << "Last regular KF " << lRKF_id;
 
       // TODO: if this is regular KF then the position of this KF will change
