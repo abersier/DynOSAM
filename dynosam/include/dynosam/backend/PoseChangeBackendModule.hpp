@@ -16,9 +16,9 @@ struct PoseChangeInput {
   gtsam::NonlinearFactorGraph new_factors;
 };
 
-class PoseChangeVIBackendModule : public BackendModuleV1<PoseChangeInput> {
+class PoseChangeVIBackendModule : public BackendModule<PoseChangeInput> {
  public:
-  using Base = BackendModuleV1<PoseChangeInput>;
+  using Base = BackendModule<PoseChangeInput>;
   DYNO_POINTER_TYPEDEFS(PoseChangeVIBackendModule)
 
   PoseChangeVIBackendModule(const BackendParams& params, Camera::Ptr camera,

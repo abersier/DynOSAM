@@ -47,7 +47,7 @@
 
 namespace dyno {
 
-using FrontendPipelineV1 =
+using FrontendPipeline =
     PipelineModuleProcessor<FrontendInputPacketBase, RealtimeOutput>;
 
 using BackendOutputRegistra = QueueRegistra<DynoState>;
@@ -86,9 +86,6 @@ class DynoPipelineManager {
   void shutdownSpinners();
   void shutdownPipelines();
 
-  // PipelineBase::UniquePtr makeFrontendPipeline(Camera::Ptr camera, bool
-  // offline_frontend); BackendPipeline::UniquePtr makeBackendPipeline();
-
   void loadPipelines(const CameraParams& camera_params,
                      FrontendDisplay::Ptr frontend_display,
                      BackendDisplay::Ptr backend_display,
@@ -117,17 +114,12 @@ class DynoPipelineManager {
   //! This allows us to have different pipelines to provide data to the backend
   //! (e.g. load seralized data) which have different templates
   PipelineBase::UniquePtr frontend_pipeline_{nullptr};
-  // FrontendPipeline::InputQueue frontend_input_queue_;
-  // FrontendPipeline::OutputQueue frontend_viz_input_queue_;
-  FrontendPipelineV1::InputQueue frontend_input_queue_;
-  FrontendPipelineV1::OutputQueue frontend_viz_input_queue_;
+  FrontendPipeline::InputQueue frontend_input_queue_;
+  FrontendPipeline::OutputQueue frontend_viz_input_queue_;
 
   // BackendPipeline::UniquePtr backend_pipeline_{nullptr};
   PipelineBase::UniquePtr backend_pipeline_{nullptr};
   BackendOutputRegistra::Queue backend_viz_input_queue_;
-  // FrontendPipeline::OutputQueue backend_input_queue_;
-  // BackendPipeline::OutputQueue backend_output_queue_;
-
   //! Generic holder for the backend input queue to ensure its held in memory
   //! As we dont know the type of the backend input at compile time
   GenericThreadSafeQueueHolder backend_input_queue_;

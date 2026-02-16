@@ -141,11 +141,11 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
   HybridAccessor::Ptr static_accessor_;
 };
 
-class ParallelHybridBackendModule : public BackendModuleV1<VisionImuPacket> {
+class ParallelHybridBackendModule : public BackendModule<VisionImuPacket> {
  public:
   DYNO_POINTER_TYPEDEFS(ParallelHybridBackendModule)
 
-  using Base = BackendModuleV1<VisionImuPacket>;
+  using Base = BackendModule<VisionImuPacket>;
 
   ParallelHybridBackendModule(const BackendParams& backend_params,
                               Camera::Ptr camera);

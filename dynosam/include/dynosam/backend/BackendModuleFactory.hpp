@@ -13,15 +13,9 @@ namespace dyno {
  * used.
  *
  */
-// struct BackendWrapper {
-//   BackendModule::Ptr backend;
-//   BackendModuleDisplay::Ptr backend_viz;
-//   std::optional<ErrorHandlingHooks> error_hooks;
-// };
 struct BackendWrapper {
   Backend::Ptr backend;
   BackendModuleDisplay::Ptr backend_viz;
-  std::optional<ErrorHandlingHooks> error_hooks;
 };
 
 /**

@@ -115,8 +115,8 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
   dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
                                        nav_state_k.pose());
 
-  dyno_state_.object_trajectories =
-      object_motion_solver_->solve(frame_k, frame_km1);
+  object_motion_solver_->solve(frame_k, frame_km1,
+                               dyno_state_.object_trajectories);
 
   // construct output packet for backend
   VisionImuPacket::Ptr vision_imu_packet = std::make_shared<VisionImuPacket>();

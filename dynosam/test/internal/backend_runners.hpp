@@ -39,7 +39,7 @@ namespace dyno_testing {
 
 using namespace dyno;
 
-using VisionImuInputBackend = BackendModuleV1<VisionImuPacket>;
+using VisionImuInputBackend = BackendModule<VisionImuPacket>;
 
 struct TesterBase {
   virtual ~TesterBase() = default;

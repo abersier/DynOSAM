@@ -834,12 +834,13 @@ void FeatureTracker::trackDynamicKLT(
 
         AdaptiveNonMaximumSuppression non_maximum_supression(
             AnmsAlgorithmType::RangeTree);
-        max_keypoints = non_maximum_supression.suppressNonMax(
-            keypoints, nr_corners_needed, tolerance, img_size_.width,
-            img_size_.height, 5, 5, binning_mask);
+        // max_keypoints = non_maximum_supression.suppressNonMax(
+        //     keypoints, nr_corners_needed, tolerance, img_size_.width,
+        //     img_size_.height, 5, 5, binning_mask);
 
         VLOG(10) << "Kps: " << max_keypoints.size() << " for j=" << object_id
-                 << " after ANMS (originally " << detected_size << ")";
+                 << " after ANMS (originally " << detected_size
+                 << ", requested " << nr_corners_needed << ")";
 
         keypoints_per_object.insert({object_id, max_keypoints});
         // info_.getObjectStatus(object_id).num_sampled = max_keypoints.size();

@@ -25,6 +25,7 @@ class HybridObjectMotionSRIF {
   DYNO_POINTER_TYPEDEFS(HybridObjectMotionSRIF)
   HybridObjectMotionSRIF(const gtsam::Pose3& initial_state_H,
                          const gtsam::Pose3& L_e, const FrameId& frame_id_e,
+                         const Timestamp& timestamp_e,
                          const gtsam::Matrix66& initial_P,
                          const gtsam::Matrix66& Q, const gtsam::Matrix33& R,
                          Camera::Ptr camera, double huber_k = 1.23);
@@ -32,7 +33,9 @@ class HybridObjectMotionSRIF {
   const gtsam::Pose3& getKeyFramePose() const;
   const gtsam::Pose3& lastCameraPose() const;
   FrameId getKeyFrameId() const;
+  Timestamp getKeyFrameTimestamp() const;
   FrameId getFrameId() const;
+  Timestamp getTimestamp() const;
 
   const gtsam::FastMap<TrackletId, gtsam::Point3>& getCurrentLinearizedPoints()
       const;
@@ -85,8 +88,10 @@ class HybridObjectMotionSRIF {
    *
    * @param L_e
    * @param frame_id_e
+   * @param timestamp_e
    */
-  void resetState(const gtsam::Pose3& L_e, FrameId frame_id_e);
+  void resetState(const gtsam::Pose3& L_e, FrameId frame_id_e,
+                  Timestamp timestamp_e);
 
  private:
   /**
@@ -118,10 +123,14 @@ class HybridObjectMotionSRIF {
   gtsam::Pose3 L_e_;
   // Frame Id for the reference KF
   FrameId frame_id_e_;
+  // Timestamp for the KeyMotion
+  Timestamp timestamp_e_;
   //! Last camera pose used within predict
   gtsam::Pose3 X_K_;
   //! Frame id used for last update
   FrameId frame_id_;
+  //! Timestamp used for the last update
+  Timestamp timestamp_;
 
   //! R (6x6) - Upper triangular Cholesky factor of Info Matrix
   gtsam::Matrix66 R_info_;

@@ -86,12 +86,12 @@ void Frontend::validateInput(
   const bool has_stereo = image_container->hasRightRgb();
 
   if (!has_rgb) {
-    throw InvalidImageContainerException1(*image_container, "Missing RGB");
+    throw InvalidImageContainerException(*image_container, "Missing RGB");
   }
 
   if (!has_depth_image && !has_stereo) {
-    throw InvalidImageContainerException1(*image_container,
-                                          "Missing Depth or Stereo");
+    throw InvalidImageContainerException(*image_container,
+                                         "Missing Depth or Stereo");
   }
 }
 

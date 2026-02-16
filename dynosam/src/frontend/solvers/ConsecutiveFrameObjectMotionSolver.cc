@@ -18,9 +18,9 @@ bool ConsecutiveFrameObjectMotionSolver::solveImpl(
   utils::ChronoTimingStats timer("consecutive_motion_solver.solve_impl");
 
   AbsolutePoseCorrespondences dynamic_correspondences;
-  CHECK(frame_k->getDynamicCorrespondences(
+  frame_k->getDynamicCorrespondences(
       dynamic_correspondences, *frame_km1, object_id,
-      frame_k->landmarkWorldKeypointCorrespondance()));
+      frame_k->landmarkWorldKeypointCorrespondance());
 
   const size_t& n_matches = dynamic_correspondences.size();
 

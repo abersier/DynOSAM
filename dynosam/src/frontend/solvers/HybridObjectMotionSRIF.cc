@@ -7,9 +7,9 @@ namespace dyno {
 
 HybridObjectMotionSRIF::HybridObjectMotionSRIF(
     const gtsam::Pose3& initial_state_H, const gtsam::Pose3& L_e,
-    const FrameId& frame_id_e, const gtsam::Matrix66& initial_P,
-    const gtsam::Matrix66& Q, const gtsam::Matrix33& R, Camera::Ptr camera,
-    double huber_k)
+    const FrameId& frame_id_e, const Timestamp& timestamp_e,
+    const gtsam::Matrix66& initial_P, const gtsam::Matrix66& Q,
+    const gtsam::Matrix33& R, Camera::Ptr camera, double huber_k)
     : H_linearization_point_(initial_state_H),
       Q_(Q),
       R_noise_(R),
@@ -21,7 +21,7 @@ HybridObjectMotionSRIF::HybridObjectMotionSRIF(
   CHECK(rgbd_camera_);
   stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
 
-  resetState(L_e, frame_id_e);
+  resetState(L_e, frame_id_e, timestamp_e);
 }
 
 const gtsam::Pose3& HybridObjectMotionSRIF::getKeyFramePose() const {
@@ -32,6 +32,11 @@ const gtsam::Pose3& HybridObjectMotionSRIF::lastCameraPose() const {
 }
 FrameId HybridObjectMotionSRIF::getKeyFrameId() const { return frame_id_e_; }
 FrameId HybridObjectMotionSRIF::getFrameId() const { return frame_id_; }
+
+Timestamp HybridObjectMotionSRIF::getKeyFrameTimestamp() const {
+  return timestamp_e_;
+}
+Timestamp HybridObjectMotionSRIF::getTimestamp() const { return timestamp_; }
 
 const gtsam::FastMap<TrackletId, gtsam::Point3>&
 HybridObjectMotionSRIF::getCurrentLinearizedPoints() const {
@@ -140,6 +145,7 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   const gtsam::Pose3 X_W_k_inv = X_W_k.inverse();
   X_K_ = X_W_k;
   frame_id_ = frame->getFrameId();
+  timestamp_ = frame->getTimestamp();
 
   // 1. Calculate Jacobians (H) and Linearized Residuals (y_lin)
   // These are calculated ONCE at the linearization point and are fixed
@@ -333,7 +339,8 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
 }
 
 void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
-                                        FrameId frame_id_e) {
+                                        FrameId frame_id_e,
+                                        Timestamp timestamp_e) {
   // 2. Initialize SRIF State (R, d) from EKF State (W, P)
   // W_linearization_point_ is set to initial_state_W
   // The initial perturbation is 0, so the initial d_info_ is 0.
@@ -359,6 +366,8 @@ void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
   L_e_ = L_e;
   frame_id_e_ = frame_id_e;
   frame_id_ = frame_id_e;
+  timestamp_e_ = timestamp_e;
+  timestamp_ = timestamp_e;
   X_K_ = gtsam::Pose3::Identity();
 
   m_linearized_.clear();

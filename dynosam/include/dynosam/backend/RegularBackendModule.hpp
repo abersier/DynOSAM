@@ -44,30 +44,29 @@
 
 namespace dyno {
 
-// VisionImuPacket is bascially "regular/sequenitial input..."
-// BackendModuleV1T<MapVision, VisionImuPacket> is a common "regular" layer
-// between PH and Regular Maybe we call it VisionImuModule?
-
-// using RegularFormulationFactory =
-//     BackendFormulationFactory<RegularBackendModuleTraits::MapType>;
-
-// TODO: opt should go in base class if easy to abstract away?
-//  only regular has the getformulation display and the factory
-//  everything else should act as its own module
-// Make
-
 class RegularVIBackendModule
-    : public BackendModuleV1T<MapVision, VisionImuPacket> {
+    : public BackendModuleT<MapVision, VisionImuPacket> {
  public:
   using Factory = BackendFormulationFactory<MapVision>;
 
-  using Base = BackendModuleV1T<MapVision, VisionImuPacket>;
+  using Base = BackendModuleT<MapVision, VisionImuPacket>;
   DYNO_POINTER_TYPEDEFS(RegularVIBackendModule)
 
   RegularVIBackendModule(const BackendParams& backend_params,
                          Camera::Ptr camera, std::shared_ptr<Factory> factory);
 
-  // bring over comment!!
+  /**
+   * @brief Construct a new Regular V I Backend Module object A secondary
+   * constructor the RegularBackend that does not take an explicit factory but
+   * instead just the type of formulation to be used. In this case the
+   * DefaultBackendFactory will be used which has no special behaviour.
+   *
+   * This constructor is mostly used for unit-tests
+   *
+   * @param backend_params const BackendParams&
+   * @param camera Camera::Ptr
+   * @param backend_type const BackendType&
+   */
   RegularVIBackendModule(const BackendParams& backend_params,
                          Camera::Ptr camera, const BackendType& backend_type);
 
@@ -148,152 +147,5 @@ class RegularVIBackendModule
   SlidingWindowOptimization::UniquePtr sliding_window_opt_;
   std::unique_ptr<dyno::ISAM2> smoother_;
 };
-
-// class RegularBackendModule
-//     : public BackendModuleType<RegularBackendModuleTraits> {
-//  public:
-//   DYNO_POINTER_TYPEDEFS(RegularBackendModule)
-
-//   using Base = BackendModuleType<RegularBackendModuleTraits>;
-//   using RGBDMap = Base::MapType;
-//   using FormulationType = Base::FormulationType;
-
-//   RegularBackendModule(const BackendParams& backend_params, Camera::Ptr
-//   camera,
-//                        std::shared_ptr<RegularFormulationFactory> factory,
-//                        ImageDisplayQueue* display_queue = nullptr);
-
-//   /**
-//    * @brief A secondary constructor the RegularBackend that does not take an
-//    * explicit factory but instead just the type of formulation to be used. In
-//    * this case the DefaultBackendFactory will be used which has no special
-//    * behaviour.
-//    *
-//    * This constructor is mostly used for unit-tests
-//    * @param backend_params
-//    * @param camera
-//    * @param display_queue
-//    */
-//   RegularBackendModule(const BackendParams& backend_params, Camera::Ptr
-//   camera,
-//                        const BackendType& backend_type,
-//                        ImageDisplayQueue* display_queue = nullptr);
-
-//   ~RegularBackendModule();
-
-//   using SpinReturn = Base::SpinReturn;
-
-//   // const FormulationType* formulation() const { return formulation_.get();
-//   }
-
-//   // also provide non-const access (this should only be used with caution and
-//   is
-//   // really only there to enable specific unit-tests!)
-//   const VIOFormulation::Ptr formulation() const { return formulation_; }
-//   BackendModuleDisplay::Ptr formulationDisplay() const {
-//     return formulation_display_;
-//   }
-
-//   using PostFormulationUpdateCallback = std::function<void(
-//       const Formulation<RGBDMap>::Ptr&, FrameId, const gtsam::Values&,
-//       const gtsam::NonlinearFactorGraph&)>;
-//   void registerPostFormulationUpdateCallback(
-//       const PostFormulationUpdateCallback& cb) {
-//     post_formulation_update_cb_ = cb;
-//   }
-
-//   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
-//   getActiveOptimisation()
-//       const override;
-
-//   Accessor::Ptr getAccessor() override;
-
-//  protected:
-//   void setupUpdates();
-
-//   void updateAndOptimize(FrameId frame_id_k, const gtsam::Values& new_values,
-//                          const gtsam::NonlinearFactorGraph& new_factors,
-//                          PostUpdateData& post_update_data);
-//   void updateIncremental(FrameId frame_id_k, const gtsam::Values& new_values,
-//                          const gtsam::NonlinearFactorGraph& new_factors,
-//                          PostUpdateData& post_update_data);
-//   void updateBatch(FrameId frame_id_k, const gtsam::Values& new_values,
-//                    const gtsam::NonlinearFactorGraph& new_factors,
-//                    PostUpdateData& post_update_data);
-//   void updateSlidingWindow(FrameId frame_id_k, const gtsam::Values&
-//   new_values,
-//                            const gtsam::NonlinearFactorGraph& new_factors,
-//                            PostUpdateData& post_update_data);
-
-//   void logIncrementalStats(
-//       FrameId frame_id_k,
-//       const IncrementalInterface<dyno::ISAM2>& smoother_interface) const;
-
-//  protected:
-//   SpinReturn boostrapSpinImpl(VisionImuPacket::ConstPtr input) override;
-//   SpinReturn nominalSpinImpl(VisionImuPacket::ConstPtr input) override;
-
-//   void addInitialStates(const VisionImuPacket::ConstPtr& input,
-//                         gtsam::Values& new_values,
-//                         gtsam::NonlinearFactorGraph& new_factors);
-//   void addStates(const VisionImuPacket::ConstPtr& input,
-//                  gtsam::Values& new_values,
-//                  gtsam::NonlinearFactorGraph& new_factors);
-
-//   /**
-//    * @brief Construct factors and new values for static and dynamic features.
-//    * Does the bulk of the graph construction by calling
-//    * Formulation::updateStaticObservations and
-//    * Formulation::updateDynamicObservations.
-//    *
-//    * @param update_params const UpdateObservationParams&
-//    * @param frame_k FrameId
-//    * @param new_values gtsam::Values&
-//    * @param new_factors gtsam::NonlinearFactorGraph&
-//    * @param post_update_data PostUpdateData&
-//    */
-//   virtual void addMeasurements(const UpdateObservationParams& update_params,
-//                                FrameId frame_k, gtsam::Values& new_values,
-//                                gtsam::NonlinearFactorGraph& new_factors,
-//                                PostUpdateData& post_update_data);
-
-//   // initial pose can come from many sources
-//   void updateMapWithMeasurements(FrameId frame_id_k,
-//                                  const VisionImuPacket::ConstPtr& input,
-//                                  const gtsam::Pose3& X_k_w);
-
-//  private:
-//   // Also sets up error hooks based on the formulation
-//   void setFormulation(std::shared_ptr<RegularFormulationFactory> factory);
-
-//   BackendMetaData createBackendMetadata() const;
-//   FormulationHooks createFormulationHooks() const;
-//   BackendOutputPacket::Ptr constructOutputPacket(FrameId frame_k,
-//                                                  Timestamp timestamp) const;
-
-//   Camera::Ptr camera_;
-//   // Formulation<RGBDMap>::Ptr formulation_;
-//   VIOFormulation::Ptr formulation_;
-//   BackendModuleDisplay::Ptr formulation_display_;
-
-//   // new calibration every time
-//   inline auto getGtsamCalibration() const {
-//     const CameraParams& camera_params = camera_->getParams();
-//     return boost::make_shared<Camera::CalibrationType>(
-//         camera_params.constructGtsamCalibration<Camera::CalibrationType>());
-//   }
-
-//   // logger here!!
-//   BackendLogger::UniquePtr logger_{nullptr};
-//   DebugInfo debug_info_;
-//   ErrorHandlingHooks error_hooks_;
-
-//   // optimizers are set in setupUpdates() depending on
-//   SlidingWindowOptimization::UniquePtr sliding_window_opt_;
-//   std::unique_ptr<dyno::ISAM2> smoother_;
-
-//   //! External callback containing formulation data and new values and
-//   factors PostFormulationUpdateCallback post_formulation_update_cb_;
-// };
 
 }  // namespace dyno

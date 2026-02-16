@@ -187,9 +187,10 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
                                        nav_state_k.pose());
 
   // ObjectPoseChangeInfoMap pose_change_infos;
+  ObjectIds objects_with_new_motions;
   ObjectPoseChangeInfoMap kf_pose_change_infos;
-  solveObjectMotions(dyno_state_.object_trajectories, kf_pose_change_infos,
-                     frame_k, frame_km1);
+  solveObjectMotions(dyno_state_.object_trajectories, objects_with_new_motions,
+                     kf_pose_change_infos, frame_k, frame_km1);
 
   RealtimeOutput::Ptr realtime_output = std::make_shared<RealtimeOutput>();
   realtime_output->state.frame_id = frame_id_k;
@@ -206,8 +207,15 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
   CameraMeasurementStatusVector dynamic_measurements;
   fillMeasurementsFromFeatureIterator(
       &dynamic_measurements, frame_k->usableDynamicFeaturesBegin(), frame_id_k,
-      timestamp_k, dynamic_pixel_sigmas_, dynamic_point_sigma_,
-      &realtime_output->state.dynamic_map);
+      timestamp_k, dynamic_pixel_sigmas_, dynamic_point_sigma_
+      /*&realtime_output->state.dynamic_map*/);
+
+  // fill output dynamic map with current structure
+  for (const auto& object_id : objects_with_new_motions) {
+    // assume that getObjectStructureinW does not clear the vector
+    object_motion_solver_->getObjectStructureinW(
+        object_id, realtime_output->state.dynamic_map);
+  }
 
   const bool ego_motion_keyframe = shouldFrameBeKeyFrame(frame_k, frame_km1);
 
@@ -488,75 +496,23 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
 }
 
 void PoseChangeVIFrontend::solveObjectMotions(
-    MultiObjectTrajectories& trajectories, ObjectPoseChangeInfoMap& infos,
-    Frame::Ptr frame_k, Frame::Ptr frame_km1) {
-  trajectories = object_motion_solver_->solve(frame_k, frame_km1);
+    MultiObjectTrajectories& trajectories, ObjectIds& object_with_new_motions,
+    ObjectPoseChangeInfoMap& infos, Frame::Ptr frame_k, Frame::Ptr frame_km1) {
+  MotionEstimateMap estimated_motions;
+
+  object_motion_solver_->solve(frame_k, frame_km1, trajectories,
+                               estimated_motions, false);
+
+  object_with_new_motions.reserve(estimated_motions.size());
+  for (const auto& [object_id, _] : estimated_motions) {
+    object_with_new_motions.push_back(object_id);
+  }
+
+  LOG(INFO) << "Solved motions " << container_to_string(object_with_new_motions)
+            << " k=" << frame_k->getFrameId();
 
   // only keyframes!!
   infos = object_motion_solver_->poseChangeInfoMap();
-
-  // auto filters = object_motion_solver_->getFilters();
-
-  // auto frame_id = frame_k->getFrameId();
-
-  // const auto object_estimates_k = trajectories.entriesAtFrame(frame_id);
-  // for (const auto& [object_id, entry] : object_estimates_k) {
-  //   CHECK(filters.exists(object_id));
-  //   auto filter = filters.at(object_id);
-  //   auto object_kf_status =
-  //   object_motion_solver_->getKeyFrameStatus(object_id); auto
-  //   object_motion_track_status =
-  //       object_motion_solver_->getTrackingStatus(object_id);
-
-  //   ObjectPoseChangeInfo info;
-  //   info.frame_id = frame_id;
-  //   info.H_W_KF_k = filter->getKeyFramedMotionReference();
-  //   info.L_W_KF = filter->getKeyFramePose();
-  //   info.L_W_k = filter->getPose();
-
-  //   info.regular_keyframe = false;
-  //   info.anchor_keyframe = false;
-
-  //   info.motion_track_status = object_motion_track_status;
-  //   if (object_kf_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-  //     info.regular_keyframe = true;
-  //     info.anchor_keyframe = true;
-  //   } else if (object_kf_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-  //     info.regular_keyframe = true;
-  //   }
-  //   // else {
-  //   //   LOG(FATAL) << "Should not get here!";
-  //   // }
-
-  //   // if (info.motion_track_status == ObjectTrackingStatus::New ||
-  //   //     info.motion_track_status == ObjectTrackingStatus::WellTracked) {
-  //   //   if (object_kf_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-  //   //     info.regular_keyframe = true;
-  //   //     info.anchor_keyframe = true;
-  //   //   } else if (object_kf_status ==
-  //   ObjectKeyFrameStatus::RegularKeyFrame) {
-  //   //     info.regular_keyframe = true;
-  //   //   }
-  //   // }
-
-  //   // const auto fixed_points = filter->getCurrentLinearizedPoints();
-  //   // for (const auto& [tracklet_id, m_L] : fixed_points) {
-  //   //   info.initial_object_points.push_back(LandmarkStatus::Dynamic(
-  //   //       // currently no covariance!
-  //   //       Point3Measurement(m_L), LandmarkStatus::MeaninglessFrame, NaN,
-  //   //       tracklet_id, object_id, ReferenceFrame::OBJECT));
-  //   // }
-
-  //   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-  //             << "motion KF: " << info.H_W_KF_k.from()
-  //             << " to: " << info.H_W_KF_k.to()
-  //             << " track status: " << to_string(object_motion_track_status)
-  //             << " with regular kf " << std::boolalpha <<
-  //             info.regular_keyframe
-  //             << " anchor kf " << info.anchor_keyframe;
-
-  //   infos.insert2(object_id, info);
-  // }
 }
 
 bool PoseChangeVIFrontend::shouldFrameBeKeyFrame(Frame::Ptr frame_k,

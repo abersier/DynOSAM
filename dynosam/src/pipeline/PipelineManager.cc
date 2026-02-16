@@ -486,9 +486,9 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
     throw DynosamException("Pipeline failure: no front-end could be loaded");
   }
 
-  FrontendPipelineV1::UniquePtr frontend_pipeline_derived =
-      std::make_unique<FrontendPipelineV1>("frontend-pipeline",
-                                           &frontend_input_queue_, frontend_);
+  FrontendPipeline::UniquePtr frontend_pipeline_derived =
+      std::make_unique<FrontendPipeline>("frontend-pipeline",
+                                         &frontend_input_queue_, frontend_);
   const auto parallel_run = params_.parallelRun();
   frontend_pipeline_derived->parallelRun(parallel_run);
   frontend_pipeline_derived->registerOutputQueue(&frontend_viz_input_queue_);
@@ -629,7 +629,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
     // // this should be Backend::Ptr not backend module
     BackendWrapper backend_wrapper = factory->createModule(module_params);
 
-    using VisionIMUBackendModule = BackendModuleV1<VisionImuPacket>;
+    using VisionIMUBackendModule = BackendModule<VisionImuPacket>;
     auto vision_imu_backend_module =
         std::dynamic_pointer_cast<VisionIMUBackendModule>(
             backend_wrapper.backend);

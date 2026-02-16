@@ -44,23 +44,6 @@
 
 namespace dyno {
 
-// template <typename DERIVED_INPUT_PACKET, typename MEASUREMENT_TYPE,
-//           typename BASE_INPUT_PACKET = BackendInputPacket>
-// struct BackendModuleTraits {
-//   using DerivedPacketType = DERIVED_INPUT_PACKET;
-//   using DerivedPacketTypeConstPtr = std::shared_ptr<const DerivedPacketType>;
-
-//   using BasePacketType = BASE_INPUT_PACKET;
-//   // BasePacketType is the type that gets passed to the module via the
-//   pipeline
-//   // and must be a base class since we pass data along the pipelines via
-//   // poniters
-//   static_assert(std::is_base_of_v<BasePacketType, DerivedPacketType>);
-
-//   using MeasurementType = MEASUREMENT_TYPE;
-//   using MapType = Map<MeasurementType>;
-// };
-
 using FrontendUpdateInterface =
     std::function<void(const FrameId, const Timestamp)>;
 
@@ -74,20 +57,20 @@ class Backend {
 
 // TODO: BackendOutput should become State
 template <typename INPUT>
-class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
+class BackendModule : public ModuleBase<INPUT, DynoState>, public Backend {
  public:
   using Base = ModuleBase<INPUT, DynoState>;
   using Base::SpinReturn;
 
-  using This = BackendModuleV1<INPUT>;
+  using This = BackendModule<INPUT>;
   DYNO_POINTER_TYPEDEFS(This)
 
-  BackendModuleV1(const BackendParams& params, Camera::Ptr camera)
+  BackendModule(const BackendParams& params, Camera::Ptr camera)
       : Base("backend"),
         backend_params_(params),
         camera_(CHECK_NOTNULL(camera)),
         noise_models_(NoiseModels::fromBackendParams(params)) {}
-  virtual ~BackendModuleV1() = default;
+  virtual ~BackendModule() = default;
 
   // something about callback here too?
   // and get noise models!
@@ -135,8 +118,6 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
     state->camera_trajectory = camera_trajectory;
     state->object_trajectories = accessor->getMultiObjectTrajectories();
 
-    LOG(INFO) << state->object_trajectories;
-
     // TODO: should be global!?
     state->local_static_map = accessor->getFullStaticMap();
     state->dynamic_map = accessor->getDynamicLandmarkEstimates(state->frame_id);
@@ -159,19 +140,19 @@ class BackendModuleV1 : public ModuleBase<INPUT, DynoState>, public Backend {
 // For modules that have a single internal map
 // ie. not PH
 template <typename MAP, typename INPUT>
-class BackendModuleV1T : public BackendModuleV1<INPUT> {
+class BackendModuleT : public BackendModule<INPUT> {
  public:
   using MapT = MAP;
-  using Base = BackendModuleV1<INPUT>;
+  using Base = BackendModule<INPUT>;
   using FormulationT = Formulation<MapT>;
 
   using PostFormulationUpdateCallback = std::function<void(
       const typename FormulationT::Ptr&, FrameId, const gtsam::Values&,
       const gtsam::NonlinearFactorGraph&)>;
 
-  BackendModuleV1T(const BackendParams& params, Camera::Ptr camera)
+  BackendModuleT(const BackendParams& params, Camera::Ptr camera)
       : Base(params, camera), map_(MapT::create()) {}
-  virtual ~BackendModuleV1T() = default;
+  virtual ~BackendModuleT() = default;
 
   const typename MapT::Ptr map() { return map_; }
 

@@ -25,16 +25,15 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
                            const CameraParams& camera_params,
                            const SharedGroundTruth& shared_ground_truth = {});
 
-  MultiObjectTrajectories solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
-                                bool parallel_solve = true) override;
+  void solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
+             MultiObjectTrajectories& trajectories_out,
+             MotionEstimateMap& motion_estimate_out,
+             bool parallel_solve = true) override;
 
-  ObjectTrackingStatus getTrackingStatus(ObjectId object_id) const {
-    return object_statuses_.at(object_id);
-  }
-
-  ObjectKeyFrameStatus getKeyFrameStatus(ObjectId object_id) const {
-    return object_keyframe_statuses_.at(object_id);
-  }
+  bool getObjectStructureinL(ObjectId object_id,
+                             StatusLandmarkVector& object_points) const;
+  bool getObjectStructureinW(ObjectId object_id,
+                             StatusLandmarkVector& object_points) const;
 
   const gtsam::FastMap<ObjectId, HybridObjectMotionSRIF::Ptr>& getFilters()
       const {
@@ -64,6 +63,8 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
   void deleteObject(ObjectId object_id);
 
+  HybridObjectMotionSRIF::Ptr threadSafeFilterAccess(ObjectId object_id) const;
+
   // std::optional<int> getNumKeyFramesPerObject(ObjectId object_id) const;
   // void setObjectKeyFrameStatus(ObjectId object_id, ObjectKeyFrameStatus
   // status);
@@ -83,11 +84,17 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
  private:
   gtsam::FastMap<ObjectId, ObjectTrackingStatus> object_statuses_;
-  //! If filter needs resetting from last frame
+  // //! If filter needs resetting from last frame
   gtsam::FastMap<ObjectId, bool> filter_needs_reset_;
+  gtsam::FastMap<ObjectId, gtsam::Pose3> filter_needs_reset_init_KF_;
   // Need this only for previous state!
   gtsam::FastMap<ObjectId, ObjectKeyFrameStatus> object_keyframe_statuses_;
   gtsam::FastMap<ObjectId, int> num_kfs_per_object_;
+
+  mutable std::mutex object_status_mutex_;
+  mutable std::mutex keyframe_status_mutex_;
+  mutable std::mutex num_kfs_per_object_mutex_;
+  mutable std::mutex filters_mutex_;
 };
 
 }  // namespace dyno

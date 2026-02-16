@@ -47,14 +47,6 @@
 
 namespace dyno {
 
-template <typename FORMULATION>
-struct FormulationWrapper {
-  std::shared_ptr<FORMULATION> formulation;
-  // TODO: actually maybe the formulation should make the error hooks.... with a
-  // virtual fucntion!
-  std::optional<ErrorHandlingHooks> error_hooks;
-};
-
 template <typename MAP>
 struct MapTraits {
   using Map = MAP;

@@ -13,10 +13,9 @@
 
 namespace dyno {
 
-// TODO: Original is in FrontendModule which can be deleted once refactoring
-struct InvalidImageContainerException1 : public DynosamException {
-  InvalidImageContainerException1(const ImageContainer& container,
-                                  const std::string& what)
+struct InvalidImageContainerException : public DynosamException {
+  InvalidImageContainerException(const ImageContainer& container,
+                                 const std::string& what)
       : DynosamException("Image container with config: " +
                          container.toString() + "\n was invalid - " + what) {}
 };

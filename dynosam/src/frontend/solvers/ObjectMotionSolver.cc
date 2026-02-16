@@ -6,16 +6,20 @@
 
 namespace dyno {
 
-MultiObjectTrajectories ObjectMotionSolver::solve(Frame::Ptr frame_k,
-                                                  Frame::Ptr frame_k_1,
-                                                  bool parallel_solve) {
+void ObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
+                               MultiObjectTrajectories& trajectories_out,
+                               MotionEstimateMap& motion_estimate_out,
+                               bool parallel_solve) {
+  trajectories_out.clear();
+  motion_estimate_out.clear();
   ObjectIds failed_object_tracks;
-  MotionEstimateMap motion_estimates;
 
   if (parallel_solve) {
-    parallelSolve(frame_k, frame_k_1, motion_estimates, failed_object_tracks);
+    parallelSolve(frame_k, frame_k_1, motion_estimate_out,
+                  failed_object_tracks);
   } else {
-    sequentialSolve(frame_k, frame_k_1, motion_estimates, failed_object_tracks);
+    sequentialSolve(frame_k, frame_k_1, motion_estimate_out,
+                    failed_object_tracks);
   }
 
   // remove objects from the object observations list
@@ -26,10 +30,16 @@ MultiObjectTrajectories ObjectMotionSolver::solve(Frame::Ptr frame_k,
     frame_k->object_observations_.erase(object_id);
   }
 
-  MultiObjectTrajectories object_trajectories;
-  updateTrajectories(object_trajectories, motion_estimates, frame_k, frame_k_1);
+  updateTrajectories(trajectories_out, motion_estimate_out, frame_k, frame_k_1);
+}
 
-  return object_trajectories;
+void ObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
+                               MultiObjectTrajectories& trajectories_out,
+                               bool parallel_solve) {
+  MotionEstimateMap estimate_map;
+  this->solve(frame_k, frame_k_1, trajectories_out, estimate_map,
+              parallel_solve);
+  (void)estimate_map;
 }
 
 void ObjectMotionSolver::parallelSolve(Frame::Ptr frame_k, Frame::Ptr frame_km1,

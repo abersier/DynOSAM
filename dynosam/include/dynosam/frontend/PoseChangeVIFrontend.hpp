@@ -28,6 +28,7 @@ class PoseChangeVIFrontend : public VIFrontend {
   SpinReturn nominalSpin(FrontendInputPacketBase::ConstPtr input) override;
 
   void solveObjectMotions(MultiObjectTrajectories& trajectories,
+                          ObjectIds& object_with_new_motions,
                           ObjectPoseChangeInfoMap& infos, Frame::Ptr frame_k,
                           Frame::Ptr frame_km1);
 

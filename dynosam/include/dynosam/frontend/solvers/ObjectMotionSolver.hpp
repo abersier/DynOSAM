@@ -6,8 +6,6 @@
 
 namespace dyno {
 
-using Motion3SolverResult = SolverResult<Motion3ReferenceFrame>;
-
 class ObjectMotionSolver {
  public:
   ObjectMotionSolver() = default;
@@ -26,9 +24,14 @@ class ObjectMotionSolver {
    * @param parallel_solve
    * @return MultiObjectTrajectories
    */
-  virtual MultiObjectTrajectories solve(Frame::Ptr frame_k,
-                                        Frame::Ptr frame_k_1,
-                                        bool parallel_solve = true);
+  virtual void solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
+                     MultiObjectTrajectories& trajectories_out,
+                     MotionEstimateMap& motion_estimate_out,
+                     bool parallel_solve = true);
+
+  void solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
+             MultiObjectTrajectories& trajectories_out,
+             bool parallel_solve = true);
 
  protected:
   void parallelSolve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
