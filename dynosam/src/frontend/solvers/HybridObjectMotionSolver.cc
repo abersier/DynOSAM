@@ -109,14 +109,13 @@ bool HybridObjectMotionSolver::solveImpl(
     object_statuses_[object_id] = ObjectTrackingStatus::WellTracked;
   }
 
-  // bool object_retracked = false;
-  // if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked ||
-  //     previous_tracking_state == ObjectTrackingStatus::Lost) {
-  //   LOG(INFO) << "Previous tracking status "
-  //             << to_string(previous_tracking_state) << " setting to
-  //             retracked";
-  //   object_retracked = true;
-  // }
+  bool object_retracked = false;
+  if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked ||
+      previous_tracking_state == ObjectTrackingStatus::Lost) {
+    LOG(INFO) << "Previous tracking status "
+              << to_string(previous_tracking_state) << " setting to retracked";
+    object_retracked = true;
+  }
 
   const gtsam::Pose3 X_W_k = frame_k->getPose();
   const gtsam::Pose3 G_W = geometric_result.best_result;
@@ -140,141 +139,32 @@ bool HybridObjectMotionSolver::solveImpl(
   ObjectKeyFrameStatus keyframe_status{ObjectKeyFrameStatus::NonKeyFrame};
 
   if (is_new) {
-    auto filter = createAndInsertFilter(object_id, frame_km1, inlier_tracklets);
-    filter->predictAndUpdate(gtsam::Pose3::Identity(), frame_km1,
-                             inlier_tracklets, 2);
-    keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
-  } else {
-    const bool new_KF = is_resampled;
-    if (new_KF) {
-      auto filter = threadSafeFilterAccess(object_id);
-      CHECK_NOTNULL(filter);
-      gtsam::Pose3 new_KF_pose;
-      if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
-        LOG(INFO) << "Object was poorly tracked or LOST previously. "
-                  << "Creating new KF from centroid "
-                  << info_string(frame_km1->getFrameId(), object_id);
-        // must create new initial frame
-        // TODO: here would be to check somehow that we dont have features
-        // between the last well tracked state
-        new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
-        keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
-      } else {
-        CHECK_EQ(filter->getFrameId(), frame_km1->getFrameId())
-            << "j=" << object_id << " k=" << filter->getFrameId();
-        // this is the pose as the last frame (ie k-1) which will serve as
-        new_KF_pose = filter->getPose();
-        keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
-      }
+    auto new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
+    LOG(INFO) << "Making new smoother for "
+              << info_string(frame_km1->getFrameId(), object_id);
+    auto smoother = std::make_shared<HybridObjectMotionSmoother>(
+        object_id, new_KF_pose, frame_km1->getFrameId(),
+        frame_km1->getTimestamp(), frame_km1->getCamera(), 20);
+    LOG(INFO) << "Performing smoother update "
+              << info_string(frame_km1->getFrameId(), object_id);
+    smoother->update(gtsam::Pose3::Identity(), frame_km1, inlier_tracklets);
 
-      //  {
-      //   // this is the first keyframe for this object
-      //   // and therefore the from frame should become the (new) anchor frame
-      //   const std::lock_guard<std::mutex> lock(num_kfs_per_object_mutex_);
-      //   if (!num_kfs_per_object_.exists(object_id)) {
-      //     LOG(INFO) << "object j=" << object_id << "is first KF: making
-      //     anchor";
-
-      //     num_kfs_per_object_[object_id] = 1;
-      //     keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
-      //   } else {
-      //     // if not the first keyframe for this object then no need to alert
-      //     // backend that this should be a Anchor KF
-      //     num_kfs_per_object_.at(object_id)++;
-      //     keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
-
-      //     LOG(INFO) << "object j=" << object_id
-      //               << "is not first KF: making regular";
-      //   }
-      // }
-
-      // ObjectPoseChangeInfo info;
-      // info.frame_id = filter->getFrameId();
-      // info.H_W_KF_k = H_W_KF_k;
-      // info.L_W_KF = filter->getKeyFramePose();
-      // info.L_W_k = filter->getPose();
-
-      // // TODO: shouldnt need this?
-      // // to get here we must be well-tracked!
-      // info.motion_track_status = ObjectTrackingStatus::WellTracked;
-
-      // info.regular_keyframe = false;
-      // info.anchor_keyframe = false;
-
-      // //TODO: replace flags in info with ObjectKeyFrameStatus
-      // if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-      //   info.regular_keyframe = true;
-      //   info.anchor_keyframe = true;
-      // } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-      //   info.regular_keyframe = true;
-      // }
-
-      // CHECK(getObjectStructureinL(object_id,  info.initial_object_points));
-
-      //   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-      //           << "motion KF: " << info.H_W_KF_k.from()
-      //           << " to: " << info.H_W_KF_k.to() << " with regular kf "
-      //           << std::boolalpha << info.regular_keyframe << " anchor kf "
-      //           << info.anchor_keyframe;
-
-      // // Make threaf safe!!
-      // pose_change_info_.insert2(object_id, info);
-
-      filter->resetState(new_KF_pose, frame_km1->getFrameId(),
-                         frame_km1->getTimestamp());
-      filter->predictAndUpdate(gtsam::Pose3::Identity(), frame_km1,
-                               inlier_tracklets, 2);
-    }
+    filters_.insert2(object_id, smoother);
   }
 
-  auto filter = threadSafeFilterAccess(object_id);
-  CHECK_NOTNULL(filter);
-
-  filter->predictAndUpdate(H_W_km1_k_pnp, frame_k, inlier_tracklets, 2);
-
-  const auto H_W_KF_k = filter->getKeyFramedMotionReference();
-  LOG(INFO) << "Motion solved j= " << object_id << ": k= " << H_W_KF_k.from()
-            << " -> " << H_W_KF_k.to();
-
-  // always add motion at k not k-1?
-  if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
-    // motion is after the reset?
-    // ObjectPoseChangeInfo info;
-    // info.frame_id = filter->getFrameId();
-    // info.H_W_KF_k = H_W_KF_k;
-    // info.L_W_KF = filter->getKeyFramePose();
-    // info.L_W_k = filter->getPose();
-
-    // // TODO: shouldnt need this?
-    // // to get here we must be well-tracked!
-    // info.motion_track_status = ObjectTrackingStatus::WellTracked;
-
-    // info.regular_keyframe = false;
-    // info.anchor_keyframe = false;
-
-    // //TODO: replace flags in info with ObjectKeyFrameStatus
-    // if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-    //   info.regular_keyframe = true;
-    //   info.anchor_keyframe = true;
-    // } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-    //   info.regular_keyframe = true;
-    // }
-
-    // CHECK(getObjectStructureinL(object_id,  info.initial_object_points));
-
-    //   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-    //           << "motion KF: " << info.H_W_KF_k.from()
-    //           << " to: " << info.H_W_KF_k.to() << " with regular kf "
-    //           << std::boolalpha << info.regular_keyframe << " anchor kf "
-    //           << info.anchor_keyframe;
-
-    // // Make threaf safe!!
-    // pose_change_info_.insert2(object_id, info);
+  auto smoother = filters_.at(object_id);
+  CHECK(smoother);
+  if (object_retracked) {
+    auto new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
+    smoother->createNewKeyedMotion(new_KF_pose, frame_km1->getFrameId(),
+                                   frame_km1->getTimestamp());
   }
 
-  // sepate KF logic (ie we can keyframe temporally)
+  LOG(INFO) << "Performing smoother update "
+            << info_string(frame_k->getFrameId(), object_id);
+  smoother->update(H_W_km1_k_pnp, frame_k, inlier_tracklets);
 
-  const gtsam::Pose3 H_w_km1_k = filter->getF2FMotion();
+  const gtsam::Pose3 H_w_km1_k = smoother->getF2FMotion();
 
   motion_estimate = Motion3ReferenceFrame(
       H_w_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
@@ -284,6 +174,204 @@ bool HybridObjectMotionSolver::solveImpl(
 
   return true;
 }
+
+////////// THIS ONE IS GOOOD!!!???????/////////////////
+// bool HybridObjectMotionSolver::solveImpl(
+//     Frame::Ptr frame_k, Frame::Ptr frame_km1, ObjectId object_id,
+//     Motion3ReferenceFrame& motion_estimate) {
+//   // Initialize or update tracking status
+//   bool is_new = !filters_.exists(object_id);
+//   bool is_resampled = std::find(frame_k->retracked_objects_.begin(),
+//                                 frame_k->retracked_objects_.end(),
+//                                 object_id) !=
+//                                 frame_k->retracked_objects_.end();
+
+//   auto threadSafeGetObjectStatus =
+//       [&](ObjectId object_id) -> ObjectTrackingStatus {
+//     const std::lock_guard<std::mutex> lock(object_status_mutex_);
+//     return object_statuses_[object_id];
+//   };
+
+//   // How does this not break if there is no previous tracking status?
+//   const ObjectTrackingStatus previous_tracking_state =
+//       threadSafeGetObjectStatus(object_id);
+
+//   LOG(INFO) << "Previous tracking state " <<
+//   to_string(previous_tracking_state)
+//             << " " << info_string(frame_k->getFrameId(), object_id);
+
+//   // get the corresponding feature pairs
+//   AbsolutePoseCorrespondences dynamic_correspondences;
+//   bool corr_result = frame_k->getDynamicCorrespondences(
+//       dynamic_correspondences, *frame_km1, object_id,
+//       frame_k->landmarkWorldKeypointCorrespondance());
+
+//   const size_t& n_matches = dynamic_correspondences.size();
+
+//   TrackletIds all_tracklets;
+//   std::transform(dynamic_correspondences.begin(),
+//   dynamic_correspondences.end(),
+//                  std::back_inserter(all_tracklets),
+//                  [](const AbsolutePoseCorrespondence& corres) {
+//                    return corres.tracklet_id_;
+//                  });
+//   CHECK_EQ(all_tracklets.size(), n_matches);
+
+//   Pose3SolverResult geometric_result =
+//       pnp_ransac_solver_.solve3d2d(dynamic_correspondences);
+
+//   TrackletIds inlier_tracklets = geometric_result.inliers;
+//   const TrackletIds& outlier_tracklets = geometric_result.outliers;
+
+//   if (is_resampled) {
+//     LOG(INFO) << "Resampled " << info_string(frame_k->getFrameId(),
+//     object_id)
+//               << " with matches n=" << n_matches
+//               << " inliers= " << inlier_tracklets.size();
+//   }
+
+//   if (inlier_tracklets.size() < 4 ||
+//       geometric_result.status != TrackingStatus::VALID) {
+//     LOG(WARNING) << "Could not make initial frame for object " << object_id
+//                  << " as not enough inlier tracks!";
+//     const std::lock_guard<std::mutex> lock(object_status_mutex_);
+//     object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
+
+//     return false;
+//   }
+
+//   // To get here we must be in a well tracked state
+//   {
+//     const std::lock_guard<std::mutex> lock(object_status_mutex_);
+//     object_statuses_[object_id] = ObjectTrackingStatus::WellTracked;
+//   }
+
+//   // bool object_retracked = false;
+//   // if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked ||
+//   //     previous_tracking_state == ObjectTrackingStatus::Lost) {
+//   //   LOG(INFO) << "Previous tracking status "
+//   //             << to_string(previous_tracking_state) << " setting to
+//   //             retracked";
+//   //   object_retracked = true;
+//   // }
+
+//   const gtsam::Pose3 X_W_k = frame_k->getPose();
+//   const gtsam::Pose3 G_W = geometric_result.best_result;
+
+//   gtsam::Pose3 G_W_inv = G_W.inverse();
+
+//   if (true) {
+//     auto refinement_result = optical_flow_pose_solver_.optimizeAndUpdate(
+//         frame_km1, frame_k, inlier_tracklets, G_W);
+//     // still need to take the inverse as we get the inverse of G out
+//     // update G_W_inv
+//     G_W_inv = refinement_result.best_result.refined_pose.inverse();
+//     // inliers should be a subset of the original refined inlier tracks
+//     inlier_tracklets = refinement_result.inliers;
+//   }
+//   const gtsam::Pose3 H_W_km1_k_pnp = X_W_k * G_W_inv;
+
+//   // // before we even do a filter update!!
+//   // // ObjectPoseChangeInfo info;
+
+//   ObjectKeyFrameStatus keyframe_status{ObjectKeyFrameStatus::NonKeyFrame};
+
+//   if (is_new) {
+//     auto filter = createAndInsertFilter(object_id, frame_km1,
+//     inlier_tracklets); filter->predictAndUpdate(gtsam::Pose3::Identity(),
+//     frame_km1,
+//                              inlier_tracklets, 2);
+//     keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+//   } else {
+//     // const bool new_KF = is_resampled;
+//     const bool new_KF = frame_k->getFrameId() % 12 == 0;
+//     if (new_KF) {
+//       auto filter = threadSafeFilterAccess(object_id);
+//       CHECK_NOTNULL(filter);
+//       gtsam::Pose3 new_KF_pose;
+//       if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
+//         LOG(INFO) << "Object was poorly tracked or LOST previously. "
+//                   << "Creating new KF from centroid "
+//                   << info_string(frame_km1->getFrameId(), object_id);
+//         // must create new initial frame
+//         // TODO: here would be to check somehow that we dont have features
+//         // between the last well tracked state
+//         new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
+//         keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+//       } else {
+//         CHECK_EQ(filter->getFrameId(), frame_km1->getFrameId())
+//             << "j=" << object_id << " k=" << filter->getFrameId();
+//         // this is the pose as the last frame (ie k-1) which will serve as
+//         new_KF_pose = filter->getPose();
+//         keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
+//       }
+
+//       // filter->relinearize();
+
+//       // filter->resetState(new_KF_pose, frame_km1->getFrameId(),
+//       //                    frame_km1->getTimestamp());
+//       // filter->predictAndUpdate(gtsam::Pose3::Identity(), frame_km1,
+//       //                          inlier_tracklets, 2);
+//     }
+//   }
+
+//   auto filter = threadSafeFilterAccess(object_id);
+//   CHECK_NOTNULL(filter);
+
+//   filter->predictAndUpdate(H_W_km1_k_pnp, frame_k, inlier_tracklets, 2);
+
+//   const auto H_W_KF_k = filter->getKeyFramedMotionReference();
+//   LOG(INFO) << "Motion solved j= " << object_id << ": k= " << H_W_KF_k.from()
+//             << " -> " << H_W_KF_k.to();
+
+//   // always add motion at k not k-1?
+//   if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
+//     // motion is after the reset?
+//     // ObjectPoseChangeInfo info;
+//     // info.frame_id = filter->getFrameId();
+//     // info.H_W_KF_k = H_W_KF_k;
+//     // info.L_W_KF = filter->getKeyFramePose();
+//     // info.L_W_k = filter->getPose();
+
+//     // // TODO: shouldnt need this?
+//     // // to get here we must be well-tracked!
+//     // info.motion_track_status = ObjectTrackingStatus::WellTracked;
+
+//     // info.regular_keyframe = false;
+//     // info.anchor_keyframe = false;
+
+//     // //TODO: replace flags in info with ObjectKeyFrameStatus
+//     // if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
+//     //   info.regular_keyframe = true;
+//     //   info.anchor_keyframe = true;
+//     // } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
+//     //   info.regular_keyframe = true;
+//     // }
+
+//     // CHECK(getObjectStructureinL(object_id,  info.initial_object_points));
+
+//     //   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
+//     //           << "motion KF: " << info.H_W_KF_k.from()
+//     //           << " to: " << info.H_W_KF_k.to() << " with regular kf "
+//     //           << std::boolalpha << info.regular_keyframe << " anchor kf "
+//     //           << info.anchor_keyframe;
+
+//     // // Make threaf safe!!
+//     // pose_change_info_.insert2(object_id, info);
+//   }
+
+//   // sepate KF logic (ie we can keyframe temporally)
+
+//   const gtsam::Pose3 H_w_km1_k = filter->getF2FMotion();
+
+//   motion_estimate = Motion3ReferenceFrame(
+//       H_w_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
+//       frame_km1->getFrameId(), frame_k->getFrameId());
+
+//   frame_k->dynamic_features_.markOutliers(outlier_tracklets);
+
+//   return true;
+// }
 
 // bool HybridObjectMotionSolver::solveImpl(
 //     Frame::Ptr frame_k, Frame::Ptr frame_km1, ObjectId object_id,
@@ -533,15 +621,15 @@ void HybridObjectMotionSolver::deleteObject(ObjectId object_id) {
   }
 }
 
-HybridObjectMotionSRIF::Ptr HybridObjectMotionSolver::threadSafeFilterAccess(
-    ObjectId object_id) const {
-  const std::lock_guard<std::mutex> lock(filters_mutex_);
-  if (!filters_.exists(object_id)) {
-    return nullptr;
-  }
+// auto HybridObjectMotionSolver::threadSafeFilterAccess(
+//     ObjectId object_id) const {
+//   const std::lock_guard<std::mutex> lock(filters_mutex_);
+//   if (!filters_.exists(object_id)) {
+//     return nullptr;
+//   }
 
-  return filters_.at(object_id);
-}
+//   return filters_.at(object_id);
+// }
 
 bool HybridObjectMotionSolver::getObjectStructureinL(
     ObjectId object_id, StatusLandmarkVector& object_points) const {
@@ -911,11 +999,11 @@ HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
 
   constexpr static double kHuberKFilter = 0.05;
   auto filter = std::make_shared<HybridObjectMotionSRIF>(
-      gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
+      object_id, gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
       frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
 
   const std::lock_guard<std::mutex> lock(filters_mutex_);
-  filters_.insert2(object_id, filter);
+  // filters_.insert2(object_id, filter);
 
   LOG(INFO) << "Created new filter for object " << object_id << " at frame "
             << frame->getFrameId();

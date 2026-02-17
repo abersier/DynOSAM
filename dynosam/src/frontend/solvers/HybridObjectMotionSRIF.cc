@@ -1,27 +1,103 @@
 #include "dynosam/frontend/solvers/HybridObjectMotionSRIF.hpp"
 
 #include "dynosam/factors/HybridFormulationFactors.hpp"
+#include "dynosam_common/logger/Logger.hpp"
 #include "dynosam_common/utils/TimingStats.hpp"
 
 namespace dyno {
 
+/**
+ * @brief Compute the 2-norm condition number of the SRIF matrix R.
+ *
+ * R must be the upper-triangular matrix obtained after QR decomposition
+ * of the *whitened* Jacobian stack:
+ *
+ *     H = Q R
+ *
+ * where H is already whitened by measurement covariance.
+ *
+ * The condition number is:
+ *
+ *     cond(R) = sigma_max / sigma_min
+ *
+ * where sigma are the singular values of R.
+ *
+ * Interpretation guidelines (double precision):
+ *
+ *   cond(R) < 1e3      → Very healthy system
+ *   1e4 – 1e6          → Mild degeneracy
+ *   1e7 – 1e9          → Serious warning
+ *   > 1e10             → Numerically dangerous
+ *
+ * Why it matters:
+ *   - Large cond(R) means the information ellipsoid is highly stretched.
+ *   - Small singular values indicate weakly constrained directions.
+ *   - cond(R) ≈ ∞ implies rank deficiency (unobservable directions).
+ *
+ * In SLAM / SRIF systems, large cond(R) often indicates:
+ *   - Gauge freedom not fixed
+ *   - Poor motion excitation (e.g., pure rotation)
+ *   - Underconstrained object states
+ *   - Marginalization corruption
+ *   - Incorrect Jacobians
+ *
+ * Important:
+ *   - R must come from whitened Jacobians.
+ *   - cond(R) == cond(H)
+ *   - Using SRIF avoids squaring the condition number
+ *     (since cond(H^T H) = cond(H)^2).
+ *
+ * @param R Upper triangular SRIF matrix
+ * @return Condition number (2-norm)
+ */
+double conditionNumberR(const Eigen::MatrixXd& R) {
+  if (R.rows() == 0 || R.cols() == 0)
+    throw std::invalid_argument("R must be non-empty.");
+
+  // Compute singular values of R
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(
+      R, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+  const auto& singular_values = svd.singularValues();
+
+  const double sigma_max = singular_values(0);
+  const double sigma_min = singular_values(singular_values.size() - 1);
+
+  // Handle rank-deficient case
+  if (sigma_min <= std::numeric_limits<double>::epsilon())
+    return std::numeric_limits<double>::infinity();
+
+  return sigma_max / sigma_min;
+}
+
 HybridObjectMotionSRIF::HybridObjectMotionSRIF(
-    const gtsam::Pose3& initial_state_H, const gtsam::Pose3& L_e,
-    const FrameId& frame_id_e, const Timestamp& timestamp_e,
-    const gtsam::Matrix66& initial_P, const gtsam::Matrix66& Q,
-    const gtsam::Matrix33& R, Camera::Ptr camera, double huber_k)
-    : H_linearization_point_(initial_state_H),
+    const ObjectId object_id, const gtsam::Pose3& initial_state_H,
+    const gtsam::Pose3& L_e, const FrameId& frame_id_e,
+    const Timestamp& timestamp_e, const gtsam::Matrix66& initial_P,
+    const gtsam::Matrix66& Q, const gtsam::Matrix33& R, Camera::Ptr camera,
+    double huber_k)
+    : object_id_(object_id),
+      H_linearization_point_(initial_state_H),
       Q_(Q),
       R_noise_(R),
       R_inv_(R.inverse()),
       initial_P_(initial_P),
-      huber_k_(huber_k) {
+      huber_k_(huber_k),
+      logger_(CsvHeader("timestamp", "frame_id", "residual", "initial_error",
+                        "weighted_error", "new_features", "existing_tracks",
+                        "cond_R")) {
   // set camera
   rgbd_camera_ = CHECK_NOTNULL(camera)->safeGetRGBDCamera();
   CHECK(rgbd_camera_);
   stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
 
   resetState(L_e, frame_id_e, timestamp_e);
+}
+
+HybridObjectMotionSRIF::~HybridObjectMotionSRIF() {
+  const std::string file_out =
+      "hybrid_srif_j_" + std::to_string(object_id_) + ".csv";
+  OfstreamWrapper::WriteOutCsvWriter(logger_, file_out);
 }
 
 const gtsam::Pose3& HybridObjectMotionSRIF::getKeyFramePose() const {
@@ -96,7 +172,7 @@ gtsam::Matrix66 HybridObjectMotionSRIF::getInformationMatrix() const {
   return R_info_.transpose() * R_info_;
 }
 
-void HybridObjectMotionSRIF::predict(const gtsam::Pose3&) {
+void HybridObjectMotionSRIF::predict(const gtsam::Pose3& H_W_km1_k) {
   // 1. Get current mean state and covariance
   gtsam::Vector6 delta_w = getStatePerturbation();
   gtsam::Pose3 H_current_mean = H_linearization_point_.retract(delta_w);
@@ -104,7 +180,7 @@ void HybridObjectMotionSRIF::predict(const gtsam::Pose3&) {
 
   // call before updating the previous_H_
   // previous motion -> assume constant!
-  gtsam::Pose3 H_W_km1_k = getF2FMotion();
+  // gtsam::Pose3 H_W_km1_k = getF2FMotion();
 
   // gtsam::Pose3 L_km1 = previous_H_ * L_e_;
   // gtsam::Pose3 L_k = H_current_mean * L_e_;
@@ -124,8 +200,6 @@ void HybridObjectMotionSRIF::predict(const gtsam::Pose3&) {
 
   // 3. Re-linearize: Set new linearization point to the current mean
   H_linearization_point_ = H_W_km1_k * H_current_mean;
-  // predict forward with constant velocity model
-  //  H_linearization_point_ = predicted_motion;
 
   // 4. Recalculate R and d based on new P and new linearization point
   // The new perturbation is 0 relative to the new linearization point.
@@ -147,6 +221,8 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   frame_id_ = frame->getFrameId();
   timestamp_ = frame->getTimestamp();
 
+  return HybridObjectMotionSRIFResult{};
+
   // 1. Calculate Jacobians (H) and Linearized Residuals (y_lin)
   // These are calculated ONCE at the linearization point and are fixed
   // for all IRLS iterations.
@@ -154,6 +230,7 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   gtsam::Vector y_linearized = gtsam::Vector::Zero(total_rows);
 
   const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
+  // const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
   // G will project the point from the object frame into the camera frame
   const gtsam::Pose3 G_w = A * L_e_;
   const gtsam::Matrix6 J_correction = -A.AdjointMap();
@@ -163,7 +240,9 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   gtsam::Vector initial_error = gtsam::Vector::Zero(num_measurements);
   gtsam::Vector re_weighted_error = gtsam::Vector::Zero(num_measurements);
 
-  size_t num_new_features = 0u, num_tracked_features = 0u;
+  size_t num_new_features = 0u, num_tracked_features = 0u,
+         num_good_measurements = 0u;
+  double average_residual = 0;
 
   for (size_t i = 0; i < num_measurements; ++i) {
     const TrackletId& tracklet_id = tracklets.at(i);
@@ -175,7 +254,7 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
       // linearization (ie k-1)
       const gtsam::Point3 m_X_k = frame->backProjectToCamera(tracklet_id);
       Landmark m_init = HybridObjectMotion::projectToObject3(
-          X_W_k, H_linearization_point_, L_e_, m_X_k);
+          X_W_k, getKeyFramedMotion(), L_e_, m_X_k);
       m_linearized_.insert2(tracklet_id, m_init);
       // VLOG(10) << "Initalising new point i=" << tracklet_id << " Le " <<
       // L_e_;
@@ -218,7 +297,12 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
     double error_sq = y_i_lin.transpose() * R_inv_ * y_i_lin;
     double error = std::sqrt(error_sq);
     initial_error(i) = error;
+
+    average_residual += y_i_lin.norm();
+    num_good_measurements++;
   }
+
+  average_residual /= (double)num_good_measurements;
 
   VLOG(30) << "Feature stats. New features: " << num_new_features << "/"
            << num_measurements << " Tracked features " << num_tracked_features
@@ -335,6 +419,11 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   HybridObjectMotionSRIFResult result;
   result.error = initial_error.norm();
   result.reweighted_error = re_weighted_error.norm();
+
+  logger_ << timestamp_ << frame_id_ << average_residual << result.error
+          << result.reweighted_error << num_new_features << num_tracked_features
+          << conditionNumberR(R_info_);
+
   return result;
 }
 
@@ -376,6 +465,17 @@ void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
   // the initial H should not be parsed into the constructor by this logic as
   // well!
   H_linearization_point_ = gtsam::Pose3::Identity();
+}
+
+void HybridObjectMotionSRIF::relinearize() {
+  // not really relineaize? Just setting delta and R to zero and updating H_lin
+  // but h_lin gets updated in predict anyway?
+  H_linearization_point_ = getBestEstimate();
+  previous_H_ = gtsam::Pose3::Identity();
+  d_info_ = gtsam::Vector6::Zero();
+
+  gtsam::Matrix66 Lambda_initial = initial_P_.inverse();
+  R_info_ = Lambda_initial.llt().matrixU();  // L^T
 }
 
 }  // namespace dyno

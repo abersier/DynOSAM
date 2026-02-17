@@ -78,6 +78,7 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/solvers/ObjectMotionSolver.cc
   src/frontend/solvers/ConsecutiveFrameObjectMotionSolver.cc
   src/frontend/solvers/HybridObjectMotionSolver.cc
+  src/frontend/solvers/HybridObjectMotionSmoother.cc
 
   src/frontend/vision/Frame.cc
   src/frontend/FrontendParams.cc

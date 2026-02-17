@@ -471,7 +471,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
                            pc_input->new_factors, post_update_data);
 
     if (pose_change_backend_sink_) {
-      pose_change_backend_sink_(pc_input);
+      // pose_change_backend_sink_(pc_input);
     }
 
     imu_frontend_.resetIntegration();

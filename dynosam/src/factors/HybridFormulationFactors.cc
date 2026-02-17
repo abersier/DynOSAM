@@ -187,30 +187,16 @@ gtsam::Vector HybridMotionFactor::evaluateError(
          z_k_;
 }
 
-StereoHybridMotionFactor::StereoHybridMotionFactor(
-    const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_e,
-    const gtsam::SharedNoiseModel& model, gtsam::Cal3_S2Stereo::shared_ptr K,
-    gtsam::Key X_k_key, gtsam::Key e_H_k_world_key, gtsam::Key m_L_key,
-    bool throw_cheirality)
-    : Base(model, X_k_key, e_H_k_world_key, m_L_key),
-      measured_(measured),
+StereoHybridMotionFactorBase::StereoHybridMotionFactorBase(
+    const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_KF,
+    gtsam::Cal3_S2Stereo::shared_ptr K, bool throw_cheirality)
+    : measured_(measured),
+      L_KF_(L_KF),
       K_(K),
-      L_e_(L_e),
       camera_(gtsam::Pose3::Identity(), K),
       throw_cheirality_(throw_cheirality) {}
 
-gtsam::NonlinearFactor::shared_ptr StereoHybridMotionFactor::clone() const {
-  return boost::static_pointer_cast<gtsam::NonlinearFactor>(
-      gtsam::NonlinearFactor::shared_ptr(new This(*this)));
-}
-
-void StereoHybridMotionFactor::print(
-    const std::string& s, const gtsam::KeyFormatter& keyFormatter) const {
-  Base::print(s, keyFormatter);
-  measured_.print(s + ".z");
-}
-
-gtsam::Vector StereoHybridMotionFactor::evaluateError(
+gtsam::Vector StereoHybridMotionFactorBase::evaluateError(
     const gtsam::Pose3& X_k, const gtsam::Pose3& e_H_k_world,
     const gtsam::Point3& m_L, boost::optional<gtsam::Matrix&> J1,
     boost::optional<gtsam::Matrix&> J2,
@@ -222,7 +208,7 @@ gtsam::Vector StereoHybridMotionFactor::evaluateError(
     gtsam::Matrix36 H_cam_X, H_cam_E;
     gtsam::Matrix33 H_cam_m;
     const gtsam::Point3 m_camera = HybridObjectMotion::projectToCamera3(
-        X_k, e_H_k_world, L_e_, m_L, J1 ? &H_cam_X : 0, J2 ? &H_cam_E : 0,
+        X_k, e_H_k_world, L_KF_, m_L, J1 ? &H_cam_X : 0, J2 ? &H_cam_E : 0,
         boost::none,  // L_e is fixed
         J3 ? &H_cam_m : 0);
 
@@ -253,22 +239,87 @@ gtsam::Vector StereoHybridMotionFactor::evaluateError(
     if (J3) *J3 = gtsam::Matrix33::Zero();
 
     if (throw_cheirality_) {
-      throw gtsam::StereoCheiralityException(this->key3());
+      // only inherting classes (or using noise models) know which
+      // key the point is associated with
+      // throw custom exception and let using class catch and throw
+      // gtsam::StereoCheiralityException once gtsam::Key is known!
+      throw CheiralityException();
     }
   }
   return gtsam::Vector3::Constant(2.0 * K_->fx());
 }
 
-const gtsam::StereoPoint2& StereoHybridMotionFactor::measured() const {
+const gtsam::StereoPoint2& StereoHybridMotionFactorBase::measured() const {
   return measured_;
 }
-const gtsam::Cal3_S2Stereo::shared_ptr StereoHybridMotionFactor::calibration()
-    const {
+const gtsam::Cal3_S2Stereo::shared_ptr
+StereoHybridMotionFactorBase::calibration() const {
   return K_;
 }
 
-const gtsam::Pose3& StereoHybridMotionFactor::embeddedPose() const {
-  return L_e_;
+const gtsam::Pose3& StereoHybridMotionFactorBase::referencePose() const {
+  return L_KF_;
+}
+
+StereoHybridMotionFactor::StereoHybridMotionFactor(
+    const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_e,
+    const gtsam::SharedNoiseModel& model, gtsam::Cal3_S2Stereo::shared_ptr K,
+    gtsam::Key X_k_key, gtsam::Key e_H_k_world_key, gtsam::Key m_L_key,
+    bool throw_cheirality)
+    : Base(model, X_k_key, e_H_k_world_key, m_L_key),
+      StereoHybridMotionFactorBase(measured, L_e, K, throw_cheirality) {}
+
+gtsam::NonlinearFactor::shared_ptr StereoHybridMotionFactor::clone() const {
+  return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+      gtsam::NonlinearFactor::shared_ptr(new This(*this)));
+}
+
+void StereoHybridMotionFactor::print(
+    const std::string& s, const gtsam::KeyFormatter& keyFormatter) const {
+  Base::print(s, keyFormatter);
+  measured_.print(s + ".z");
+}
+
+gtsam::Vector StereoHybridMotionFactor::evaluateError(
+    const gtsam::Pose3& X_k, const gtsam::Pose3& e_H_k_world,
+    const gtsam::Point3& m_L, boost::optional<gtsam::Matrix&> J1,
+    boost::optional<gtsam::Matrix&> J2,
+    boost::optional<gtsam::Matrix&> J3) const {
+  try {
+    return StereoHybridMotionFactorBase::evaluateError(X_k, e_H_k_world, m_L,
+                                                       J1, J2, J3);
+  } catch (const CheiralityException&) {
+    // only derived class knows about the key so throw here not in base
+    // which throws CheiralityException
+    // CheiralityException is only thrown if throw_cheirality true
+    throw gtsam::StereoCheiralityException(this->key3());
+  }
+}
+
+StereoHybridMotionFactor2::StereoHybridMotionFactor2(
+    const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_e,
+    const gtsam::Pose3& X_k, const gtsam::SharedNoiseModel& model,
+    gtsam::Cal3_S2Stereo::shared_ptr K, gtsam::Key e_H_k_world_key,
+    gtsam::Key m_L_key, bool throw_cheirality)
+    : Base(model, e_H_k_world_key, m_L_key),
+      StereoHybridMotionFactorBase(measured, L_e, K, throw_cheirality),
+      X_k_(X_k) {}
+
+gtsam::Vector StereoHybridMotionFactor2::evaluateError(
+    const gtsam::Pose3& e_H_k_world, const gtsam::Point3& m_L,
+    boost::optional<gtsam::Matrix&> J1,
+    boost::optional<gtsam::Matrix&> J2) const {
+  try {
+    // J1 corresponds with second entry in Base (ie. motion)
+    // J2 corresponds with third entry in Base (ie. point)
+    return StereoHybridMotionFactorBase::evaluateError(X_k_, e_H_k_world, m_L,
+                                                       {}, J1, J2);
+  } catch (const CheiralityException&) {
+    // only derived class knows about the key so throw here not in base
+    // which throws CheiralityException
+    // CheiralityException is only thrown if throw_cheirality true
+    throw gtsam::StereoCheiralityException(this->key2());
+  }
 }
 
 gtsam::Vector HybridSmoothingFactor::evaluateError(

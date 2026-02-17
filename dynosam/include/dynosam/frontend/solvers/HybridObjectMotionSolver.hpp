@@ -3,6 +3,7 @@
 #include "dynosam/backend/rgbd/HybridEstimator.hpp"  //for pose change info
 #include "dynosam/frontend/Frontend-Definitions.hpp"
 #include "dynosam/frontend/solvers/HybridObjectMotionSRIF.hpp"
+#include "dynosam/frontend/solvers/HybridObjectMotionSmoother.hpp"
 #include "dynosam/frontend/solvers/ObjectMotionSolver.hpp"
 #include "dynosam/frontend/solvers/OpticalFlowAndPoseSolver.hpp"
 #include "dynosam/frontend/solvers/PnPRansac.hpp"
@@ -35,10 +36,7 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
   bool getObjectStructureinW(ObjectId object_id,
                              StatusLandmarkVector& object_points) const;
 
-  const gtsam::FastMap<ObjectId, HybridObjectMotionSRIF::Ptr>& getFilters()
-      const {
-    return filters_;
-  }
+  const auto& getFilters() const { return filters_; }
 
   const ObjectPoseChangeInfoMap& poseChangeInfoMap() const {
     return pose_change_info_;
@@ -60,10 +58,13 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
   HybridObjectMotionSRIF::Ptr createAndInsertFilter(
       ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
+  // HybridObjectMotionSmoother::Ptr createAndInsertFilter(
+  //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
 
   void deleteObject(ObjectId object_id);
 
-  HybridObjectMotionSRIF::Ptr threadSafeFilterAccess(ObjectId object_id) const;
+  // HybridObjectMotionSRIF::Ptr threadSafeFilterAccess(ObjectId object_id)
+  // const;
 
   // std::optional<int> getNumKeyFramesPerObject(ObjectId object_id) const;
   // void setObjectKeyFrameStatus(ObjectId object_id, ObjectKeyFrameStatus
@@ -77,7 +78,8 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
   MultiObjectTrajectories object_trajectories_;
 
-  gtsam::FastMap<ObjectId, HybridObjectMotionSRIF::Ptr> filters_;
+  // gtsam::FastMap<ObjectId, HybridObjectMotionSRIF::Ptr> filters_;
+  gtsam::FastMap<ObjectId, HybridObjectMotionSmoother::Ptr> filters_;
 
   // Info from the last frame. ONly stores change info with keyframes
   gtsam::FastMap<ObjectId, ObjectPoseChangeInfo> pose_change_info_;

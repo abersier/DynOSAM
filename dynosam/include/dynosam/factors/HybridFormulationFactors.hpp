@@ -155,20 +155,61 @@ class HybridMotionFactor
       boost::optional<gtsam::Matrix&> J3 = boost::none) const override;
 };
 
-class StereoHybridMotionFactor
-    : public gtsam::NoiseModelFactor3<gtsam::Pose3, gtsam::Pose3,
-                                      gtsam::Point3> {
- private:
+class StereoHybridMotionFactorBase {
+ public:
+  /**
+   * @brief Exception thrown by evaluate error when stereo projection raises a
+   * Cheirality Exception.
+   *
+   * Used instead of gtsam::StereoCheiralityException becuase the gtsam version
+   * takes a gtsam::Key as input and this base class does not know about the
+   * keys.
+   *
+   * Intendied so that the using class just catches this exception and then can
+   * throw the gtsam version if necessary.
+   *
+   * Exception is only thrown if throw_cheirality_ is true so no need to check
+   * the flag
+   *
+   */
+  class CheiralityException : public std::runtime_error {
+   public:
+    CheiralityException()
+        : std::runtime_error(
+              "Cheirality occured in StereoHybridMotionFactorBase") {}
+  };
+
+  StereoHybridMotionFactorBase(const gtsam::StereoPoint2& measured,
+                               const gtsam::Pose3& L_KF,
+                               gtsam::Cal3_S2Stereo::shared_ptr K,
+                               bool throw_cheirality = false);
+
+  const gtsam::StereoPoint2& measured() const;
+  const gtsam::Cal3_S2Stereo::shared_ptr calibration() const;
+  const gtsam::Pose3& referencePose() const;
+
+  gtsam::Vector evaluateError(
+      const gtsam::Pose3& X_k, const gtsam::Pose3& e_H_k_world,
+      const gtsam::Point3& m_L,
+      boost::optional<gtsam::Matrix&> J1 = boost::none,
+      boost::optional<gtsam::Matrix&> J2 = boost::none,
+      boost::optional<gtsam::Matrix&> J3 = boost::none) const;
+
+ protected:
   gtsam::StereoPoint2 measured_;
   // fixed reference frame
-  gtsam::Pose3 L_e_;
+  gtsam::Pose3 L_KF_;
   gtsam::Cal3_S2Stereo::shared_ptr K_;
-
   // with identity pose, acts as the refenence frame
   gtsam::StereoCamera camera_;
 
   bool throw_cheirality_;
+};
 
+class StereoHybridMotionFactor
+    : public gtsam::NoiseModelFactor3<gtsam::Pose3, gtsam::Pose3,
+                                      gtsam::Point3>,
+      public StereoHybridMotionFactorBase {
  public:
   using This = StereoHybridMotionFactor;
   using Base =
@@ -192,10 +233,39 @@ class StereoHybridMotionFactor
       boost::optional<gtsam::Matrix&> J1 = boost::none,
       boost::optional<gtsam::Matrix&> J2 = boost::none,
       boost::optional<gtsam::Matrix&> J3 = boost::none) const override;
+};
 
-  const gtsam::StereoPoint2& measured() const;
-  const gtsam::Cal3_S2Stereo::shared_ptr calibration() const;
-  const gtsam::Pose3& embeddedPose() const;
+/**
+ * @brief Stereo Hybrid Motion factor \sigma(H, m) with a fixed camera pose X
+ *
+ */
+class StereoHybridMotionFactor2
+    : public gtsam::NoiseModelFactor2<gtsam::Pose3, gtsam::Point3>,
+      public StereoHybridMotionFactorBase {
+ public:
+  using This = StereoHybridMotionFactor2;
+  using Base = gtsam::NoiseModelFactor2<gtsam::Pose3, gtsam::Point3>;
+
+  StereoHybridMotionFactor2(const gtsam::StereoPoint2& measured,
+                            const gtsam::Pose3& L_e, const gtsam::Pose3& X_k,
+                            const gtsam::SharedNoiseModel& model,
+                            gtsam::Cal3_S2Stereo::shared_ptr K,
+                            gtsam::Key e_H_k_world_key, gtsam::Key m_L_key,
+                            bool throw_cheirality = false);
+
+  gtsam::NonlinearFactor::shared_ptr clone() const override {
+    return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+        gtsam::NonlinearFactor::shared_ptr(new This(*this)));
+  }
+
+  gtsam::Vector evaluateError(
+      const gtsam::Pose3& e_H_k_world, const gtsam::Point3& m_L,
+      boost::optional<gtsam::Matrix&> J1 = boost::none,
+      boost::optional<gtsam::Matrix&> J2 = boost::none) const override;
+
+ private:
+  //! Fixed camera pose
+  gtsam::Pose3 X_k_;
 };
 
 /**

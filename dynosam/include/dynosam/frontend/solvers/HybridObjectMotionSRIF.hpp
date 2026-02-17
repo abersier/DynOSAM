@@ -5,6 +5,7 @@
 
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Types.hpp"
+#include "dynosam_common/utils/CsvParser.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
 
 namespace dyno {
@@ -23,12 +24,15 @@ struct HybridObjectMotionSRIFResult {
 class HybridObjectMotionSRIF {
  public:
   DYNO_POINTER_TYPEDEFS(HybridObjectMotionSRIF)
-  HybridObjectMotionSRIF(const gtsam::Pose3& initial_state_H,
+  HybridObjectMotionSRIF(const ObjectId object_id,
+                         const gtsam::Pose3& initial_state_H,
                          const gtsam::Pose3& L_e, const FrameId& frame_id_e,
                          const Timestamp& timestamp_e,
                          const gtsam::Matrix66& initial_P,
                          const gtsam::Matrix66& Q, const gtsam::Matrix33& R,
                          Camera::Ptr camera, double huber_k = 1.23);
+
+  ~HybridObjectMotionSRIF();
 
   const gtsam::Pose3& getKeyFramePose() const;
   const gtsam::Pose3& lastCameraPose() const;
@@ -57,6 +61,8 @@ class HybridObjectMotionSRIF {
   // this is H_W_e_k
   // calculate best estimate!!
   gtsam::Pose3 getKeyFramedMotion() const;
+
+  inline gtsam::Pose3 getBestEstimate() const { return getKeyFramedMotion(); }
 
   Motion3ReferenceFrame getKeyFramedMotionReference() const;
 
@@ -93,6 +99,8 @@ class HybridObjectMotionSRIF {
   void resetState(const gtsam::Pose3& L_e, FrameId frame_id_e,
                   Timestamp timestamp_e);
 
+  void relinearize();
+
  private:
   /**
    * @brief EKF Prediction Step (Trivial motion model for W)
@@ -109,7 +117,9 @@ class HybridObjectMotionSRIF {
                                       const TrackletIds& tracklets,
                                       const int num_irls_iterations = 1);
 
+  // TODO: FOR testing
  private:
+  const ObjectId object_id_;
   //! Nominal state (linearization point)
   gtsam::Pose3 H_linearization_point_;
   //! Process Noise Covariance (for prediction step)
@@ -150,6 +160,8 @@ class HybridObjectMotionSRIF {
 
   constexpr static int StateDim = gtsam::traits<gtsam::Pose3>::dimension;
   constexpr static int ZDim = gtsam::traits<gtsam::StereoPoint2>::dimension;
+
+  CsvWriter logger_;
 };
 
 }  // namespace dyno
