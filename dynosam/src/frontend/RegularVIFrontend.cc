@@ -50,6 +50,7 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::boostrapSpin(
   realtime_output->state.frame_id = frame_id_k;
   realtime_output->state.timestamp = timestamp_k;
   realtime_output->state.camera_trajectory = dyno_state_.camera_trajectory;
+  realtime_output->ground_truth = input->optional_gt_;
 
   logRealTimeOutput(realtime_output);
 
@@ -143,6 +144,7 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
       vision_imu_packet->staticLandmarkMeasurements();
   realtime_output->state.dynamic_map =
       vision_imu_packet->dynamicLandmarkMeasurements();
+  realtime_output->ground_truth = input->optional_gt_;
 
   fillDebugImagery(realtime_output->debug_imagery, frame_k, frame_km1);
 

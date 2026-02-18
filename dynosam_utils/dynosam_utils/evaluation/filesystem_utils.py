@@ -63,6 +63,9 @@ class DataFiles:
             self.plot_collection_name
         )
 
+class CsvHeaderMismatch(Exception):
+    pass
+
 def read_csv(csv_file_path:str, expected_header: List[str]):
     assert csv_file_path is not None
     csvfile = open(csv_file_path, 'r')
@@ -73,8 +76,8 @@ def read_csv(csv_file_path:str, expected_header: List[str]):
             header = next(reader)
             keys = list(header.keys())
             if keys != expected_header:
-                raise Exception(
-                    "Csv file headers were not valid when loading file at path: {}. "
+                raise CsvHeaderMismatch(
+                    "CsvHeaderMismatch: Csv file headers were not valid when loading file at path: {}. "
                     "Expected header was {} but actual keys were {}".format(
                         csv_file_path, expected_header, keys
                     )
@@ -85,6 +88,9 @@ def read_csv(csv_file_path:str, expected_header: List[str]):
         # reset iterator by making new reader
         csvfile = open(csv_file_path, 'r')
         return csv.DictReader(csvfile)
+    except CsvHeaderMismatch as e:
+        # ensure CsvHeaderMismatch exception is propogated upwards
+        raise e
     except Exception as e:
         raise Exception(f"Failed to read csv file {csv_file_path}. Exception raised was {str(e)}")
 

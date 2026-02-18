@@ -12,40 +12,19 @@
 
 namespace dyno {
 
-// PnP (3d2d)
-// using AbsolutePoseProblem =
-//     opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem;
-// using AbsolutePoseAdaptor = opengv::absolute_pose::CentralAbsoluteAdapter;
+using AbsolutePoseProblem =
+    opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem;
+using AbsolutePoseAdaptor = opengv::absolute_pose::CentralAbsoluteAdapter;
 
-// // Mono (2d2d) using 5-point ransac
-// using RelativePoseProblem =
-//     opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
+// Mono (2d2d) using 5-point ransac
+using RelativePoseProblem =
+    opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
 
-// //! Correspondes format for a 3D->2D PnP solver. In the form of 3D Landmark
-// in
-// //! the world frame, and 2D observation in the current camera frame
-// using AbsolutePoseCorrespondence = TrackletCorrespondance<Landmark,
-// Keypoint>; using AbsolutePoseCorrespondences =
-// std::vector<AbsolutePoseCorrespondence>;
-
-// //! Correspondes format for a 2D->2D PnP solver. In the form of 2D
-// observation
-// //! in the ref camera frame, and 2D observation in the current camera frame
-// using RelativePoseCorrespondence = TrackletCorrespondance<Keypoint,
-// Keypoint>; using RelativePoseCorrespondences =
-// std::vector<RelativePoseCorrespondence>;
-
-// // Mono (2d2d, with given rotation) MonoTranslationOnly:
-// // TranslationOnlySacProblem 2-point ransac
-// using RelativePoseProblemGivenRot =
-//     opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
-// using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
-
-// // this does not create proper bearing vectors (at leas tnot for 3d-2d pnp
-// // solve) bearing vectors are also not undistorted atm!!
-// frame_k->getCorrespondences(correspondences, *frame_km1,
-// KeyPointType::STATIC,
-//                             frame_k->imageKeypointCorrespondance());
+// Mono (2d2d, with given rotation) MonoTranslationOnly:
+// TranslationOnlySacProblem 2-point ransac
+using RelativePoseProblemGivenRot =
+    opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
+using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
 
 PnPRansacSolver::PnPRansacSolver(const PnPRansacSolverParams& pnp_ransac_params,
                                  const CameraParams& camera_params)
@@ -149,7 +128,7 @@ Pose3SolverResult PnPRansacSolver::solve3d2d(
 
   if (n_matches < 5u) {
     result.status = TrackingStatus::FEW_MATCHES;
-    VLOG(5) << "3D2D tracking failed as there are to few matches" << n_matches;
+    VLOG(40) << "3D2D tracking failed as there are to few matches" << n_matches;
     return result;
   }
 
@@ -177,7 +156,7 @@ Pose3SolverResult PnPRansacSolver::solve3d2d(
     tracklets.push_back(corres.tracklet_id_);
   }
 
-  VLOG(20) << "Collected " << tracklets.size() << " initial correspondances";
+  VLOG(100) << "Collected " << tracklets.size() << " initial correspondances";
 
   const double reprojection_error = pnp_ransac_params_.ransac_threshold_pnp;
   const double avg_focal_length =

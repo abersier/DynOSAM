@@ -330,44 +330,45 @@ std::ostream& operator<<(std::ostream& os,
   return os;
 }
 
-void SharedGroundTruth::insert(FrameId frame_id,
-                               const GroundTruthInputPacket& packet) {
-  // Load current snapshot
-  auto current = safeAccess();
+std::optional<GroundTruthPacketMap> SharedGroundTruth::access() const {
+  if (!state_) return std::nullopt;
 
-  // Create new map (copy old if exists)
+  auto snapshot = std::atomic_load(&state_->ground_truth);
+
+  if (!snapshot || snapshot->empty()) return std::nullopt;
+
+  return *snapshot;  // copy snapshot
+}
+
+SharedGroundTruth GroundTruthPublisher::handle() const {
+  return SharedGroundTruth(state_);
+}
+
+void GroundTruthPublisher::insert(FrameId frame_id,
+                                  const GroundTruthInputPacket& packet) {
+  // Load current snapshot
+  auto current = std::atomic_load(&state_->ground_truth);
+
+  // Copy old map (if any)
   GroundTruthPacketMap new_map;
   if (current) {
-    new_map = *current;  // copy existing data
+    new_map = *current;
   }
 
-  // Insert new entry
-  new_map[frame_id] = std::move(packet);
+  // Insert/update
+  new_map[frame_id] = packet;
 
-  // Publish new immutable snapshot
+  // Create new immutable snapshot
   auto new_snapshot =
       std::make_shared<const GroundTruthPacketMap>(std::move(new_map));
 
-  std::atomic_store(&ground_truth_, new_snapshot);
+  // Atomically publish
+  std::atomic_store(&state_->ground_truth, std::move(new_snapshot));
 }
 
-std::optional<GroundTruthPacketMap> SharedGroundTruth::access() const {
-  auto shared_map = safeAccess();
-
-  if (!shared_map) {
-    return {};
-  }
-
-  if (shared_map->empty()) {
-    return {};
-  }
-
-  return *shared_map;
-}
-
-std::shared_ptr<const GroundTruthPacketMap> SharedGroundTruth::safeAccess()
-    const {
-  return std::atomic_load(&ground_truth_);
+void GroundTruthPublisher::clear() {
+  std::atomic_store(&state_->ground_truth,
+                    std::shared_ptr<const GroundTruthPacketMap>{});
 }
 
 void to_json(json& j, const ObjectPoseGT::MotionInfo& motion_info) {

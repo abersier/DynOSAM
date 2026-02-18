@@ -112,14 +112,6 @@ class FrontendDisplay : public DisplayBase<RealtimeOutput> {
  public:
   FrontendDisplay() = default;
   virtual ~FrontendDisplay() = default;
-
-  inline void addSharedGroundTruth(
-      const SharedGroundTruth& shared_ground_truth) {
-    shared_ground_truth_ = shared_ground_truth;
-  }
-
- protected:
-  SharedGroundTruth shared_ground_truth_;
 };
 using BackendDisplay = DisplayBase<DynoState>;
 

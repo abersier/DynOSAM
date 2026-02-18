@@ -52,14 +52,6 @@ class FrontendDSDRos : public FrontendDisplay {
  private:
   void tryPublishDebugImagery(const RealtimeOutput::ConstPtr& frontend_output);
   void tryPublishGroundTruth(const RealtimeOutput::ConstPtr& frontend_output);
-  void tryPublishVisualOdometry(
-      const RealtimeOutput::ConstPtr& frontend_output);
-
-  void tryPublishPointClouds(const RealtimeOutput::ConstPtr& frontend_output);
-  void tryPublishObjects(const RealtimeOutput::ConstPtr& frontend_output);
-
-  void updateAccumulatedDataStructured(
-      const RealtimeOutput::ConstPtr& frontend_output);
 
  private:
   struct GroundTruthPublishers {

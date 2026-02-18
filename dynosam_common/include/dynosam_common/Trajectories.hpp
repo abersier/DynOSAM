@@ -20,11 +20,12 @@ struct TrajectoryEntry {
   TData data;
 };
 
-template <typename TData>
+template <typename Derived, typename TData>
 class TrajectoryBase {
  public:
-  using This = TrajectoryBase<TData>;
   using Data = TData;
+
+  using This = TrajectoryBase<Derived, Data>;
   using Entry = TrajectoryEntry<Data>;
 
   //! Alias for internal trajectory map
@@ -38,15 +39,14 @@ class TrajectoryBase {
   struct Segment {
     const FrameId start_frame{0};
     const FrameId end_frame{0};
-    TrajectoryBase trajectory;
+    Derived trajectory;
 
-    Segment(FrameId s_frame, FrameId e_frame,
-            const TrajectoryBase& trajectory_segment)
+    Segment(FrameId s_frame, FrameId e_frame, const Derived& trajectory_segment)
         : start_frame(s_frame),
           end_frame(e_frame),
           trajectory(trajectory_segment) {}
 
-    static Segment fromTrajectory(const TrajectoryBase& trajectory_segment) {
+    static Segment fromTrajectory(const Derived& trajectory_segment) {
       if (trajectory_segment.empty()) {
         return Segment{0, 0, {}};
       }
@@ -87,23 +87,34 @@ class TrajectoryBase {
   TrajectoryBase() : trajectory_() {}
   virtual ~TrajectoryBase() = default;
 
-  TrajectoryBase& insert(FrameId frame_id, Timestamp timestamp,
-                         const TData& data) {
-    if (timestamp < 0) {
-      throw DynosamException("Negative timestamp provided to Trajectory<" +
-                             type_name<TData>() + "> at frame id " +
-                             std::to_string(frame_id));
-    }
+  Derived& derived() { return static_cast<Derived&>(*this); }
+
+  const Derived& derived() const { return static_cast<const Derived&>(*this); }
+
+  Derived& insert(FrameId frame_id, Timestamp timestamp, const TData& data) {
     return insert(Entry{frame_id, timestamp, data});
   }
 
-  TrajectoryBase& insert_or_update(FrameId frame_id, Timestamp timestamp,
-                                   const TData& data) {
-    if (exists(frame_id)) {
-      CHECK(update(frame_id, data));
-      return *this;
+  Derived& insertOrUpdate(FrameId frame_id, Timestamp timestamp,
+                          const TData& data) {
+    return insertOrUpdate(Entry{frame_id, timestamp, data});
+  }
+
+  template <typename DERIVED>
+  Derived& insert(const TrajectoryBase<DERIVED, Data>& other) {
+    for (const auto& entry : other) {
+      this->insert(entry);
     }
-    return insert(frame_id, timestamp, data);
+
+    return derived();
+  }
+
+  template <typename DERIVED>
+  Derived& insertOrUpdate(const TrajectoryBase<DERIVED, Data>& other) {
+    for (const auto& entry : other) {
+      this->insertOrUpdate(entry);
+    }
+    return derived();
   }
 
   bool update(FrameId frame_id, const TData& data) {
@@ -157,12 +168,11 @@ class TrajectoryBase {
       return false;
     }
 
-    auto prev_it = std::prev(it);
-
-    if (prev_it == trajectory_.end()) {
+    if (it == trajectory_.begin()) {
       return false;
     }
 
+    auto prev_it = std::prev(it);
     previous = prev_it->second;
     return true;
   }
@@ -187,7 +197,7 @@ class TrajectoryBase {
     if (trajectory_.empty()) return segments;
 
     auto it = trajectory_.begin();
-    This current_segment;
+    Derived current_segment;
     // Initalise from entry
     current_segment.insert(it->second);
 
@@ -239,16 +249,31 @@ class TrajectoryBase {
 
  protected:
   TrajectoryBase(const TrajectoryImpl& trajectory) : trajectory_(trajectory) {}
-  TrajectoryBase& insert(const Entry& entry) {
+  Derived& insert(const Entry& entry) {
+    if (entry.timestamp < 0) {
+      throw DynosamException("Negative timestamp provided to Trajectory<" +
+                             type_name<TData>() + "> at frame id " +
+                             std::to_string(entry.frame_id));
+    }
+
     if (exists(entry.frame_id)) {
       throw TrajectoryEntryAlreadyExists(entry.frame_id);
     }
 
     trajectory_.insert2(entry.frame_id, entry);
-    return *this;
+    return derived();
   }
+
+  Derived& insertOrUpdate(const Entry& entry) {
+    if (exists(entry.frame_id)) {
+      CHECK(update(entry.frame_id, entry.data));
+      return derived();
+    }
+    return insert(entry);
+  }
+
   // for inserting from iterator
-  TrajectoryBase& insert(const std::pair<FrameId, Entry>& entry_pair) {
+  Derived& insert(const std::pair<FrameId, Entry>& entry_pair) {
     CHECK_EQ(entry_pair.first, entry_pair.second.frame_id);
     return this->insert(entry_pair.second);
   }
@@ -257,28 +282,20 @@ class TrajectoryBase {
   TrajectoryImpl trajectory_;
 };
 
-class PoseTrajectory : public TrajectoryBase<gtsam::Pose3> {
- public:
-  PoseTrajectory() : TrajectoryBase<gtsam::Pose3>() {}
-};
+template <typename Data>
+class Trajectory : public TrajectoryBase<Trajectory<Data>, Data> {};
+
+using PoseTrajectory = Trajectory<gtsam::Pose3>;
 using PoseTrajectoryEntry = PoseTrajectory::Entry;
 
-class MotionTrajetory : public TrajectoryBase<Motion3ReferenceFrame> {
- public:
-  MotionTrajetory() : TrajectoryBase<Motion3ReferenceFrame>() {}
-};
+using MotionTrajetory = Trajectory<Motion3ReferenceFrame>;
 
 struct PoseWithMotion {
   gtsam::Pose3 pose;
   Motion3ReferenceFrame motion;
 };
-using PoseWithMotionEntry = TrajectoryEntry<PoseWithMotion>;
-
-class PoseWithMotionTrajectory : public TrajectoryBase<PoseWithMotion> {
- public:
-  using TrajectoryBase<PoseWithMotion>::Entry;
-  PoseWithMotionTrajectory() : TrajectoryBase<PoseWithMotion>() {}
-};
+using PoseWithMotionTrajectory = Trajectory<PoseWithMotion>;
+using PoseWithMotionEntry = PoseWithMotionTrajectory::Entry;
 
 class MultiObjectTrajectories
     : public gtsam::FastMap<ObjectId, PoseWithMotionTrajectory> {

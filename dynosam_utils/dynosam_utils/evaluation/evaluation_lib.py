@@ -15,7 +15,7 @@ import matplotlib
 
 import copy
 
-from dynosam_utils.evaluation.filesystem_utils import DataFiles, read_csv
+from dynosam_utils.evaluation.filesystem_utils import DataFiles, read_csv, CsvHeaderMismatch
 import dynosam_utils.evaluation.core.plotting as plotting
 import dynosam_utils.evaluation.core.metrics as dyno_metrics
 
@@ -51,13 +51,20 @@ ObjectPoseDict: TypeAlias = Dict[int, Dict[int, np.ndarray]]
 ObjectTrajDict: TypeAlias = Dict[int, trajectory.PoseTrajectory3D]
 
 
+def read_csv_with_optional_timestamp(csv_file_path:str, expected_header: List[str], timestamp_entry_position: int = 0):
+    try:
+        return read_csv(csv_file_path, expected_header)
+    except CsvHeaderMismatch as e:
+        logger.debug(f"Caught CsvHeaderMismatch: trying to insert timestamp column entry at index {timestamp_entry_position}")
+        expected_header.insert(timestamp_entry_position, "timestamp")
+        return read_csv(csv_file_path, expected_header)
+
+
 class Evaluator(ABC):
 
     @abstractmethod
     def process(self, plot_collection: evo_plot.PlotCollection, results: Dict):
         pass
-
-
 
 
 class MiscEvaluator(Evaluator):
@@ -81,6 +88,10 @@ class MiscEvaluator(Evaluator):
         import matplotlib.ticker as mticker
         # assume bin size is all the same!!
         tracklet_length_data = load_bson(self._tracklet_length_hist_file)[0]['data']
+
+        if tracklet_length_data is None:
+            logger.warning(f"Tracklet length data (loaded from file {self._tracklet_length_hist_file}) is None")
+            return
 
         bin_labels = None
         # per object average per bin
@@ -175,15 +186,19 @@ class MotionErrorEvaluator(Evaluator):
         self._object_motion_log = object_motion_log
         self._object_pose_log = object_pose_log
 
-        self._object_pose_log_file = read_csv(self._object_pose_log,
+        # possible timestamp index before frame_id
+        timestamp_index = 0
+        self._object_pose_log_file = read_csv_with_optional_timestamp(self._object_pose_log,
                                               ["frame_id", "object_id",
                                                "tx", "ty", "tz", "qx", "qy", "qz", "qw",
-                                               "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"])
+                                               "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"],
+                                               timestamp_entry_position=timestamp_index)
 
-        self._object_motion_log_file = read_csv(self._object_motion_log,
+        self._object_motion_log_file = read_csv_with_optional_timestamp(self._object_motion_log,
                                             ["frame_id", "object_id",
                                             "tx", "ty", "tz", "qx", "qy", "qz", "qw",
-                                            "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"])
+                                            "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"],
+                                            timestamp_entry_position=timestamp_index)
 
         self._object_poses_traj: ObjectTrajDict = None
         self._object_poses_traj_ref: ObjectTrajDict = None
@@ -637,10 +652,11 @@ class CameraPoseEvaluator(Evaluator):
     def __init__(self, camera_pose_log:str) -> None:
         self._camera_pose_log:str = camera_pose_log
 
-        self._camera_pose_file = read_csv(self._camera_pose_log,
+        self._camera_pose_file = read_csv_with_optional_timestamp(self._camera_pose_log,
                                           ["frame_id",
                                            "tx", "ty", "tz", "qx", "qy", "qz", "qw",
-                                            "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"])
+                                            "gt_tx", "gt_ty", "gt_tz", "gt_qx", "gt_qy", "gt_qz", "gt_qw"],
+                                            timestamp_entry_position=0)
 
         poses = []
         poses_ref = []

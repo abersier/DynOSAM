@@ -16,7 +16,7 @@ DynoStatePublisher::DynoStatePublisher(const DisplayParams& params,
       node_->create_publisher<nav_msgs::msg::Odometry>("odometry", 1);
   vo_path_publisher_ =
       node_->create_publisher<nav_msgs::msg::Path>("odometry_path", 1);
-  // tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*node_);
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*node_);
 
   object_odom_publisher_ =
       node->create_publisher<ObjectOdometry>("object_odometry", 1);

@@ -42,6 +42,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::boostrapSpin(
   realtime_output->state.frame_id = frame_id_k;
   realtime_output->state.timestamp = timestamp_k;
   realtime_output->state.camera_trajectory = dyno_state_.camera_trajectory;
+  realtime_output->ground_truth = input->optional_gt_;
 
   IntermediateMotion intermediate_motion;
   intermediate_motion.from = lkf_id_;
@@ -197,6 +198,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
   realtime_output->state.timestamp = timestamp_k;
   realtime_output->state.camera_trajectory = dyno_state_.camera_trajectory;
   realtime_output->state.object_trajectories = dyno_state_.object_trajectories;
+  realtime_output->ground_truth = input->optional_gt_;
 
   CameraMeasurementStatusVector static_measurements;
   fillMeasurementsFromFeatureIterator(
@@ -500,8 +502,10 @@ void PoseChangeVIFrontend::solveObjectMotions(
     ObjectPoseChangeInfoMap& infos, Frame::Ptr frame_k, Frame::Ptr frame_km1) {
   MotionEstimateMap estimated_motions;
 
+  constexpr static bool kParallelSolve = false;
+  // solved trajectories will have frame-to-frame motion
   object_motion_solver_->solve(frame_k, frame_km1, trajectories,
-                               estimated_motions, false);
+                               estimated_motions, kParallelSolve);
 
   object_with_new_motions.reserve(estimated_motions.size());
   for (const auto& [object_id, _] : estimated_motions) {

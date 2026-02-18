@@ -45,6 +45,7 @@ void ObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_k_1,
 void ObjectMotionSolver::parallelSolve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
                                        MotionEstimateMap& motion_estimates,
                                        ObjectIds& failed_object_tracks) {
+  utils::ChronoTimingStats timer("object_motion_solver.parallel_solve");
   const auto& object_observations = frame_k->object_observations_;
   const auto num_objects = object_observations.size();
 
@@ -82,6 +83,7 @@ void ObjectMotionSolver::sequentialSolve(Frame::Ptr frame_k,
                                          Frame::Ptr frame_km1,
                                          MotionEstimateMap& motion_estimates,
                                          ObjectIds& failed_object_tracks) {
+  utils::ChronoTimingStats timer("object_motion_solver.sequential_solve");
   const auto& object_observations = frame_k->object_observations_;
   for (const auto& [object_id, _] : object_observations) {
     Motion3ReferenceFrame motion_estimate;

@@ -105,8 +105,7 @@ class DataInterfacePipeline
   }
 
   inline void addGroundTruthPacket(const GroundTruthInputPacket& gt_packet) {
-    // ground_truth_packets_[gt_packet.frame_id_] = gt_packet;
-    shared_ground_truth_.insert(gt_packet.frame_id_, gt_packet);
+    ground_truth_publisher_.insert(gt_packet.frame_id_, gt_packet);
   }
 
   inline void registerImageContainerPreprocessor(
@@ -138,6 +137,7 @@ class DataInterfacePipeline
   ThreadsafeQueue<ImageContainer::Ptr> packet_queue_;
   std::atomic_bool parallel_run_;
 
+  GroundTruthPublisher ground_truth_publisher_;
   SharedGroundTruth shared_ground_truth_;
 
   // callback to handle dataset specific pre-processing of the images before

@@ -31,6 +31,9 @@ struct RealtimeOutput {
   PointCloudLabelRGB::Ptr dense_labelled_cloud{nullptr};
   //! Debug/visualiation imagery for this frame. Internal data may be empty
   DebugImagery debug_imagery;
+  //! Optionally proviced ground truth for this frame
+  //! Mostly required for visualisation
+  GroundTruthInputPacket::Optional ground_truth;
 };
 
 }  // namespace dyno

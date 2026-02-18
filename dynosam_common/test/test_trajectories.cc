@@ -7,7 +7,7 @@
 
 using namespace dyno;
 
-using TestTrajectoryInt = TrajectoryBase<int>;
+using TestTrajectoryInt = Trajectory<int>;
 
 TEST(TrajectoryBase, EmptyTrajectory) {
   TestTrajectoryInt traj;
@@ -123,4 +123,148 @@ TEST(TrajectoryBase, ToVector) {
   ASSERT_EQ(vec.size(), 2u);
   EXPECT_EQ(vec[0].frame_id, 1);
   EXPECT_EQ(vec[1].frame_id, 2);
+}
+
+TEST(TrajectoryBase, InsertFromOtherTrajectory) {
+  TestTrajectoryInt src;
+  src.insert(0, 0.0, 10).insert(1, 1.0, 20).insert(2, 2.0, 30);
+
+  TestTrajectoryInt dst;
+  dst.insert(5, 5.0, 100);
+
+  dst.insert(src);
+
+  EXPECT_EQ(dst.size(), 4);
+
+  EXPECT_TRUE(dst.exists(0));
+  EXPECT_TRUE(dst.exists(1));
+  EXPECT_TRUE(dst.exists(2));
+  EXPECT_TRUE(dst.exists(5));
+
+  EXPECT_EQ(dst.at(0), 10);
+  EXPECT_EQ(dst.at(1), 20);
+  EXPECT_EQ(dst.at(2), 30);
+  EXPECT_EQ(dst.at(5), 100);
+}
+
+TEST(TrajectoryBase, InsertThrowsIfFrameExists) {
+  TestTrajectoryInt src;
+  src.insert(0, 0.0, 10);
+
+  TestTrajectoryInt dst;
+  dst.insert(0, 0.0, 999);
+
+  EXPECT_THROW(dst.insert(src), TrajectoryEntryAlreadyExists);
+}
+
+TEST(TrajectoryBase, InsertOrUpdateFromOtherTrajectory) {
+  TestTrajectoryInt src;
+  src.insert(0, 0.0, 10).insert(1, 1.0, 20);
+
+  TestTrajectoryInt dst;
+  dst.insert(1, 1.0, 999)  // will be updated
+      .insert(2, 2.0, 30);
+
+  dst.insertOrUpdate(src);
+
+  EXPECT_EQ(dst.size(), 3);
+
+  // inserted
+  EXPECT_EQ(dst.at(0), 10);
+
+  // updated
+  EXPECT_EQ(dst.at(1), 20);
+
+  // unchanged
+  EXPECT_EQ(dst.at(2), 30);
+}
+
+TEST(TrajectoryBase, SelfInsertDoesNotCorrupt) {
+  TestTrajectoryInt traj;
+  traj.insert(0, 0.0, 10).insert(1, 1.0, 20);
+
+  EXPECT_THROW(traj.insert(traj), TrajectoryEntryAlreadyExists);
+}
+
+TEST(TrajectoryBase, ReturnsPreviousEntryInContinuousTrajectory) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10).insert(1, 1.0, 20).insert(2, 2.0, 30);
+
+  Trajectory<int>::Entry query = traj.get(2);
+  Trajectory<int>::Entry previous;
+
+  bool found = traj.getPrevious(previous, query);
+
+  EXPECT_TRUE(found);
+  EXPECT_EQ(previous.frame_id, 1);
+  EXPECT_EQ(previous.data, 20);
+}
+
+TEST(TrajectoryBase, ReturnsFalseForFirstElement) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10).insert(1, 1.0, 20);
+
+  Trajectory<int>::Entry query = traj.get(0);
+  Trajectory<int>::Entry previous;
+
+  bool found = traj.getPrevious(previous, query);
+
+  EXPECT_FALSE(found);
+}
+
+TEST(TrajectoryBase, ReturnsFalseIfQueryDoesNotExist) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10).insert(1, 1.0, 20);
+
+  Trajectory<int>::Entry fake_query{5, 5.0, 999};
+  Trajectory<int>::Entry previous;
+
+  bool found = traj.getPrevious(previous, fake_query);
+
+  EXPECT_FALSE(found);
+}
+
+TEST(TrajectoryBase, SingleElementTrajectoryReturnsFalse) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10);
+
+  Trajectory<int>::Entry query = traj.get(0);
+  Trajectory<int>::Entry previous;
+
+  bool found = traj.getPrevious(previous, query);
+
+  EXPECT_FALSE(found);
+}
+
+TEST(TrajectoryBase, WorksAcrossDiscontinuousSegments) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10)
+      .insert(1, 1.0, 20)
+      .insert(5, 5.0, 50);  // discontinuity
+
+  Trajectory<int>::Entry query = traj.get(5);
+  Trajectory<int>::Entry previous;
+
+  bool found = traj.getPrevious(previous, query);
+
+  EXPECT_TRUE(found);
+
+  // Important: previous frame is 1, NOT 4
+  EXPECT_EQ(previous.frame_id, 1);
+  EXPECT_EQ(previous.data, 20);
+}
+
+TEST(TrajectoryBase, DoesNotModifyPreviousIfNotFound) {
+  Trajectory<int> traj;
+  traj.insert(0, 0.0, 10);
+
+  Trajectory<int>::Entry query = traj.get(0);
+  Trajectory<int>::Entry previous{999, 999.0, 999};
+
+  bool found = traj.getPrevious(previous, query);
+
+  EXPECT_FALSE(found);
+
+  // Ensure previous not overwritten
+  EXPECT_EQ(previous.frame_id, 999);
 }

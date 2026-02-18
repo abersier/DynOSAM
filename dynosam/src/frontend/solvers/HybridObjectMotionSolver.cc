@@ -9,7 +9,10 @@ HybridObjectMotionSolver::HybridObjectMotionSolver(
     : params_(params),
       pnp_ransac_solver_(params.pnp_ransac_params, camera_params),
       optical_flow_pose_solver_(params.optical_flow_solver_params),
-      shared_ground_truth_(shared_ground_truth) {}
+      shared_ground_truth_(shared_ground_truth) {
+  VLOG(10) << "HybridObjectMotionSolver initalised with ground truth "
+           << std::boolalpha << shared_ground_truth_.valid();
+}
 
 void HybridObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
                                      MultiObjectTrajectories& trajectories_out,
@@ -46,6 +49,7 @@ void HybridObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
 bool HybridObjectMotionSolver::solveImpl(
     Frame::Ptr frame_k, Frame::Ptr frame_km1, ObjectId object_id,
     Motion3ReferenceFrame& motion_estimate) {
+  utils::ChronoTimingStats timer("hybrid_object_motion_solver.solve_impl");
   // Initialize or update tracking status
   bool is_new = !filters_.exists(object_id);
   bool is_resampled = std::find(frame_k->retracked_objects_.begin(),
@@ -95,8 +99,8 @@ bool HybridObjectMotionSolver::solveImpl(
 
   if (inlier_tracklets.size() < 4 ||
       geometric_result.status != TrackingStatus::VALID) {
-    LOG(WARNING) << "Could not make initial frame for object " << object_id
-                 << " as not enough inlier tracks!";
+    VLOG(30) << "Could not make initial frame for object " << object_id
+             << " as not enough inlier tracks!";
     const std::lock_guard<std::mutex> lock(object_status_mutex_);
     object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
 
@@ -139,25 +143,30 @@ bool HybridObjectMotionSolver::solveImpl(
   ObjectKeyFrameStatus keyframe_status{ObjectKeyFrameStatus::NonKeyFrame};
 
   if (is_new) {
-    auto new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
+    auto new_KF_pose =
+        constructObjectPose(object_id, frame_km1, inlier_tracklets);
     LOG(INFO) << "Making new smoother for "
               << info_string(frame_km1->getFrameId(), object_id);
-    auto smoother = std::make_shared<HybridObjectMotionSmoother>(
-        object_id, new_KF_pose, frame_km1->getFrameId(),
-        frame_km1->getTimestamp(), frame_km1->getCamera(), 20);
-    LOG(INFO) << "Performing smoother update "
-              << info_string(frame_km1->getFrameId(), object_id);
-    smoother->update(gtsam::Pose3::Identity(), frame_km1, inlier_tracklets);
+    auto smoother = HybridObjectMotionSmoother::CreateWithInitialMotion(
+        object_id, 15, new_KF_pose, frame_km1, inlier_tracklets);
 
+    const std::lock_guard<std::mutex> lock(filters_mutex_);
     filters_.insert2(object_id, smoother);
   }
 
   auto smoother = filters_.at(object_id);
   CHECK(smoother);
-  if (object_retracked) {
-    auto new_KF_pose = constructPoseFromCentroid(frame_km1, inlier_tracklets);
-    smoother->createNewKeyedMotion(new_KF_pose, frame_km1->getFrameId(),
-                                   frame_km1->getTimestamp());
+
+  // only apply logic if the object is not new
+  // what happens often is an object is seen a few times
+  // and then poorly tracked
+  // eventually the smoother is created but the previous
+  // tracking state was poorly-tracked
+  // resulting in multiple keyframes made on the same k
+  if (object_retracked && !is_new) {
+    auto new_KF_pose =
+        constructObjectPose(object_id, frame_km1, inlier_tracklets);
+    smoother->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
   }
 
   LOG(INFO) << "Performing smoother update "
@@ -965,14 +974,55 @@ bool HybridObjectMotionSolver::filterNeedsReset(ObjectId object_id) {
   return false;
 }
 
-gtsam::Pose3 HybridObjectMotionSolver::constructPoseFromCentroid(
-    const Frame::Ptr frame, const TrackletIds& tracklets) const {
+gtsam::Pose3 HybridObjectMotionSolver::constructObjectPose(
+    const ObjectId object_id, const Frame::Ptr frame,
+    const TrackletIds& tracklets) const {
+  // always try ground truth first such that if it is provided we assume that
+  // we want to initalise with ground truth
+  // ground truth is only given if the shared ground truth is valid
+  auto gt_pose = objectPoseFromGroundTruth(object_id, frame);
+  if (gt_pose) {
+    return gt_pose.value();
+  }
+
+  return objectPoseFromCentroid(object_id, frame, tracklets);
+}
+
+std::optional<gtsam::Pose3> HybridObjectMotionSolver::objectPoseFromGroundTruth(
+    ObjectId object_id, const Frame::Ptr frame) const {
+  // is provided ground truth is valid we assume there should be some ground
+  // truth for this object
+  std::optional<GroundTruthPacketMap> ground_truth =
+      shared_ground_truth_.access();
+
+  if (!ground_truth) {
+    return {};
+  }
+
+  const FrameId frame_id = frame->getFrameId();
+
+  if (ground_truth->exists(frame_id)) {
+    const GroundTruthInputPacket& packet = ground_truth->at(frame_id);
+
+    ObjectPoseGT object_ground_truth;
+    if (packet.getObject(object_id, object_ground_truth)) {
+      return object_ground_truth.L_world_;
+    }
+  }
+
+  return {};
+}
+
+gtsam::Pose3 HybridObjectMotionSolver::objectPoseFromCentroid(
+    const ObjectId object_id, const Frame::Ptr frame,
+    const TrackletIds& tracklets) const {
   // important to initliase with zero values (otherwise nan's!)
   gtsam::Point3 object_position(0, 0, 0);
   size_t count = 0;
   for (TrackletId tracklet : tracklets) {
     const Feature::Ptr feature = frame->at(tracklet);
     CHECK_NOTNULL(feature);
+    CHECK_EQ(feature->objectId(), object_id);
 
     gtsam::Point3 lmk = frame->backProjectToCamera(feature->trackletId());
     object_position += lmk;
@@ -980,57 +1030,64 @@ gtsam::Pose3 HybridObjectMotionSolver::constructPoseFromCentroid(
     count++;
   }
 
+  // TODO: filtering?
   object_position /= count;
   object_position = frame->getPose() * object_position;
   return gtsam::Pose3(gtsam::Rot3::Identity(), object_position);
 }
 
-std::shared_ptr<HybridObjectMotionSRIF>
-HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
-                                                Frame::Ptr frame,
-                                                const TrackletIds& tracklets) {
-  gtsam::Matrix33 R = gtsam::Matrix33::Identity() * 1.0;
-  // Initial State Covariance P (6x6)
-  gtsam::Matrix66 P = gtsam::Matrix66::Identity() * 0.3;
-  // Process Model noise (6x6)
-  gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
+// std::shared_ptr<HybridObjectMotionSRIF>
+// HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
+//                                                 Frame::Ptr frame,
+//                                                 const TrackletIds& tracklets)
+//                                                 {
+//   gtsam::Matrix33 R = gtsam::Matrix33::Identity() * 1.0;
+//   // Initial State Covariance P (6x6)
+//   gtsam::Matrix66 P = gtsam::Matrix66::Identity() * 0.3;
+//   // Process Model noise (6x6)
+//   gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
 
-  gtsam::Pose3 keyframe_pose = constructPoseFromCentroid(frame, tracklets);
+//   gtsam::Pose3 keyframe_pose = constructPoseFromCentroid(frame, tracklets);
 
-  constexpr static double kHuberKFilter = 0.05;
-  auto filter = std::make_shared<HybridObjectMotionSRIF>(
-      object_id, gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
-      frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
+//   constexpr static double kHuberKFilter = 0.05;
+//   auto filter = std::make_shared<HybridObjectMotionSRIF>(
+//       object_id, gtsam::Pose3::Identity(), keyframe_pose,
+//       frame->getFrameId(), frame->getTimestamp(), P, Q, R,
+//       frame->getCamera(), kHuberKFilter);
 
-  const std::lock_guard<std::mutex> lock(filters_mutex_);
-  // filters_.insert2(object_id, filter);
+//   const std::lock_guard<std::mutex> lock(filters_mutex_);
+//   // filters_.insert2(object_id, filter);
 
-  LOG(INFO) << "Created new filter for object " << object_id << " at frame "
-            << frame->getFrameId();
+//   LOG(INFO) << "Created new filter for object " << object_id << " at frame "
+//             << frame->getFrameId();
 
-  return filter;
-}
+//   return filter;
+// }
 
 void HybridObjectMotionSolver::updateTrajectories(
     MultiObjectTrajectories& object_trajectories,
-    const MotionEstimateMap& motion_estimates, Frame::Ptr frame_k,
-    Frame::Ptr frame_km1) {
-  const FrameId frame_id_k = frame_k->getFrameId();
-  const Timestamp timestamp_k = frame_k->getTimestamp();
+    const MotionEstimateMap& motion_estimates, Frame::Ptr, Frame::Ptr) {
+  // for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
+  //   CHECK(filters_.exists(object_id));
 
-  for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
+  //   CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
+  //   CHECK_EQ(motion_reference_frame.to(), frame_id_k);
+
+  //   auto filter = filters_.at(object_id);
+  //   gtsam::Pose3 L_k_j = filter->getPose();
+  //   object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
+  //                               PoseWithMotion{L_k_j,
+  //                               motion_reference_frame});
+  // }
+
+  // object_trajectories = object_trajectories_;
+
+  for (const auto& [object_id, _] : motion_estimates) {
     CHECK(filters_.exists(object_id));
 
-    CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
-    CHECK_EQ(motion_reference_frame.to(), frame_id_k);
-
-    auto filter = filters_.at(object_id);
-    gtsam::Pose3 L_k_j = filter->getPose();
-    object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
-                                PoseWithMotion{L_k_j, motion_reference_frame});
+    PoseWithMotionTrajectory trajectory = filters_.at(object_id)->trajectory();
+    object_trajectories.insert2(object_id, trajectory);
   }
-
-  object_trajectories = object_trajectories_;
 }
 
 }  // namespace dyno

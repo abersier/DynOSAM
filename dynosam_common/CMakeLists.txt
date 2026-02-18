@@ -202,6 +202,7 @@ if(BUILD_TESTING)
   ament_add_gmock(${PROJECT_NAME}_test
     test/test_main.cc
     test/test_trajectories.cc
+    test/test_ground_truth.cc
 )
 
 target_include_directories(${PROJECT_NAME}_test

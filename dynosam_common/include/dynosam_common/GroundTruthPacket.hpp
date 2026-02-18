@@ -263,6 +263,13 @@ class GroundTruthPacketMap
 using GroundTruthPacketsRequest =
     std::function<std::optional<GroundTruthPacketMap>()>;
 
+namespace internal {
+struct GroundTruthState {
+  // Immutable snapshot pointer
+  std::shared_ptr<const GroundTruthPacketMap> ground_truth{nullptr};
+};
+}  // namespace internal
+
 /**
  * @brief Thread safe access to ground truth across modules using atomic copy.
  *
@@ -271,22 +278,56 @@ class SharedGroundTruth {
  public:
   SharedGroundTruth() = default;
 
-  void insert(FrameId frame_id, const GroundTruthInputPacket& packet);
+  /**
+   * @brief Returns true if this handle is connected to a publisher.
+   */
+  bool valid() const { return static_cast<bool>(state_); }
 
   /**
-   * @brief Thread safe access the the global ground truth.
+   * @brief Thread-safe access to snapshot.
    *
-   * Returns a value if the ground truth is not null and the underlying map is
-   * not empty
-   *
-   *
-   * @return std::optional<GroundTruthPacketMap>
+   * Returns:
+   *   - std::nullopt if invalid
+   *   - std::nullopt if no data
+   *   - copy of snapshot otherwise
    */
   std::optional<GroundTruthPacketMap> access() const;
 
  private:
-  std::shared_ptr<const GroundTruthPacketMap> safeAccess() const;
-  std::shared_ptr<const GroundTruthPacketMap> ground_truth_{nullptr};
+  friend class GroundTruthPublisher;
+
+  explicit SharedGroundTruth(std::shared_ptr<internal::GroundTruthState> state)
+      : state_(std::move(state)) {}
+
+  std::shared_ptr<internal::GroundTruthState> state_;
+};
+
+class GroundTruthPublisher {
+ public:
+  GroundTruthPublisher()
+      : state_(std::make_shared<internal::GroundTruthState>()) {}
+
+  /**
+   * @brief Get read-only handle.
+   *
+   * Can be copied freely across modules.
+   */
+  SharedGroundTruth handle() const;
+
+  /**
+   * @brief Insert or update a frame entry.
+   *
+   * Lock-free publish via copy-on-write.
+   */
+  void insert(FrameId frame_id, const GroundTruthInputPacket& packet);
+
+  /**
+   * @brief Clear all ground truth.
+   */
+  void clear();
+
+ private:
+  std::shared_ptr<internal::GroundTruthState> state_;
 };
 
 /**

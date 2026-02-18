@@ -38,7 +38,10 @@
 namespace dyno {
 
 DataInterfacePipeline::DataInterfacePipeline(bool parallel_run)
-    : MIMO("data-interface"), parallel_run_(parallel_run) {}
+    : MIMO("data-interface"), parallel_run_(parallel_run) {
+  shared_ground_truth_ = ground_truth_publisher_.handle();
+  CHECK(shared_ground_truth_.valid());
+}
 
 void DataInterfacePipeline::shutdownQueues() {
   packet_queue_.shutdown();
@@ -115,7 +118,7 @@ FrontendInputPacketBase::ConstPtr DataInterfacePipeline::getInputPacket() {
 }
 
 SharedGroundTruth DataInterfacePipeline::getSharedGroundTruth() const {
-  return shared_ground_truth_;
+  return ground_truth_publisher_.handle();
 }
 
 bool DataInterfacePipeline::hasWork() const {

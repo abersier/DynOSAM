@@ -53,11 +53,20 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
  private:
   bool filterNeedsReset(ObjectId object_id);
 
-  gtsam::Pose3 constructPoseFromCentroid(const Frame::Ptr frame,
-                                         const TrackletIds& tracklets) const;
+  // may be from centroid or gronud truth depending on availablility
+  gtsam::Pose3 constructObjectPose(const ObjectId object_id,
+                                   const Frame::Ptr frame,
+                                   const TrackletIds& tracklets) const;
 
-  HybridObjectMotionSRIF::Ptr createAndInsertFilter(
-      ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
+  std::optional<gtsam::Pose3> objectPoseFromGroundTruth(
+      ObjectId object_id, const Frame::Ptr frame) const;
+
+  gtsam::Pose3 objectPoseFromCentroid(const ObjectId object_id,
+                                      const Frame::Ptr frame,
+                                      const TrackletIds& tracklets) const;
+
+  // HybridObjectMotionSRIF::Ptr createAndInsertFilter(
+  //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
   // HybridObjectMotionSmoother::Ptr createAndInsertFilter(
   //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
 

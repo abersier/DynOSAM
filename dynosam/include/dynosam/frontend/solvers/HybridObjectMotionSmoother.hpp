@@ -5,6 +5,7 @@
 #include <gtsam_unstable/nonlinear/FixedLagSmoother.h>
 
 #include "dynosam/frontend/vision/Frame.hpp"
+#include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
 #include "dynosam_opt/Symbols.hpp"
@@ -15,23 +16,39 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
  public:
   DYNO_POINTER_TYPEDEFS(HybridObjectMotionSmoother)
 
-  HybridObjectMotionSmoother(ObjectId object_id, const gtsam::Pose3& L_KF,
-                             FrameId frame_id_k, Timestamp timestamp_k,
-                             Camera::Ptr camera, double smootherLag = 0.0);
+  struct Result {
+    gtsam::KeyVector marginalized_keys;
+    gtsam::KeyList additional_keys_reeliminate;
+    gtsam::ISAM2Result isam_result;
+  };
 
-  void update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
-              const TrackletIds& tracklets);
+  static HybridObjectMotionSmoother::Ptr CreateWithInitialMotion(
+      const ObjectId object_id, double smoother_lag,
+      const gtsam::Pose3& L_KF_km1, Frame::Ptr frame_km1,
+      const TrackletIds& tracklets);
 
+  ~HybridObjectMotionSmoother() = default;
+
+  // should only be called once a valid createNewKeyedMotion has been called!
+  Result update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+                const TrackletIds& tracklets);
+
+  // This is basically reset
+  //  What information from the previous state do we propogate over (ie.
+  //  points?) if any
+  Result createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+                              const TrackletIds& tracklets);
+
+  // trajectory should with F2F motion!!
   PoseWithMotionTrajectory trajectory() const;
 
-  //   /** Print the factor for debugging and testing (implementing Testable) */
-  //   void print(const std::string& s = "IncrementalFixedLagSmoother:\n",
-  //       const KeyFormatter& keyFormatter = DefaultKeyFormatter) const
-  //       override;
-
-  //   /** Check if two IncrementalFixedLagSmoother Objects are equal */
-  //   bool equals(const FixedLagSmoother& rhs, double tol = 1e-9) const
-  //   override;
+  /**
+   * @brief Construct local trajectory representing the object path since
+   * (inclusive) the last keyframe (ie KF_k -> k)
+   *
+   * @return PoseWithMotionTrajectory
+   */
+  PoseWithMotionTrajectory localTrajectory() const;
 
   FrameId getKeyFrameId() const { return frames_since_lKF_.front(); }
   FrameId getFrameId() const { return frames_since_lKF_.back(); }
@@ -43,22 +60,10 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   inline gtsam::Pose3 getBestEstimate() const { return getKeyFramedMotion(); }
   gtsam::Pose3 getF2FMotion() const;
 
-  gtsam::Pose3 getKeyFramePose() const { return L_KF_; }
+  gtsam::Pose3 getKeyFramePose() const;
   gtsam::Pose3 getPose() const;
 
   gtsam::FastMap<TrackletId, gtsam::Point3> getCurrentLinearizedPoints() const;
-
-  // This is basically reset
-  //  What information from the previous state do we propogate over (ie.
-  //  points?) if any
-  void createNewKeyedMotion(const gtsam::Pose3& L_KF, FrameId frame_id_k,
-                            Timestamp timestamp_k);
-
-  void update(const gtsam::NonlinearFactorGraph& newFactors,
-              const gtsam::Values& newTheta,
-              const KeyTimestampMap& timestamps = KeyTimestampMap(),
-              const gtsam::ISAM2UpdateParams& update_params =
-                  gtsam::ISAM2UpdateParams());
 
   /** Compute an estimate from the incomplete linear delta computed during the
    * last update. This delta is incomplete because it was not updated below
@@ -107,20 +112,39 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   /// Get the iSAM2 object which is used for the inference internally
   const gtsam::ISAM2& getISAM2() const { return isam_; }
 
- protected:
-  const ObjectId object_id_;
-  gtsam::Pose3 L_KF_;
+ private:
+  Result updateFromInitialMotion(const gtsam::Pose3& H_W_KF_k_initial,
+                                 Frame::Ptr frame,
+                                 const TrackletIds& tracklets);
 
+  Result updateSmoother(const gtsam::NonlinearFactorGraph& newFactors,
+                        const gtsam::Values& newTheta,
+                        const KeyTimestampMap& timestamps = KeyTimestampMap(),
+                        const gtsam::ISAM2UpdateParams& update_params =
+                            gtsam::ISAM2UpdateParams());
+
+ protected:
+  HybridObjectMotionSmoother(ObjectId object_id, Camera::Ptr camera,
+                             double smootherLag = 0.0);
+
+  const ObjectId object_id_;
   // Trajectory since last KF?
   // Updated when new KF made since past variables will not be updated
   // same when marginalized
   // vector of frames and timestamps related to variables since last KF?
   // first frame is KF and last is k
   FrameIds frames_since_lKF_;
-  Timestamps timestamps_since_lKF_;
+  std::vector<Timestamp> timestamps_since_lKF_;
 
   std::shared_ptr<RGBDCamera> rgbd_camera_;
   gtsam::Cal3_S2Stereo::shared_ptr stereo_calibration_;
+
+  // Trajectory up to the current KF
+  // Nont only will this trajectory be "frozen" (in the sense that)
+  // no motions will be in the current state
+  // but also all motions will be related to a different KeyMotion pose
+  PoseWithMotionTrajectory trajectory_till_lKF_;
+  FrameRangeData<gtsam::Pose3> keyframe_range_;
 
   /** Create default parameters */
   static gtsam::ISAM2Params DefaultISAM2Params() {
@@ -132,6 +156,12 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
     params.relinearizeSkip = 1;
     return params;
   }
+
+  //! Updated every update and includes only values in the smoother
+  gtsam::Values smoother_state_;
+  //! Best estimate of all values since the last KF
+  //! May include more values that what is currently in the smoother window
+  gtsam::Values state_since_lKF_;
 
   /** An iSAM2 object used to perform inference. The smoother lag is controlled
    * by what factors are removed each iteration */
@@ -153,7 +183,9 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   inline gtsam::FixedLagSmootherResult update(
       const gtsam::NonlinearFactorGraph&,
       const gtsam::Values&,  //
-      const KeyTimestampMap&, const gtsam::FactorIndices&) override {}
+      const KeyTimestampMap&, const gtsam::FactorIndices&) override {
+    throw DynosamException("Not implemented!");
+  }
 
  private:
   //   /** Private methods for printing debug information */

@@ -169,15 +169,18 @@ EstimationModuleLogger::~EstimationModuleLogger() {
 size_t EstimationModuleLogger::logObjectTrajectory(
     FrameId frame_id, const MultiObjectTrajectories& object_trajectories,
     const std::optional<GroundTruthPacketMap>& gt_packets) {
+  size_t num_objects_logged = 0;
   for (const auto& [object_id, object_trajectory] : object_trajectories) {
     if (object_trajectory.exists(frame_id)) {
       const auto& entry = object_trajectory.get(frame_id);
       if (logObjectTrajectoryEntry(entry, object_id, gt_packets)) {
-        return 1;
+        num_objects_logged++;
+        // continue to next object
+        continue;
       }
     }
   }
-  return 0;
+  return num_objects_logged;
 }
 
 size_t EstimationModuleLogger::logObjectTrajectory(
@@ -286,6 +289,15 @@ bool EstimationModuleLogger::logObjectTrajectoryEntry(
   // TODO: check F2F
   gtsam::Pose3 motion_gt = gtsam::Pose3::Identity();
   gtsam::Pose3 pose_gt = gtsam::Pose3::Identity();
+
+  if (entry.data.motion.style() != MotionRepresentationStyle::F2F) {
+    DYNO_THROW_MSG(DynosamException)
+        << "Error logging PoseWithMotionEntry entry: "
+        << " motion entry " << info_string(entry.frame_id, object_id)
+        << " does not"
+        << " represent frame-to-frame motion!";
+  }
+
   const gtsam::Pose3& motion_est = entry.data.motion;
   const gtsam::Pose3& pose_est = entry.data.pose;
   const FrameId frame_id = entry.frame_id;

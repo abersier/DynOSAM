@@ -1,5 +1,7 @@
 #pragma once
 
+#include <opengv/sac/Ransac.hpp>
+
 #include "dynosam/frontend/Frontend-Definitions.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam/frontend/vision/Vision-Definitions.hpp"
@@ -8,26 +10,9 @@
 #include "dynosam_common/utils/GtsamUtils.hpp"
 #include "dynosam_cv/CameraParams.hpp"
 
-// TODO: remove back to cc
-#include <opengv/absolute_pose/CentralAbsoluteAdapter.hpp>
-#include <opengv/absolute_pose/methods.hpp>
-#include <opengv/relative_pose/CentralRelativeAdapter.hpp>
-#include <opengv/relative_pose/methods.hpp>
-#include <opengv/sac/Ransac.hpp>
-#include <opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp>
-#include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
-#include <opengv/sac_problems/relative_pose/TranslationOnlySacProblem.hpp>
-
 namespace dyno {
 
 // TODO: remove back to cc
-using AbsolutePoseProblem =
-    opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem;
-using AbsolutePoseAdaptor = opengv::absolute_pose::CentralAbsoluteAdapter;
-
-// Mono (2d2d) using 5-point ransac
-using RelativePoseProblem =
-    opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
 
 //! Correspondes format for a 3D->2D PnP solver. In the form of 3D Landmark in
 //! the world frame, and 2D observation in the current camera frame
@@ -44,12 +29,6 @@ using RelativePoseCorrespondences = std::vector<RelativePoseCorrespondence>;
 //! the world frame
 using PointCloudCorrespondence = TrackletCorrespondance<Landmark, Landmark>;
 using PointCloudCorrespondences = std::vector<PointCloudCorrespondence>;
-
-// Mono (2d2d, with given rotation) MonoTranslationOnly:
-// TranslationOnlySacProblem 2-point ransac
-using RelativePoseProblemGivenRot =
-    opengv::sac_problems::relative_pose::TranslationOnlySacProblem;
-using RelativePoseAdaptor = opengv::relative_pose::CentralRelativeAdapter;
 
 struct RansacProblemParams {
   double threshold = 1.0;
