@@ -12,8 +12,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("params_path", default_value=get_default_dynosam_params_path()),
         DeclareLaunchArgument("v", default_value="30"),
-        DeclareLaunchArgument("output_path", default_value="/root/results/DynoSAM/"),
-        DeclareLaunchArgument("dataset_path", default_value="/root/data/VDO/kitti/0004"),
+        DeclareLaunchArgument("output_path", default_value="/root/results/"),
+        DeclareLaunchArgument("dataset_path", default_value="/root/data/CARLA-L1/"),
         DynosamNode(
             package="dynosam_ros",
             executable="dynosam_node",

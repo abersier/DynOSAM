@@ -3,7 +3,7 @@
 # general flags for the pipeline
 
 # default output path - almost always overwritten when using the provided launch files
---output_path=/root/results/DynoSAM/
+--output_path=/root/results/
 
 # KITTI: 0, VIRTUAL_KITTI: 1, CLUSTER: 2, OMD: 3, ZED2: 4
 --data_provider_type=0

@@ -7,7 +7,7 @@
 
 # --semantic_mask_step_size=16
 
-#we turn off for cluster as there is some problem with the OF I think?
+# we turn off for cluster as there is some problem with the OF I think?
 --use_propogate_mask=false
 
 # we turn off for OMD as there is some problem

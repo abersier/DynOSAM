@@ -1,0 +1,117 @@
+# syntax=docker/dockerfile:latest
+# Base: ROS 2 Kilted + CUDA + TensorRT + PyTorch 2.5.0
+FROM rwthika/ros2-torch:kilted-desktop-full-torch2.5.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ── Core build tools + utilities ─────────────────────────────────────────────
+RUN apt-get update && apt-get upgrade -y --no-install-recommends apt-utils && \
+    apt-get install -y \
+      git cmake build-essential pkg-config \
+      xvfb \
+      python3-pip python3-dev python3-setuptools \
+      openssh-client software-properties-common \
+      nano vim clang-format \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── ROS packages ─────────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+      ros-kilted-ros2cli-common-extensions \
+      ros-kilted-vision-opencv \
+      ros-kilted-message-filters \
+      ros-kilted-diagnostics \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── System libraries ─────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+      nlohmann-json3-dev \
+      libpng++-dev \
+      libgflags-dev libgoogle-glog-dev \
+      libsuitesparse-dev \
+      libboost-all-dev libtbb-dev \
+      unzip libjpeg-dev libpng-dev libtiff-dev libgtk2.0-dev \
+      libatlas-base-dev gfortran \
+      libboost-iostreams-dev libblosc-dev libeigen3-dev \
+      libceres-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Python packages ──────────────────────────────────────────────────────────
+RUN pip3 install --break-system-packages --no-cache-dir \
+      pylatex evo setuptools pre-commit scipy argcomplete \
+      black matplotlib
+
+# ── OpenCV 4.10.0 with CUDA ─────────────────────────────────────────────────
+WORKDIR /root
+RUN git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv.git && \
+    git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv_contrib.git && \
+    mkdir opencv/build && cd opencv/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DBUILD_opencv_python=OFF \
+      -DBUILD_opencv_python2=OFF \
+      -DBUILD_opencv_python3=ON \
+      -DWITH_CUDA=ON \
+      -DWITH_CUDNN=ON \
+      -DINSTALL_CUDA_LIBS=OFF \
+      -DCMAKE_CUDA_ARCHITECTURES="75" \
+      -DOPENCV_DNN_CUDA=ON \
+      -DENABLE_FAST_MATH=ON \
+      -DCUDA_FAST_MATH=ON \
+      -DWITH_CUFFT=ON \
+      -DWITH_CUBLAS=ON \
+      -DWITH_TBB=ON \
+      -DOPENCV_EXTRA_MODULES_PATH=/root/opencv_contrib/modules .. && \
+    make -j$(nproc) install && \
+    rm -rf /root/opencv /root/opencv_contrib
+
+# ── config_utilities ─────────────────────────────────────────────────────────
+RUN git clone --depth 1 https://github.com/MIT-SPARK/config_utilities.git /tmp/config_utilities && \
+    cd /tmp/config_utilities/config_utilities && mkdir build && cd build && \
+    cmake .. -DBUILD_TESTING=OFF && make -j$(nproc) install && \
+    rm -rf /tmp/config_utilities
+
+# ── GTSAM 4.2.0 ─────────────────────────────────────────────────────────────
+RUN git clone --depth 1 --branch 4.2.0 https://github.com/borglab/gtsam.git /tmp/gtsam && \
+    cd /tmp/gtsam && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DGTSAM_USE_SYSTEM_EIGEN=ON \
+      -DGTSAM_BUILD_TESTS=OFF \
+      -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGTSAM_BUILD_UNSTABLE=ON \
+      -DGTSAM_POSE3_EXPMAP=ON \
+      -DGTSAM_ROT3_EXPMAP=ON \
+      -DGTSAM_TANGENT_PREINTEGRATION=OFF .. && \
+    make -j$(nproc) install && \
+    rm -rf /tmp/gtsam
+
+# ── OpenGV ───────────────────────────────────────────────────────────────────
+RUN git clone --depth 1 https://github.com/MIT-SPARK/opengv /tmp/opengv && \
+    cd /tmp/opengv && mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
+    make -j$(nproc) install && \
+    rm -rf /tmp/opengv
+
+# ── Octomap 1.10.0 (not yet packaged for Kilted) ────────────────────────────
+RUN git clone --depth 1 --branch v1.10.0 https://github.com/OctoMap/octomap.git /tmp/octomap && \
+    cd /tmp/octomap && mkdir build && cd build && \
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) install && ldconfig && \
+    rm -rf /tmp/octomap
+
+# ── OpenVDB (vdbfusion fork) ─────────────────────────────────────────────────
+RUN git clone --depth 1 -b nacho/vdbfusion https://github.com/nachovizzo/openvdb.git /tmp/openvdb && \
+    cd /tmp/openvdb && mkdir build && cd build && \
+    cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_ZLIB=OFF .. && \
+    make -j$(nproc) install && \
+    rm -rf /tmp/openvdb
+
+# ── ldconfig + workspace ─────────────────────────────────────────────────────
+RUN ldconfig
+
+RUN mkdir -p /home/user/dev_ws/src
+
+SHELL ["/bin/bash", "-c"]
+RUN source /opt/ros/kilted/setup.bash
+
+WORKDIR /home/user/dev_ws

@@ -6,12 +6,12 @@
 # --constant_object_motion_rotation_sigma=0.1
 # --constant_object_motion_translation_sigma=0.01
 
-# --constant_object_motion_rotation_sigma=0.01
-# --constant_object_motion_translation_sigma=0.2
-
-
 --constant_object_motion_rotation_sigma=0.01
 --constant_object_motion_translation_sigma=0.2
+
+
+# --constant_object_motion_rotation_sigma=0.01
+# --constant_object_motion_translation_sigma=0.2
 
 
 
@@ -46,7 +46,7 @@
 --use_smoothing_factor=true
 
 # 0: Full-batch, 1: sliding-window, 2: incremental
---optimization_mode=2
+--optimization_mode=0
 
 # 0: PTP, 1: Generic Projection, 2: Stereo Projection
 --static_formulation_type=2
@@ -78,7 +78,7 @@
 # currently only for rgbd, indicates which updater the rgbd backend should use
 # i.e which formulation is used for solving
 # MotionInWorld = 0, LLWorld=1, Parallel-Hybrid=3
---backend_updater_enum=3
+--backend_updater_enum=0
 
 --init_H_with_identity=true
 --updater_suffix=
