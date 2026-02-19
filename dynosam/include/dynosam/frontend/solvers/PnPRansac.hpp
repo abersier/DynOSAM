@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Eigen/Core>
 #include <opengv/sac/Ransac.hpp>
 
 #include "dynosam/frontend/Frontend-Definitions.hpp"
@@ -23,12 +24,6 @@ using AbsolutePoseCorrespondences = std::vector<AbsolutePoseCorrespondence>;
 //! in the ref camera frame, and 2D observation in the current camera frame
 using RelativePoseCorrespondence = TrackletCorrespondance<Keypoint, Keypoint>;
 using RelativePoseCorrespondences = std::vector<RelativePoseCorrespondence>;
-
-// TODO: delete
-//! Correspondes format for a 3D->3D PnP solver. In the form of a 3D Landmark in
-//! the world frame
-using PointCloudCorrespondence = TrackletCorrespondance<Landmark, Landmark>;
-using PointCloudCorrespondences = std::vector<PointCloudCorrespondence>;
 
 struct RansacProblemParams {
   double threshold = 1.0;
