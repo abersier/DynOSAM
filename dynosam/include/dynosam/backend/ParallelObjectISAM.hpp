@@ -60,6 +60,8 @@ class ParallelObjectISAM {
   struct Result {
     //! If smoother is not okay, then all results other than frame id will be
     //! invalid!
+
+    // TODO: use ISAM2Stats in here
     bool was_smoother_ok{false};
     FrameId frame_id{0};
     gtsam::ISAM2Result isam_result;

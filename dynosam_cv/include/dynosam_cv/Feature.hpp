@@ -337,8 +337,8 @@ class FeatureContainer {
  public:
   using TrackletToFeatureMap = std::unordered_map<TrackletId, Feature::Ptr>;
 
-  using ObjectToFeatureMap =
-      FastUnorderedMap<ObjectId, std::unordered_set<TrackletId>>;
+  using TrackletIdSet = std::unordered_set<TrackletId>;
+  using ObjectToFeatureMap = FastUnorderedMap<ObjectId, TrackletIdSet>;
 
   /// @brief Vector-style iterator definition
   using vector_iterator =
@@ -367,6 +367,48 @@ class FeatureContainer {
   using FilterIterator = internal::filter_iterator<FeatureContainer>;
   using ConstFilterIterator =
       internal::filter_const_iterator<const FeatureContainer>;
+
+  // //Iterator will be either std::unordered_set<TrackletId>::iterator or
+  // std::unordered_set<TrackletId>::const_iterator template <typename
+  // TrackletIterator, typename FContainer> struct InternalObjectFeatureIterator
+  // {
+  //   using iterator_type = TrackletIterator;
+
+  //   using value_type = Feature::Ptr;
+  //   using reference = value_type&;
+  //   using pointer = value_type*;
+
+  //   iterator_type it_;
+  //   //! Somewhat unsafe immutable pointer to the feature container
+  //   const FeatureContainer* container_;
+  //   InternalObjectFeatureIterator(iterator_type it, const FeatureContainer*
+  //   container) : it_(it), container_(container) {}
+
+  //   reference operator*() { return container_->getByTrackletId(*it_); }
+  //   pointer operator->() { return &container_->getByTrackletId(*it_); }
+
+  //   bool operator==(const InternalObjectFeatureIterator& other) const {
+  //     return it_ == other.it_;
+  //   }
+  //   bool operator!=(const InternalObjectFeatureIterator& other) const {
+  //     return it_ != other.it_;
+  //   }
+
+  //   bool operator==(const iterator_type& other) const { return it_ == other;
+  //   } bool operator!=(const iterator_type& other) const { return it_ !=
+  //   other; }
+
+  //   InternalObjectFeatureIterator& operator++() {
+  //     ++it_;
+  //     return *this;
+  //   }
+  // };
+
+  // using ObjectFeatureIterator =
+  // InternalObjectFeatureIterator<TrackletIdSet::iterator, FeatureContainer>;
+  // using ConstObjectFeatureIterator =
+  // InternalObjectFeatureIterator<TrackletIdSet::const_iterator, const
+  // FeatureContainer>;
 
   FeatureContainer();
   FeatureContainer(const FeaturePtrs feature_vector);
@@ -508,6 +550,8 @@ class FeatureContainer {
 
   ObjectToFeatureMap::const_iterator beginObjectIterator() const;
   ObjectToFeatureMap::const_iterator endObjectIterator() const;
+
+  // ObjectFeatureIterator beginObjectFeatures(ObjectId object_id);
 
   /**
    * @brief Converts the keypoints of all features in the container to

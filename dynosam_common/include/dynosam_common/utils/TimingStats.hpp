@@ -142,13 +142,19 @@ class BaseTimingStatsCollector {
     is_timing_ = true;
   }
 
-  void stop() {
-    if (isTiming() && shouldGlog()) {
-      log();
-    }
+  double stop() {
+    double milliseconds = 0;
+    if (isTiming()) {
+      milliseconds = deltaMilliseconds();
 
+      if (shouldGlog()) {
+        log(milliseconds);
+      }
+    }
     timing_generator_.onStop();
     is_timing_ = false;
+
+    return milliseconds;
   }
 
   bool isTiming() const { return is_timing_; }
@@ -156,6 +162,7 @@ class BaseTimingStatsCollector {
 
   // Time delta (dt) in nano seconds
   inline double delta() const { return timing_generator_.calcDelta(); }
+  inline double deltaMilliseconds() const { return delta() / 1e6; }
 
   // not that it will log to glog, but that the glog verbosity level is set
   // such that it will log to the collector
@@ -175,10 +182,7 @@ class BaseTimingStatsCollector {
    * The collector then needs to be reset to be used again
    *
    */
-  void log() {
-    const double nanoseconds = delta();
-    const double milliseconds = nanoseconds / 1e6;
-
+  void log(double milliseconds) {
     if (!collector_) {
       collector_ = std::make_unique<StatsCollector>(tag_);
     }

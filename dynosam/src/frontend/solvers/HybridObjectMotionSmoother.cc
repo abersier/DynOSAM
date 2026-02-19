@@ -3,6 +3,7 @@
 #include <gtsam/linear/NoiseModel.h>
 
 #include "dynosam/factors/HybridFormulationFactors.hpp"
+#include "dynosam_common/utils/TimingStats.hpp"
 #include "dynosam_opt/FactorGraphTools.hpp"
 #include "dynosam_opt/Symbols.hpp"
 
@@ -29,10 +30,21 @@ HybridObjectMotionSmoother::HybridObjectMotionSmoother(ObjectId object_id,
                                                        double smootherLag)
     : gtsam::FixedLagSmoother(smootherLag),
       object_id_(object_id),
+      logger_prefix_("hybrid_motion_smoother_j" + std::to_string(object_id)),
       isam_(DefaultISAM2Params()) {
   rgbd_camera_ = CHECK_NOTNULL(camera)->safeGetRGBDCamera();
   CHECK(rgbd_camera_);
   stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
+}
+
+HybridObjectMotionSmoother::~HybridObjectMotionSmoother() {
+  if (!debug_results_.empty()) {
+    const std::string file_name = logger_prefix_ + "_debug.bson";
+    LOG(INFO) << "Writing solver debug file: " << file_name;
+    const std::string file_path = getOutputFilePath(file_name);
+    JsonConverter::WriteOutJson(debug_results_, file_path,
+                                JsonConverter::Format::BSON);
+  }
 }
 
 PoseWithMotionTrajectory HybridObjectMotionSmoother::trajectory() const {
@@ -137,11 +149,8 @@ gtsam::Pose3 HybridObjectMotionSmoother::getF2FMotion() const {
 gtsam::FastMap<TrackletId, gtsam::Point3>
 HybridObjectMotionSmoother::getCurrentLinearizedPoints() const {
   // TODO: smoother state or LKF state?
-  const gtsam::Values opt_est = smoother_state_;
-
-  std::map<gtsam::Key, gtsam::Point3> keyed_object_point_map =
-      opt_est.extract<gtsam::Point3>(
-          Symbol::ChrTest(kDynamicLandmarkSymbolChar));
+  const std::map<gtsam::Key, gtsam::Point3> keyed_object_point_map =
+      getObjectPointsFromSmootherState();
 
   gtsam::FastMap<TrackletId, gtsam::Point3> object_point_map;
   for (const auto& [key, point] : keyed_object_point_map) {
@@ -330,6 +339,23 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
   smoother_state_ = calculateEstimate();
   state_since_lKF_.insert_or_assign(smoother_state_);
 
+  DebugResult debug_result;
+  debug_result.result = result;
+
+  // TODO: debug flag
+  debug_result.smoother_stats.fill(&isam_);
+  debug_result.object_id = object_id_;
+  debug_result.frame_id = getFrameId();
+  debug_result.timestamp = getTimestamp();
+  debug_result.frame_id_KF = getKeyFrameId();
+
+  debug_result.num_landmarks_in_smoother =
+      getObjectPointsFromSmootherState().size();
+  debug_result.num_motions_in_smoother =
+      getObjectMotionsFromSmootherState().size();
+
+  debug_results_.push_back(std::move(debug_result));
+
   return result;
 }
 
@@ -382,19 +408,37 @@ HybridObjectMotionSmoother::Result HybridObjectMotionSmoother::updateSmoother(
 
   mutable_update_params.constrainedKeys = constrainedKeys;
 
+  utils::ChronoTimingStats update_timer(logger_prefix_ + ".isam_update", 10);
   isamResult_ = isam_.update(newFactors, newTheta, mutable_update_params);
+  result.update_time_ms = update_timer.stop();
   result.isam_result = isamResult_;
 
   // Marginalize out any needed variables
   if (marginalizableKeys.size() > 0) {
     gtsam::FastList<gtsam::Key> leafKeys(marginalizableKeys.begin(),
                                          marginalizableKeys.end());
+    utils::ChronoTimingStats marginalize_timer(
+        logger_prefix_ + ".marginalize_leaves", 10);
     isam_.marginalizeLeaves(leafKeys);
+    result.marginalize_time_ms = marginalize_timer.deltaMilliseconds();
   }
   // Remove marginalized keys from the KeyTimestampMap
   eraseKeyTimestampMap(marginalizableKeys);
 
   return result;
+}
+
+std::map<gtsam::Key, gtsam::Point3>
+HybridObjectMotionSmoother::getObjectPointsFromState(
+    const gtsam::Values& values) const {
+  return values.extract<gtsam::Point3>(
+      Symbol::ChrTest(kDynamicLandmarkSymbolChar));
+}
+
+std::map<gtsam::Key, gtsam::Pose3>
+HybridObjectMotionSmoother::getObjectMotionsFromState(
+    const gtsam::Values& values) const {
+  return values.extract<gtsam::Pose3>(Symbol::ChrTest(kObjectMotionSymbolChar));
 }
 
 void HybridObjectMotionSmoother::eraseKeysBefore(double timestamp) {
@@ -422,6 +466,25 @@ void HybridObjectMotionSmoother::createOrderingConstraints(
       constrainedKeys->operator[](key) = 0;
     }
   }
+}
+
+void to_json(json& j, const HybridObjectMotionSmoother::Result& result) {
+  j["marginalized_keys"] = result.marginalized_keys;
+  j["additional_keys_reeliminate"] = result.additional_keys_reeliminate;
+  j["update_time_ms"] = result.update_time_ms;
+  j["marginalize_time_ms"] = result.marginalize_time_ms;
+  j["isam_result"] = result.isam_result;
+}
+
+void to_json(json& j, const HybridObjectMotionSmoother::DebugResult& result) {
+  j["smoother_result"] = result.result;
+  j["smoother_stats"] = result.smoother_stats;
+  j["object_id"] = result.object_id;
+  j["frame_id"] = result.frame_id;
+  j["timestamp"] = result.timestamp;
+  j["frame_id_KF"] = result.frame_id_KF;
+  j["num_landmarks_in_smoother"] = result.num_landmarks_in_smoother;
+  j["num_motions_in_smoother"] = result.num_motions_in_smoother;
 }
 
 }  // namespace dyno

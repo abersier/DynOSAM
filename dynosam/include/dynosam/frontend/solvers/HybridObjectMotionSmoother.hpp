@@ -4,10 +4,13 @@
 #include <gtsam/nonlinear/ISAM2UpdateParams.h>
 #include <gtsam_unstable/nonlinear/FixedLagSmoother.h>
 
+#include <nlohmann/json.hpp>
+
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
+#include "dynosam_opt/IncrementalOptimization.hpp"
 #include "dynosam_opt/Symbols.hpp"
 
 namespace dyno {
@@ -19,6 +22,8 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   struct Result {
     gtsam::KeyVector marginalized_keys;
     gtsam::KeyList additional_keys_reeliminate;
+    double update_time_ms{0};
+    double marginalize_time_ms{0};
     gtsam::ISAM2Result isam_result;
   };
 
@@ -27,7 +32,7 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
       const gtsam::Pose3& L_KF_km1, Frame::Ptr frame_km1,
       const TrackletIds& tracklets);
 
-  ~HybridObjectMotionSmoother() = default;
+  ~HybridObjectMotionSmoother();
 
   // should only be called once a valid createNewKeyedMotion has been called!
   Result update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
@@ -112,7 +117,44 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   /// Get the iSAM2 object which is used for the inference internally
   const gtsam::ISAM2& getISAM2() const { return isam_; }
 
+  struct DebugResult {
+    HybridObjectMotionSmoother::Result result;
+    ISAM2Stats smoother_stats;
+    ObjectId object_id{0};
+    FrameId frame_id{0};
+    Timestamp timestamp{0};
+
+    FrameId frame_id_KF{0};
+    int num_landmarks_in_smoother{0};
+    int num_motions_in_smoother{0};
+  };
+
  private:
+  std::map<gtsam::Key, gtsam::Point3> getObjectPointsFromState(
+      const gtsam::Values& values) const;
+
+  inline std::map<gtsam::Key, gtsam::Point3> getObjectPointsFromSmootherState()
+      const {
+    return getObjectPointsFromState(smoother_state_);
+  }
+
+  std::map<gtsam::Key, gtsam::Point3> getObjectPointsFromStateSinceLastKF()
+      const {
+    return getObjectPointsFromState(state_since_lKF_);
+  }
+
+  std::map<gtsam::Key, gtsam::Pose3> getObjectMotionsFromState(
+      const gtsam::Values& values) const;
+
+  std::map<gtsam::Key, gtsam::Pose3> getObjectMotionsFromSmootherState() const {
+    return getObjectMotionsFromState(smoother_state_);
+  }
+
+  std::map<gtsam::Key, gtsam::Pose3> getObjectMotionsFromStateSinceLastKF()
+      const {
+    return getObjectMotionsFromState(state_since_lKF_);
+  }
+
   Result updateFromInitialMotion(const gtsam::Pose3& H_W_KF_k_initial,
                                  Frame::Ptr frame,
                                  const TrackletIds& tracklets);
@@ -128,6 +170,7 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
                              double smootherLag = 0.0);
 
   const ObjectId object_id_;
+  const std::string logger_prefix_;
   // Trajectory since last KF?
   // Updated when new KF made since past variables will not be updated
   // same when marginalized
@@ -154,6 +197,7 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
     params.relinearizeThreshold = 0.01;
     // this value is very important for accuracy
     params.relinearizeSkip = 1;
+    params.evaluateNonlinearError = true;
     return params;
   }
 
@@ -169,6 +213,8 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
 
   /** Store results of latest isam2 update */
   gtsam::ISAM2Result isamResult_;
+
+  std::vector<DebugResult> debug_results_;
 
   /** Erase any keys associated with timestamps before the provided time */
   void eraseKeysBefore(double timestamp);
@@ -188,18 +234,10 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   }
 
  private:
-  //   /** Private methods for printing debug information */
-  //   static void PrintKeySet(const KeySet& keys, const std::string& label =
-  //       "Keys:");
-  //   static void PrintSymbolicFactor(const GaussianFactor::shared_ptr&
-  //   factor); static void PrintSymbolicGraph(const GaussianFactorGraph& graph,
-  //       const std::string& label = "Factor Graph:");
-  //   static void PrintSymbolicTree(const gtsam::ISAM2& isam,
-  //       const std::string& label = "Bayes Tree:");
-  //   static void PrintSymbolicTreeHelper(
-  //       const gtsam::ISAM2Clique::shared_ptr& clique, const std::string
-  //       indent =
-  //           "");
 };
+
+using json = nlohmann::json;
+void to_json(json& j, const HybridObjectMotionSmoother::Result& result);
+void to_json(json& j, const HybridObjectMotionSmoother::DebugResult& result);
 
 }  // namespace dyno

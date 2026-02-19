@@ -80,4 +80,14 @@ ErrorHandlingHooks getDefaultILSErrorHandlingHooks(
   return error_hooks;
 }
 
+void to_json(json& j, const ISAM2Stats& isam_stats) {
+  j["nr_elements_R"] = isam_stats.nr_elements_R;
+  j["nnz_elements_R"] = isam_stats.nnz_elements_R;
+  j["nnz_elements_tree"] = isam_stats.nnz_elements_tree;
+  j["average_clique_size"] = isam_stats.average_clique_size;
+  j["max_clique_size"] = isam_stats.max_clique_size;
+  j["num_factors"] = isam_stats.num_factors;
+  j["num_variables"] = isam_stats.num_variables;
+}
+
 }  // namespace dyno

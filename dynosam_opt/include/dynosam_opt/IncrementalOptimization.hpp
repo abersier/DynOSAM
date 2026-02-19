@@ -33,14 +33,18 @@
 #include <gtsam/nonlinear/ISAM2.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam_unstable/nonlinear/IncrementalFixedLagSmoother.h>
+
+#include "dynosam_common/Types.hpp"
+#include "dynosam_common/utils/Timing.hpp"
+#include "dynosam_opt/FactorGraphTools.hpp"
+#include "dynosam_opt/Symbols.hpp"
 // TODO: in latest gtsam this is in gtsam
 #include <gtsam_unstable/nonlinear/BatchFixedLagSmoother.h>
 
 #include <functional>
+#include <nlohmann/json.hpp>
 
-#include "dynosam_common/Types.hpp"
-#include "dynosam_common/utils/Timing.hpp"
-#include "dynosam_opt/Symbols.hpp"
+using json = nlohmann::json;
 
 namespace dyno {
 
@@ -497,12 +501,58 @@ class IncrementalInterface {
   bool was_smoother_ok_;
 };
 
+struct ISAM2Stats {
+  //! Number total elements in the R matrix (rows * cols)
+  size_t nr_elements_R{0};
+  //! Number of non-zero elements in R
+  size_t nnz_elements_R{0};
+  //! Number of non-zero elements as computed from the Bayes Tree
+  size_t nnz_elements_tree{0};
+  double average_clique_size{0};
+  double max_clique_size{0};
+  size_t num_factors{0};
+  size_t num_variables{0};
+
+  ISAM2Stats(){};
+
+  template <typename Smoother>
+  ISAM2Stats(const IncrementalInterface<Smoother>& smoother_interface) {
+    fill<Smoother>(smoother_interface);
+  }
+
+  template <typename Smoother>
+  void fill(Smoother* smoother) {
+    return fill<Smoother>(IncrementalInterface<Smoother>(smoother));
+  }
+
+  template <typename Smoother>
+  void fill(const IncrementalInterface<Smoother>& smoother_interface) {
+    const auto values = smoother_interface.getLinearizationPoint();
+    const auto factors = smoother_interface.getFactors();
+    const auto& smoother = *smoother_interface.smoother();
+
+    // this takes the longest time
+    gtsam::GaussianFactorGraph::shared_ptr gfg = factors.linearize(values);
+    const auto sparsity_stats =
+        factor_graph_tools::computeCholeskySparsityStats(gfg);
+
+    nr_elements_R = sparsity_stats.nr_elements;
+    nnz_elements_R = sparsity_stats.nnz_elements;
+    nnz_elements_tree = smoother.roots().at(0)->calculate_nnz();
+
+    std::tie(this->max_clique_size, this->max_clique_size) =
+        factor_graph_tools::getCliqueSize(smoother);
+
+    num_factors = factors.size();
+    num_variables = values.size();
+  }
+};
+
+void to_json(json& j, const ISAM2Stats& isam_stats);
+
 }  // namespace dyno
 
-#include <nlohmann/json.hpp>
-
 #include "dynosam_common/utils/JsonUtils.hpp"  //for specalisations
-using json = nlohmann::json;
 
 namespace nlohmann {
 // begin ISAM2Result::DetailedResults::VariableStatus
