@@ -265,6 +265,10 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
       factor_graph_tools::robustifyHuber(0.01, stereo_noise_model);
   CHECK(stereo_noise_model);
 
+  // for debug stats
+  size_t num_tracks_used = 0;
+  size_t avg_feature_age = 0;
+
   for (const TrackletId& tracklet_id : tracklets) {
     const Feature::Ptr feature = frame->at(tracklet_id);
     CHECK(feature);
@@ -292,6 +296,8 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
       }
       continue;
     }
+    num_tracks_used++;
+    avg_feature_age += feature->age();
 
     timestamps[m_key] = frame_as_double;
 
@@ -303,6 +309,8 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 
     new_factors += factor;
   }
+
+  avg_feature_age /= num_tracks_used;
 
   if (getFrameId() == getKeyFrameId()) {
     gtsam::SharedNoiseModel identity_motion_model =
@@ -348,6 +356,9 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
   debug_result.frame_id = getFrameId();
   debug_result.timestamp = getTimestamp();
   debug_result.frame_id_KF = getKeyFrameId();
+
+  debug_result.num_tracks = num_tracks_used;
+  debug_result.average_feature_age = avg_feature_age;
 
   debug_result.num_landmarks_in_smoother =
       getObjectPointsFromSmootherState().size();
@@ -482,6 +493,8 @@ void to_json(json& j, const HybridObjectMotionSmoother::DebugResult& result) {
   j["object_id"] = result.object_id;
   j["frame_id"] = result.frame_id;
   j["timestamp"] = result.timestamp;
+  j["average_feature_age"] = result.average_feature_age;
+  j["num_tracks"] = result.num_tracks;
   j["frame_id_KF"] = result.frame_id_KF;
   j["num_landmarks_in_smoother"] = result.num_landmarks_in_smoother;
   j["num_motions_in_smoother"] = result.num_motions_in_smoother;

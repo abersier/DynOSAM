@@ -3,10 +3,32 @@ from dynosam_utils.evaluation.core.plotting import startup_plotting
 import matplotlib.pyplot as plt
 
 import sys
+import os
+import warnings
 
 
-sequence = "test_kitti"
-result_path = f"/root/results/frontend_filtering/{sequence}/"
+def flatten_dict(d):
+    flat = {}
+
+    def _flatten(current):
+        for key, value in current.items():
+            if isinstance(value, dict):
+                _flatten(value)
+            else:
+                if key in flat:
+                    warnings.warn(
+                        f"Key collision detected for '{key}'. "
+                        f"Overwriting previous value.",
+                        RuntimeWarning,
+                    )
+                flat[key] = value
+
+    _flatten(d)
+    return flat
+
+
+sequence = "misc"
+result_path = f"/root/results/{sequence}/"
 
 logger_prefix = "hybrid_motion_smoother_j"
 
@@ -15,153 +37,121 @@ def get_debug_files():
     from pathlib import Path
     output_folder_path = Path(result_path)
 
-
+    files = []
 
     for p in output_folder_path.iterdir():
         if p.is_file() and p.name.startswith(logger_prefix):
+            files.append(str(p))
+    return files
 
+def make_object_debug_map(debug_files):
+    """
+    Returns:
+        dict[str, list[dict]]
+        {
+            object_name: [ flattened_debug_entry, ... ]
+        }
+    """
+    debug_map = {}
 
-# results = load_bson("/root/results/DynoSAM/incremental_kitti_00_test/parallel_isam2_results.bson")[0]['data']
-# results = load_bson("/root/results/DynoSAM/incremental_test/parallel_isam2_results.bson")[0]['data']
+    import re
 
-# per object at frame how many variables were involved
+    def extract_object_id(file_path):
+        filename = os.path.basename(file_path)
 
-object_map = {}
+        match = re.search(r"hybrid_motion_smoother_j(\d+)_debug", filename)
+        if not match:
+            raise ValueError(f"Could not extract object id from '{filename}'")
 
-plt.rcdefaults()
-startup_plotting(40, line_width=3.0)
+        return int(match.group(1))
 
+    for file in debug_files:
+        object_id = extract_object_id(file)
 
+        debug_result_list = load_bson(file)[0]['data']
 
-for object_id, per_frame_results in results.items():
-    print(f"Object id {object_id}")
+        flattened_list = []
+        for debug_result in debug_result_list:
+            flattened = flatten_dict(debug_result)
+            print(flattened.keys())
+            flattened_list.append(flattened)
 
-    if object_id == "0":
-        continue
-    for frame, object_isam_result in per_frame_results.items():
-        was_smoother_ok = bool(object_isam_result["was_smoother_ok"])
-        if not was_smoother_ok:
+        flattened_list.sort(key=lambda x: x['timestamp'])
+
+        debug_map[object_id] = flattened_list
+
+    return debug_map
+
+def plot_debug_metric(debug_map, query_key, object_name=None):
+    """
+    Parameters
+    ----------
+    debug_map : dict
+        Output from make_object_debug_map
+    query_key : str
+        Field to plot on y-axis
+    object_name : str or None
+        If None → plot all objects
+    """
+
+    if object_name is not None:
+        if object_name not in debug_map:
+            raise ValueError(f"Object '{object_name}' not found.")
+
+        objects_to_plot = {object_name: debug_map[object_name]}
+    else:
+        objects_to_plot = debug_map
+
+    fig = plt.figure()
+    ax = fig.gca()
+
+    for obj_name, data_list in objects_to_plot.items():
+
+        if not data_list:
             continue
-        frame_id = int(object_isam_result["frame_id"])
-        full_isam2_result = object_isam_result["isam_result"]
-        timing = float(object_isam_result["timing"])
-        # collect_involved_variables(full_isam2_result, object_map, frame_id, object_id)
 
-        if object_id not in object_map:
-            object_map[object_id] = {
-                "frames": [],
-                "variables_reeliminated": [],
-                "variables_relinearized": [],
-                "timing": [],
-                "average_clique_size": [],
-                "max_clique_size": [],
-                "num_variables": [] ,
-                "num_landmarks_marked": [] ,
-                "num_motions_marked": []   }
+        if query_key not in data_list[0]:
+            raise ValueError(
+                f"Query key '{query_key}' not found in object '{obj_name}'."
+            )
 
-        object_map[object_id]["frames"].append(frame_id)
-        object_map[object_id]["variables_reeliminated"].append(int(full_isam2_result["variables_reeliminated"]))
-        object_map[object_id]["variables_relinearized"].append(int(full_isam2_result["variables_relinearized"]))
-        object_map[object_id]["timing"].append(timing)
-        object_map[object_id]["average_clique_size"].append(float(object_isam_result["average_clique_size"]))
-        object_map[object_id]["max_clique_size"].append(float(object_isam_result["max_clique_size"]))
-        object_map[object_id]["num_variables"].append(int(object_isam_result["num_variables"]))
-        object_map[object_id]["num_landmarks_marked"].append(int(object_isam_result["num_landmarks_marked"]))
-        object_map[object_id]["num_motions_marked"].append(int(object_isam_result["num_motions_marked"]))
+        timestamps = [d["frame_id"] for d in data_list]
+        values = [d[query_key] for d in data_list]
 
+        ax.plot(timestamps, values, label=obj_name)
 
+    ax.set_xlabel("frame_id")
+    ax.set_ylabel(query_key)
+    ax.set_title(f"{query_key} vs frame_id (j={obj_name})")
 
-        # motion_variable_status = object_isam_result["motion_variable_status"]
-        # print(f"frame id {frame_id} {motion_variable_status}")
+    if len(objects_to_plot) > 1:
+        ax.legend()
 
-
-
-# Function to plot data
-import os
-import numpy as np
-def plot_variable(variable_name, ylabel, title, ax = None, **kwargs):
-
-    # plot_file_name = file_name + "_" + variable_name + ".pdf"
-    # output_file_name = os.path.join(out_data_path, plot_file_name)
-
-    if ax is None:
-        fig = plt.figure()
-        ax = fig.gca()
-
-    for object_id, data in object_map.items():
-        frames = data["frames"]
-        values = data[variable_name]
-
-        values_np = np.array(values)
-        print(f"Mean value {np.mean(values_np)} for var={variable_name}")
- # plot_file_name = file_name + "_" + variable_name + ".pdf"
-    # output_file_name = os.path.join(out_data_path, plot_file_name)
-        # Sort frames and associated values
-        sorted_indices = sorted(range(len(frames)), key=lambda i: frames[i])
-        frames = [frames[i] for i in sorted_indices]
-        values = [values[i] for i in sorted_indices]
-
-        ax.plot(frames, values, linestyle='-', label=f'Object {object_id}')
-
-    scale = kwargs.get("scale", "linear")
-    ax.set_yscale(scale)
-
-    # ax.set_xlabel("Frame")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
     ax.grid(True)
-    # ax.legend()
-    # fig.savefig(output_file_name)
-
-# per frame average
-def compute_average(variable_name):
-    values_per_frame = {}
-    for object_id, data in object_map.items():
-        values = data[variable_name]
-        frames = data["frames"]
-
-        sorted_indices = sorted(range(len(frames)), key=lambda i: frames[i])
-        frames = [frames[i] for i in sorted_indices]
-        values = [values[i] for i in sorted_indices]
-
-        for frame, value in zip(frames, values):
-            if frame not in values_per_frame:
-                values_per_frame[frame] = []
-            values_per_frame[frame].append(value)
-
-    # print(values_per_frame)
-    means = []
-    for _, values in values_per_frame.items():
-        means.append(np.mean(np.array(values)))
-
-    print(f"Mean value {variable_name} {np.mean(np.array(means))}, std= {np.std(np.array(means))} for var={variable_name}")
-
-# fig, axes = plt.subplots(2, 2, sharex='col', figsize=(20, 13),  constrained_layout=True)
-
-# ax1 = axes[0, 0]
-# ax2 = axes[0, 1]
-# ax3 = axes[1, 0]
-# ax4 = axes[1, 1]
-
-# ax3.set_xlabel("Frame")
-# ax4.set_xlabel("Frame")
+    fig.tight_layout()
 
 
-# Plot each variable
-# # plot_variable("variables_reeliminated", "Variables Reeliminated", "Number of Variables Reeliminated Per Frame Per Object")
-# plot_variable("timing", "Timing [ms]", "iSAM2 Update Time", scale="log",ax=ax1)
-# plot_variable("average_clique_size", "Number of variables", "Avg. Clique Size", ax=ax2)
-# # plot_variable("variables_relinearized", "Variables Relinearized", "Number of Variables Relinearized Per Frame Per Object", ax=ax1)
-# # plot_variable("max_clique_size", "Max Clique Size", "Max Clique Size Per Frame Per Object")
-# plot_variable("num_landmarks_marked", "Number of variables", r"Landmarks Involved In Update",ax=ax3)
-# plot_variable("num_variables", "Number of variables", r"Dynamic Map Size", ax=ax4)
+debug_map = make_object_debug_map(get_debug_files())
 
-ax1.legend()
-# fig.tight_layout()
+# Plot one object
+plot_debug_metric(debug_map, "update_time_ms", object_name=2)
+plot_debug_metric(debug_map, "max_clique_size", object_name=2)
+# plot_debug_metric(debug_map, "clique", object_name=1)
+plot_debug_metric(debug_map, "average_clique_size", object_name=2)
+plot_debug_metric(debug_map, "nnz_elements_tree", object_name=2)
+plot_debug_metric(debug_map, "average_feature_age", object_name=2)
+plot_debug_metric(debug_map, "num_tracks", object_name=2)
 
-# fig.savefig(f"/root/results/Dynosam_ecmr2024/{sequence}_parallel_hybrid_bt_analysis.pdf")
+# plot_debug_metric(debug_map, "update_time_ms", object_name=1)
+# plot_debug_metric(debug_map, "max_clique_size", object_name=1)
+plot_debug_metric(debug_map, "num_landmarks_in_smoother", object_name=1)
+plot_debug_metric(debug_map, "variables_reeliminated", object_name=1)
 
-# plot_variable("num_motions_marked", "Number Motion Variables ", r"Num Motion Involved In Update")
+# plot_debug_metric(debug_map, "update_time_ms", object_name=2)
+# # plot_debug_metric(debug_map, "max_clique_size", object_name=1)
+# # # plot_debug_metric(debug_map, "average_clique_size", object_name=2)
+# # # plot_debug_metric(debug_map, "nnz_elements_tree", object_name=2)
+# # plot_debug_metric(debug_map, "average_feature_age", object_name=1)
+# plot_debug_metric(debug_map, "num_tracks", object_name=2)
 
 plt.show()
-# compute_average("timing")

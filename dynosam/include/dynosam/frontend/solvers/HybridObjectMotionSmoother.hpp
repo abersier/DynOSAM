@@ -124,6 +124,10 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
     FrameId frame_id{0};
     Timestamp timestamp{0};
 
+    // tracking data
+    size_t average_feature_age{0};
+    size_t num_tracks{0};
+
     FrameId frame_id_KF{0};
     int num_landmarks_in_smoother{0};
     int num_motions_in_smoother{0};
