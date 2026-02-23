@@ -116,19 +116,35 @@ void ConsecutiveFrameObjectMotionSolver::updateTrajectories(
     Frame::Ptr frame_km1) {
   gtsam::Point3Vector object_centroids_km1, object_centroids_k;
 
+  struct Predicate {
+    const ObjectId object_id;
+    const Frame::Ptr frame;
+
+    Predicate(ObjectId j, const Frame::Ptr& f) : object_id(j), frame(f) {}
+
+    bool operator()(const Feature::Ptr& f) const {
+      return Feature::IsUsable(f) && f->objectId() == object_id &&
+             frame->exists(f->trackletId()) &&
+             frame->isFeatureUsable(f->trackletId());
+    }
+  };
+  using Iterator = ConstFeatureIterator<Predicate>;
+
   for (const auto& [object_id, motion_estimate] : motion_estimates) {
-    auto object_points = FeatureFilterIterator(
-        const_cast<FeatureContainer&>(frame_km1->dynamic_features_),
-        [object_id, &frame_k](const Feature::Ptr& f) -> bool {
-          return Feature::IsUsable(f) && f->objectId() == object_id &&
-                 frame_k->exists(f->trackletId()) &&
-                 frame_k->isFeatureUsable(f->trackletId());
-        });
+    // auto object_points = FeatureFilterIterator(
+    //     const_cast<FeatureContainer&>(frame_km1->dynamic_features_),
+    //     [object_id, &frame_k](const Feature::Ptr& f) -> bool {
+    //       return Feature::IsUsable(f) && f->objectId() == object_id &&
+    //              frame_k->exists(f->trackletId()) &&
+    //              frame_k->isFeatureUsable(f->trackletId());
+    //     });
+    Iterator object_points_iterator(frame_km1->dynamic_features_,
+                                    Predicate(object_id, frame_k));
 
     gtsam::Point3 centroid_km1(0, 0, 0);
     gtsam::Point3 centroid_k(0, 0, 0);
     size_t count = 0;
-    for (const auto& feature : object_points) {
+    for (const auto& feature : object_points_iterator) {
       centroid_km1 += frame_km1->backProjectToCamera(feature->trackletId());
       centroid_k = frame_k->backProjectToCamera(feature->trackletId());
 

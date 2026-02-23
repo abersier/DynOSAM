@@ -39,191 +39,146 @@
 #include "dynosam_common/Types.hpp"
 
 using namespace dyno;
+using namespace dyno::internal;
 
-using IntFilterIterator = internal::filter_iterator<std::vector<int>>;
-
-/// @brief make definition for testing
-template <>
-struct std::iterator_traits<IntFilterIterator>
-    : public dyno::internal::filter_iterator_detail<
-          IntFilterIterator::pointer> {};
-
-// //iterator is the pointer type... this is weird naming but is what the c++
-// standard does template<typename _Iterator> struct _filter_iterator_detail {
-//     //! naming conventions to match those required by iterator traits
-//     using value_type = typename std::iterator_traits<_Iterator>::value_type;
-//     using reference = typename std::iterator_traits<_Iterator>::reference;
-//     using pointer = typename std::iterator_traits<_Iterator>::pointer;
-//     using difference_type = typename
-//     std::iterator_traits<_Iterator>::difference_type; using iterator_category
-//     = std::forward_iterator_tag; //i guess? only forward is defined (++iter)
-//     right now
-// };
-
-// //in this case iter is the actual iterator (so _Container::iterator or
-// _container::const_iterator) template<typename _Iter, typename _Container>
-// struct _filter_iterator : public _filter_iterator_detail<typename
-// _Iter::pointer> {
-
-//     using BaseDetail = _filter_iterator_detail<typename _Iter::pointer>;
-//     using iterator = _Iter;
-//     using typename BaseDetail::value_type;
-//     using typename BaseDetail::reference;
-//     using typename BaseDetail::pointer;
-//     using typename BaseDetail::difference_type;
-//     using typename BaseDetail::iterator_category;
-
-//     _filter_iterator(_Container& container,_Iter it) : container_(container),
-//     it_(it) {}
-
-//     _Container& container_;
-//     iterator it_;
-
-//     reference operator*() { return *it_; }
-//     reference operator->() { return *it_; }
-
-//     bool operator==(const _filter_iterator& other) const {
-//         return it_ == other.it_;
-//     }
-//     bool operator!=(const _filter_iterator& other) const { return it_ !=
-//     other.it_; }
-
-//     bool operator==(const iterator& other) const {
-//         return it_ == other;
-//     }
-//     bool operator!=(const iterator& other) const { return it_ != other; }
-
-//     _filter_iterator& operator++() {
-//         // do {
-//         //     ++it_;
-//         // }
-//         // while(is_invalid());
-//         ++it_;
-//         return *this;
-//     }
-
-//     //allows the iterator to be used as a enhanced for loop
-//     _filter_iterator begin() { return _filter_iterator(container_,
-//     container_.begin()); } _filter_iterator end() { return
-//     _filter_iterator(container_, container_.end()); }
-
-//     const _filter_iterator begin() const { return
-//     _filter_iterator(container_, container_.begin()); } const
-//     _filter_iterator end() const { return _filter_iterator(container_,
-//     container_.end()); }
-
-// };
-
-// TEST(FilterIterator, basic) {
-
-//     using T = std::shared_ptr<int>;
-
-//     std::vector<T> v;
-//     _filter_iterator<std::vector<T>::iterator, std::vector<T>> fi(v,
-//     v.begin());
-
-//     for(std::shared_ptr<int> i : fi) {}
-
-//     const _filter_iterator<std::vector<T>::const_iterator, std::vector<T>>
-//     fi_c(v, v.cbegin()); for(std::shared_ptr<int> i : fi_c) {}
-// }
-
-TEST(FilterIterator, testNormalIteration) {
-  std::vector<int> v = {1, 2, 3, 4, 5};
-  internal::filter_iterator<std::vector<int>> v_iter(
-      v, [](const int&) -> bool { return true; });
-
-  EXPECT_EQ(*v_iter, 1);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 2);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 3);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 4);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 5);
-  ++v_iter;
-  EXPECT_EQ(v_iter, v.end());
-}
-
-TEST(FilterIterator, testConditionalIteratorWithValidStartingIndex) {
-  // start with valid element at v(0)
-  std::vector<int> v = {2, 3, 4, 5};
-  // true on even numbers
-  internal::filter_iterator<std::vector<int>> v_iter(
-      v, [](const int& v) -> bool { return v % 2 == 0; });
-
-  EXPECT_EQ(*v_iter, 2);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 4);
-  ++v_iter;
-  EXPECT_EQ(v_iter, v.end());
-}
-
-TEST(FilterIterator, testConditionalIteratorAsLoop) {
-  // start with valid element at v(0)
-  std::vector<int> v = {2, 3, 4, 5};
-  // true on even numbers
-  internal::filter_iterator<std::vector<int>> v_iter(
-      v, [](const int& v) -> bool { return v % 2 == 0; });
-
-  int index = 0;
-  for (const int& i : v_iter) {
-    if (index == 0) {
-      EXPECT_EQ(i, 2);
-    } else if (index == 1) {
-      EXPECT_EQ(i, 4);
-    } else {
-      FAIL() << "Should not get here";
-    }
-
-    index++;
-  }
-
-  EXPECT_EQ(index, 2);  // 2 iterations only!!!
-}
-
-TEST(FilterIterator, testConditionalIteratorWithInvalidStartingIndex) {
-  // start with valid element at v(0)
+TEST(FilterIteratorTest, FiltersEvenNumbers) {
   std::vector<int> v = {1, 2, 3, 4, 5, 6};
-  // true on even numbers
-  internal::filter_iterator<std::vector<int>> v_iter(
-      v, [](const int& v) -> bool { return v % 2 == 0; });
 
-  EXPECT_EQ(*v_iter, 2);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 4);
-  ++v_iter;
-  EXPECT_EQ(*v_iter, 6);
-  EXPECT_NE(v_iter, v.end());
-  ++v_iter;
-  EXPECT_EQ(v_iter, v.end());
+  FilterView view(v, [](int x) { return x % 2 == 0; });
+
+  std::vector<int> result;
+  for (int x : view) result.push_back(x);
+
+  std::vector<int> expected = {2, 4, 6};
+  EXPECT_EQ(result, expected);
 }
 
-TEST(FilterIterator, testStdDistance) {
-  {
-    std::vector<int> v = {1, 2, 3, 4, 5, 6};
-    // true on even numbers
-    internal::filter_iterator<std::vector<int>> v_iter(
-        v, [](const int& v) -> bool { return v % 2 == 0; });
-    EXPECT_EQ(std::distance(v_iter.begin(), v_iter.end()), 3);
-  }
+TEST(FilterIteratorTest, NoMatches) {
+  std::vector<int> v = {1, 3, 5};
 
-  {
-    // start with valid element at v(0)
-    std::vector<int> v = {1, 2, 3};
-    // true on even numbers
-    internal::filter_iterator<std::vector<int>> v_iter(
-        v, [](const int& v) -> bool { return v % 2 == 0; });
-    EXPECT_EQ(std::distance(v_iter.begin(), v_iter.end()), 1);
-  }
+  FilterView view(v, [](int x) { return x % 2 == 0; });
 
-  {
-    // start with valid element at v(0)
-    std::vector<int> v = {2, 2, 2};
-    // true on even numbers
-    internal::filter_iterator<std::vector<int>> v_iter(
-        v, [](const int& v) -> bool { return v % 2 == 0; });
-    EXPECT_EQ(std::distance(v_iter.begin(), v_iter.end()), 3);
-  }
+  auto it = view.begin();
+  EXPECT_EQ(it, view.end());
 }
+
+TEST(FilterIteratorTest, EmptyContainer) {
+  std::vector<int> v;
+
+  FilterView view(v, [](int) { return true; });
+
+  EXPECT_EQ(view.begin(), view.end());
+}
+
+TEST(FilterIteratorTest, PreAndPostIncrement) {
+  std::vector<int> v = {1, 2, 3, 4};
+
+  FilterView view(v, [](int x) { return x > 1; });
+
+  auto it = view.begin();
+
+  EXPECT_EQ(*it, 2);
+
+  auto old = it++;
+  EXPECT_EQ(*old, 2);
+  EXPECT_EQ(*it, 3);
+
+  ++it;
+  EXPECT_EQ(*it, 4);
+
+  ++it;
+  EXPECT_EQ(it, view.end());
+}
+
+TEST(FilterIteratorTest, MultiPass) {
+  std::vector<int> v = {1, 2, 3, 4};
+
+  FilterView view(v, [](int x) { return x > 1; });
+
+  auto it1 = view.begin();
+  auto it2 = it1;
+
+  EXPECT_EQ(*it1, 2);
+  EXPECT_EQ(*it2, 2);
+
+  ++it1;
+  EXPECT_EQ(*it1, 3);
+  EXPECT_EQ(*it2, 2);  // independent
+}
+
+TEST(FilterIteratorTest, Equality) {
+  std::vector<int> v = {1, 2, 3, 4};
+
+  FilterView view(v, [](int x) { return x > 2; });
+
+  auto it1 = view.begin();
+  auto it2 = view.begin();
+
+  EXPECT_TRUE(it1 == it2);
+
+  ++it1;
+
+  EXPECT_FALSE(it1 == it2);
+}
+
+TEST(FilterIteratorTest, ConstContainer) {
+  const std::vector<int> v = {1, 2, 3, 4, 5};
+
+  FilterView view(v, [](int x) { return x % 2 == 1; });
+
+  std::vector<int> result;
+  for (int x : view) result.push_back(x);
+
+  std::vector<int> expected = {1, 3, 5};
+  EXPECT_EQ(result, expected);
+}
+
+TEST(FilterIteratorTest, MutationThroughIterator) {
+  std::vector<int> v = {1, 2, 3, 4};
+
+  FilterView view(v, [](int x) { return x % 2 == 0; });
+
+  for (int& x : view) x *= 10;
+
+  std::vector<int> expected = {1, 20, 3, 40};
+  EXPECT_EQ(v, expected);
+}
+
+TEST(FilterIteratorTest, WorksWithStdAlgorithm) {
+  std::vector<int> v = {1, 2, 3, 4, 5, 6};
+
+  FilterView view(v, [](int x) { return x % 2 == 0; });
+
+  int sum = std::accumulate(view.begin(), view.end(), 0);
+
+  EXPECT_EQ(sum, 12);  // 2 + 4 + 6
+}
+
+TEST(FilterIteratorTest, StdDistanceCountsFilteredElements) {
+  std::vector<int> v = {1, 2, 3, 4, 5, 6, 7, 8};
+
+  FilterView view(v, [](int x) { return x % 2 == 0; });
+
+  auto begin = view.begin();
+  auto end = view.end();
+
+  auto dist = std::distance(begin, end);
+
+  EXPECT_EQ(dist, 4);  // 2,4,6,8
+}
+
+TEST(FilterIteratorTest, StdDistanceDoesNotCorruptOtherIterators) {
+  std::vector<int> v = {1, 2, 3, 4, 5, 6};
+
+  FilterView view(v, [](int x) { return x > 2; });
+
+  auto it1 = view.begin();
+  auto it2 = it1;  // copy
+
+  auto d = std::distance(it1, view.end());
+
+  EXPECT_EQ(d, 4);     // 3,4,5,6
+  EXPECT_EQ(*it2, 3);  // original iterator still valid
+}
+
+/////////// OLD

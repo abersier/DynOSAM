@@ -127,12 +127,7 @@ class Frame {
    *
    * @return size_t
    */
-  inline size_t numStaticUsableFeatures() {
-    auto iter = usableStaticFeaturesBegin();
-    // we have defined the std::distance operator for this iterator type using
-    // std::iterator_traits.
-    return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
-  }
+  size_t numStaticUsableFeatures() const;
 
   /**
    * @brief Gets the total number of dynamic features observed at this frame.
@@ -147,10 +142,7 @@ class Frame {
    *
    * @return size_t
    */
-  inline size_t numDynamicUsableFeatures() {
-    auto iter = usableDynamicFeaturesBegin();
-    return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
-  }
+  size_t numDynamicUsableFeatures() const;
 
   /**
    * @brief Gets the total number of features (static + dynamic) in this frame.
@@ -158,9 +150,7 @@ class Frame {
    *
    * @return size_t
    */
-  inline size_t numTotalFeatures() const {
-    return numStaticFeatures() + numDynamicFeatures();
-  }
+  size_t numTotalFeatures() const;
 
   /**
    * @brief Checks if a feature exists within this frame. Could be static or
@@ -390,14 +380,33 @@ class Frame {
       const ConstructCorrespondanceFunc<RefType, CurType>& func) const;
 
   // special iterator types
-  FeatureFilterIterator usableStaticFeaturesBegin();
-  FeatureFilterIterator usableStaticFeaturesBegin() const;
+  // TODO: rename to just usableStaticIterator!!
+  decltype(auto) usableStaticFeaturesBegin() {
+    return static_features_.usableIterator();
+  }
+  decltype(auto) usableStaticFeaturesBegin() const {
+    return static_features_.usableIterator();
+  }
 
-  FeatureFilterIterator usableDynamicFeaturesBegin();
-  FeatureFilterIterator usableDynamicFeaturesBegin() const;
+  decltype(auto) usableDynamicFeaturesBegin() {
+    return dynamic_features_.usableIterator();
+  }
+  decltype(auto) usableDynamicFeaturesBegin() const {
+    return dynamic_features_.usableIterator();
+  }
 
-  FeatureFilterIterator usableDynamicFeaturesBegin(ObjectId object_id);
-  FeatureFilterIterator usableDynamicFeaturesBegin(ObjectId object_id) const;
+  // TODO: use new functions from featureContainer!
+  auto usableDynamicFeaturesBegin(ObjectId object_id) {
+    return dynamic_features_.usableIterator(object_id);
+    //   internal::FilterView view(*this, [object_id](const Feature::Ptr& f) ->
+    //   bool {
+    //     return Feature::IsUsable(f) && f->objectId() == object_id;
+    //   });
+    //   return view;
+  }
+  auto usableDynamicFeaturesBegin(ObjectId object_id) const {
+    return dynamic_features_.usableIterator(object_id);
+  }
 
  protected:
   // these do not do distortion or projection along the ray

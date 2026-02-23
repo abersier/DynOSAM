@@ -1,6 +1,8 @@
-from launch import LaunchService  # noqa: E402
+from launch import LaunchService, LaunchDescription  # noqa: E402
+from launch.actions import ExecuteProcess, TimerAction
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from dynosam_ros.launch_utils import get_default_dynosam_params_path
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -54,6 +56,60 @@ def ensure_dir(dir_path):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     return True
+
+def run_dynosam_rgbd_from_rosbag(rosbag_path, output_path, name, additional_args_vec, run_pipeline = True, run_analysis = False):
+    output_folder_path = os.path.join(output_path, name)
+    create_full_path_if_not_exists(output_folder_path)
+
+    log.info(f"Setting output folder path: {output_folder_path}")
+
+
+    # update launch arguments with fully constructed output path
+    launch_arguments = {"output_path": output_folder_path}
+
+    dynosam_launch_file = os.path.join(
+            get_package_share_directory('dynosam_ros'), 'launch', "dyno_sam_online_rgbd_launch.py")
+    dynosam_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([dynosam_launch_file]),
+        launch_arguments=launch_arguments.items(),
+    )
+
+    # Define the ros2 bag play command wrapped as an ExecuteProcess
+    rosbag_play = ExecuteProcess(
+        cmd=['ros2', 'bag', 'play', rosbag_path], # Replace with your bag path
+        output='screen'
+    )
+
+    delayed_bag_play = TimerAction(
+        period=1.5,
+        actions=[rosbag_play]
+    )
+
+
+    if run_pipeline:
+        log.info("Running pipeline...")
+        ld = LaunchDescription([
+            dynosam_node,
+            delayed_bag_play
+        ])
+        # parse arguments down to the actual launch file
+        # these will be appended to the Node(arguments=...) parameter and can be used
+        # to directly change things like FLAG_ options etc...
+        ls = LaunchService(argv=additional_args_vec)
+        ls.include_launch_description(ld)
+        running_success = ls.run()
+
+
+    if run_analysis:
+        log.info("Running analysis...")
+        import dynosam_utils.evaluation.evaluation_lib as eval
+        evaluator =  eval.DatasetEvaluator(output_folder_path)
+        evaluator.run_analysis()
+
+    if running_success:
+        return 0
+    else:
+        return 1
 
 
 def run(parsed_args, unknown_args):

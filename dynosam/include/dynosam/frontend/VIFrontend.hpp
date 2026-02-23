@@ -10,6 +10,7 @@
 #include "dynosam_common/ModuleBase.hpp"
 #include "dynosam_common/RealtimeOutput.hpp"
 #include "dynosam_common/Trajectories.hpp"
+#include "dynosam_cv/RGBDCamera.hpp"
 
 namespace dyno {
 
@@ -113,11 +114,88 @@ class VIFrontend : public Frontend {
   void fillDebugImagery(DebugImagery& debug_imagery, const Frame::Ptr& frame_k,
                         const Frame::Ptr& frame_km1) const;
 
-  // helper functions
+  // NOTE: the ConstFeatureIterator is a little bit misleading as the features
+  // do actually get
+  //  modified in this function (since ConstFeatureIterator is const on the
+  //  iterator but the features are non-const pointers)
+  template <typename FeatureContainer, typename Predicate>
   void fillMeasurementsFromFeatureIterator(
-      CameraMeasurementStatusVector* measurements, FeatureFilterIterator it,
-      FrameId frame_id, Timestamp timestamp, const gtsam::Vector2& pixel_sigmas,
-      double depth_sigma, StatusLandmarkVector* landmarks = nullptr) const;
+      CameraMeasurementStatusVector* measurements,
+      internal::FilterView<FeatureContainer, Predicate> it, FrameId frame_id,
+      Timestamp timestamp, const gtsam::Vector2& pixel_sigmas,
+      double depth_sigma, StatusLandmarkVector* landmarks = nullptr) const {
+    CHECK(measurements);
+
+    for (const Feature::Ptr& f : it) {
+      const TrackletId tracklet_id = f->trackletId();
+      const Keypoint& kp = f->keypoint();
+      const ObjectId object_id = f->objectId();
+      CHECK_EQ(f->objectId(), object_id);
+      CHECK(Feature::IsUsable(f));
+
+      MeasurementWithCovariance<Keypoint> kp_measurement =
+          MeasurementWithCovariance<Keypoint>::FromSigmas(kp, pixel_sigmas);
+      CameraMeasurement camera_measurement(kp_measurement);
+
+      // This can come from either stereo or rgbd
+      if (f->hasDepth()) {
+        // MeasurementWithCovariance<Landmark> landmark_measurement(
+        //     // assume sigma_u and sigma_v are identical
+        //     vision_tools::backProjectAndCovariance(
+        //         *f, camera, pixel_sigmas(0), depth_sigma));
+        // camera_measurement.landmark(landmark_measurement);
+        Landmark landmark;
+        rgbd_camera_->backProject(kp, f->depth(), &landmark);
+
+        gtsam::Vector3 sigmas;
+        sigmas << depth_sigma, depth_sigma, depth_sigma;
+
+        MeasurementWithCovariance<Landmark> landmark_measurement =
+            MeasurementWithCovariance<Landmark>::FromSigmas(landmark, sigmas);
+        camera_measurement.landmark(landmark_measurement);
+
+        if (landmarks) {
+          landmarks->push_back(LandmarkStatus(landmark_measurement, frame_id,
+                                              timestamp, tracklet_id, object_id,
+                                              ReferenceFrame::LOCAL));
+        }
+      }
+
+      if (f->hasRightKeypoint()) {
+        CHECK(f->hasDepth()) << "Right keypoint set for feature but no depth!";
+        MeasurementWithCovariance<Keypoint> right_kp_measurement =
+            MeasurementWithCovariance<Keypoint>::FromSigmas(f->rightKeypoint(),
+                                                            pixel_sigmas);
+        camera_measurement.rightKeypoint(right_kp_measurement);
+      }
+      // no right keypoint and has rgbd camera and has depth, project
+      // keypoint into right camera
+      else if (rgbd_camera_ && f->hasDepth()) {
+        bool right_projection_result = rgbd_camera_->projectRight(f);
+        if (!right_projection_result) {
+          // TODO: for now mark as outlier and ignore point
+          f->markOutlier();
+          continue;
+        }
+
+        CHECK(f->hasRightKeypoint());
+        MeasurementWithCovariance<Keypoint> right_kp_measurement =
+            MeasurementWithCovariance<Keypoint>::FromSigmas(f->rightKeypoint(),
+                                                            pixel_sigmas);
+        camera_measurement.rightKeypoint(right_kp_measurement);
+      }
+
+      if (f->keypointType() == KeyPointType::STATIC) {
+        CHECK_EQ(object_id, background_label);
+      } else {
+        CHECK_NE(object_id, background_label);
+      }
+
+      measurements->push_back(CameraMeasurementStatus(
+          camera_measurement, frame_id, timestamp, tracklet_id, object_id,
+          ReferenceFrame::LOCAL));
+    }
+  }
 
  protected:
   Camera::Ptr camera_;

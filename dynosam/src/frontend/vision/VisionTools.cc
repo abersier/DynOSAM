@@ -72,30 +72,32 @@ namespace vision_tools {
 
 // }
 
-void getCorrespondences(FeaturePairs& correspondences,
-                        const FeatureFilterIterator& previous_features,
-                        const FeatureFilterIterator& current_features) {
-  correspondences.clear();
+// void getCorrespondences(FeaturePairs& correspondences,
+//                         const FeatureFilterIterator& previous_features,
+//                         const FeatureFilterIterator& current_features) {
+//   // correspondences.clear();
 
-  const FeatureContainer& previous_feature_container =
-      previous_features.getContainer();
+//   // const FeatureContainer& previous_feature_container =
+//   //     previous_features.getContainer();
 
-  for (const auto& curr_feature : current_features) {
-    // check if previous feature and is valid
-    if (previous_feature_container.exists(curr_feature->trackletId())) {
-      const auto prev_feature = previous_feature_container.getByTrackletId(
-          curr_feature->trackletId());
-      CHECK(prev_feature);
+//   // for (const auto& curr_feature : current_features) {
+//   //   // check if previous feature and is valid
+//   //   if (previous_feature_container.exists(curr_feature->trackletId())) {
+//   //     const auto prev_feature =
+//   previous_feature_container.getByTrackletId(
+//   //         curr_feature->trackletId());
+//   //     CHECK(prev_feature);
 
-      // having checked that feature is in the previous set, also check that it
-      // ahderes to the filter
-      if (!previous_features(prev_feature)) {
-        continue;
-      }
-      correspondences.push_back({prev_feature, curr_feature});
-    }
-  }
-}
+//   //     // having checked that feature is in the previous set, also check
+//   that it
+//   //     // ahderes to the filter
+//   //     if (!previous_features(prev_feature)) {
+//   //       continue;
+//   //     }
+//   //     correspondences.push_back({prev_feature, curr_feature});
+//   //   }
+//   // }
+// }
 
 ObjectIds getObjectLabels(const cv::Mat& image) {
   // CHECK(!image.empty());
@@ -496,14 +498,16 @@ gtsam::FastMap<ObjectId, Histogram> makeTrackletLengthHistorgram(
   const auto& dyamic_features = frame->dynamic_features_;
   auto itr = dyamic_features.beginObjectIterator();
   for (itr; itr != dyamic_features.endObjectIterator(); itr++) {
-    auto [object_id, tracklet_ids] = *itr;
+    auto [object_id, feature_per_object] = *itr;
 
     Histogram hist(bh::make_histogram(bh::axis::variable<>(bins)));
     hist.name_ = "tacklet-length-" + std::to_string(object_id);
 
-    for (auto tracklet_id : tracklet_ids) {
-      const Feature::Ptr feature = dyamic_features.getByTrackletId(tracklet_id);
+    for (auto feature : feature_per_object) {
+      // const Feature::Ptr feature =
+      // dyamic_features.getByTrackletId(tracklet_id);
       CHECK(feature);
+      CHECK_EQ(feature->objectId(), object_id);
       if (feature->usable()) {
         hist.histogram_(feature->age());
       }
@@ -532,7 +536,7 @@ gtsam::FastMap<ObjectId, Histogram> makeTrackletLengthHistorgram(
   // collect static features
   Histogram static_hist(bh::make_histogram(bh::axis::variable<>(bins)));
   static_hist.name_ = "tacklet-length-0";
-  for (const auto& static_feature : frame->static_features_.beginUsable()) {
+  for (const auto& static_feature : frame->static_features_.usableIterator()) {
     static_hist.histogram_(static_feature->age());
   }
   histograms.insert2(background_label, static_hist);

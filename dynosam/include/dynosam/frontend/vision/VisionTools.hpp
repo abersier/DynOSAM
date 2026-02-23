@@ -109,9 +109,36 @@ namespace vision_tools {
 // and checks to see if the feature is in the previous feature set previous
 // features can probably just be a FeatureCOntainer but i guess we want to check
 // that it is valid too, via the filter iterator?
+// void getCorrespondences(FeaturePairs& correspondences,
+//                         const FeatureFilterIterator& previous_features,
+//                         const FeatureFilterIterator& current_features);
+
+template <typename Predicate>
 void getCorrespondences(FeaturePairs& correspondences,
-                        const FeatureFilterIterator& previous_features,
-                        const FeatureFilterIterator& current_features);
+                        const FeatureContainer& reference_container,
+                        const FeatureContainer& current_container,
+                        const Predicate& predicate) {
+  correspondences.clear();
+
+  using Itr = ConstFeatureIterator<Predicate>;
+  Itr current_features_itr(current_container, predicate);
+
+  for (const auto& curr_feature : current_features_itr) {
+    // check if previous feature and is valid
+    if (reference_container.exists(curr_feature->trackletId())) {
+      const auto prev_feature =
+          reference_container.getByTrackletId(curr_feature->trackletId());
+      CHECK(prev_feature);
+
+      // having checked that feature is in the previous set, also check that it
+      // ahderes to the filter
+      if (!predicate(prev_feature)) {
+        continue;
+      }
+      correspondences.push_back({prev_feature, curr_feature});
+    }
+  }
+}
 
 // unique object labels as present in a semantic/motion segmented image -> does
 // not include background label

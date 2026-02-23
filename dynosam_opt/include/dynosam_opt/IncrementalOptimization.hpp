@@ -540,7 +540,7 @@ struct ISAM2Stats {
     nnz_elements_R = sparsity_stats.nnz_elements;
     nnz_elements_tree = smoother.roots().at(0)->calculate_nnz();
 
-    std::tie(this->max_clique_size, this->max_clique_size) =
+    std::tie(this->max_clique_size, this->average_clique_size) =
         factor_graph_tools::getCliqueSize(smoother);
 
     num_factors = factors.size();

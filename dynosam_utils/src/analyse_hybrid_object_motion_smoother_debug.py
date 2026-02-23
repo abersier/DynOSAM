@@ -6,6 +6,8 @@ import sys
 import os
 import warnings
 
+plt.rcdefaults()
+
 
 def flatten_dict(d):
     flat = {}
@@ -27,8 +29,10 @@ def flatten_dict(d):
     return flat
 
 
-sequence = "misc"
-result_path = f"/root/results/{sequence}/"
+sequence = "fixed_lag_15_isam_1"
+# sequence = "HOS_isam2_1"
+# result_path = f"/root/results/{sequence}/"
+result_path = f"/root/results/frontend_filtering/{sequence}/"
 
 logger_prefix = "hybrid_motion_smoother_j"
 
@@ -134,18 +138,18 @@ def plot_debug_metric(debug_map, query_key, object_name=None):
 debug_map = make_object_debug_map(get_debug_files())
 
 # Plot one object
-plot_debug_metric(debug_map, "update_time_ms", object_name=2)
-plot_debug_metric(debug_map, "max_clique_size", object_name=2)
-# plot_debug_metric(debug_map, "clique", object_name=1)
-plot_debug_metric(debug_map, "average_clique_size", object_name=2)
-plot_debug_metric(debug_map, "nnz_elements_tree", object_name=2)
-plot_debug_metric(debug_map, "average_feature_age", object_name=2)
-plot_debug_metric(debug_map, "num_tracks", object_name=2)
+plot_debug_metric(debug_map, "update_time_ms", object_name=1)
+plot_debug_metric(debug_map, "max_clique_size", object_name=1)
+plot_debug_metric(debug_map, "cliques", object_name=1)
+plot_debug_metric(debug_map, "average_clique_size", object_name=1)
+plot_debug_metric(debug_map, "nnz_elements_tree", object_name=1)
+plot_debug_metric(debug_map, "average_feature_age", object_name=1)
+plot_debug_metric(debug_map, "num_tracks", object_name=1)
 
 # plot_debug_metric(debug_map, "update_time_ms", object_name=1)
 # plot_debug_metric(debug_map, "max_clique_size", object_name=1)
-plot_debug_metric(debug_map, "num_landmarks_in_smoother", object_name=1)
-plot_debug_metric(debug_map, "variables_reeliminated", object_name=1)
+# plot_debug_metric(debug_map, "num_landmarks_in_smoother", object_name=1)
+# plot_debug_metric(debug_map, "variables_reeliminated", object_name=1)
 
 # plot_debug_metric(debug_map, "update_time_ms", object_name=2)
 # # plot_debug_metric(debug_map, "max_clique_size", object_name=1)

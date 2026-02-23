@@ -515,7 +515,7 @@ TEST(FeatureContainer, testusableIterator) {
   }
 
   {
-    auto usable_iterator = fc.beginUsable();
+    auto usable_iterator = fc.usableIterator();
     EXPECT_EQ(std::distance(usable_iterator.begin(), usable_iterator.end()),
               10);
   }
@@ -526,7 +526,7 @@ TEST(FeatureContainer, testusableIterator) {
   fc.getByTrackletId(1)->markOutlier();
 
   {
-    auto usable_iterator = fc.beginUsable();
+    auto usable_iterator = fc.usableIterator();
     EXPECT_EQ(std::distance(usable_iterator.begin(), usable_iterator.end()), 7);
 
     for (const auto& f : fc) {
@@ -540,12 +540,227 @@ TEST(FeatureContainer, testusableIterator) {
       }
     }
 
-    for (const auto& f : usable_iterator.begin()) {
+    for (const auto& f : usable_iterator) {
       EXPECT_TRUE(f->trackletId() == 0 || f->trackletId() == 2 ||
                   f->trackletId() == 5 || f->trackletId() == 6 ||
                   f->trackletId() == 7 || f->trackletId() == 8 ||
                   f->trackletId() == 9);
     }
+  }
+}
+
+Feature::Ptr makeFeature(TrackletId tid, ObjectId oid, bool usable = true) {
+  auto f = std::make_shared<Feature>();
+  f->trackletId(tid);
+  f->objectId(oid);
+  if (usable)
+    f->markInlier();
+  else
+    f->markOutlier();
+  return f;
+}
+
+TEST(FeatureContainer, AddFeatures) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  auto f2 = makeFeature(2, 100, false);
+  auto f3 = makeFeature(3, 200);
+
+  container.add(f1);
+  container.add(f2);
+  container.add(f3);
+
+  // Tracklet map
+  EXPECT_TRUE(container.exists(f1->trackletId()));
+  EXPECT_TRUE(container.exists(f2->trackletId()));
+  EXPECT_TRUE(container.exists(f3->trackletId()));
+
+  // Container size
+  EXPECT_EQ(container.size(), 3u);
+  EXPECT_EQ(container.size(100), 2u);
+  EXPECT_EQ(container.size(200), 1u);
+
+  // Object map
+  EXPECT_TRUE(container.hasObject(f1->objectId()));
+  EXPECT_TRUE(container.hasObject(f3->objectId()));
+}
+
+// -----------------------------------------------------------
+// Test _FastObjectFeatureView iteration
+TEST(FeatureContainer, FastObjectFeatureViewIteration) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  auto f2 = makeFeature(2, 100);
+  container.add(f1);
+  container.add(f2);
+
+  // Object map validation before removal
+  auto featuresForObjectBefore = container.getByObject(100);
+  EXPECT_TRUE(std::find(featuresForObjectBefore.begin(),
+                        featuresForObjectBefore.end(),
+                        f1->trackletId()) != featuresForObjectBefore.end());
+  EXPECT_TRUE(std::find(featuresForObjectBefore.begin(),
+                        featuresForObjectBefore.end(),
+                        f2->trackletId()) != featuresForObjectBefore.end());
+
+  // Remove the first feature by tracklet
+  container.remove(f1->trackletId());
+
+  // Tracklet map validation
+  EXPECT_FALSE(container.exists(f1->trackletId()));
+  EXPECT_TRUE(container.exists(f2->trackletId()));
+
+  // Object map validation after removal
+  auto featuresForObjectAfter = container.getByObject(100);
+  EXPECT_TRUE(std::find(featuresForObjectAfter.begin(),
+                        featuresForObjectAfter.end(), f1->trackletId()) ==
+              featuresForObjectAfter.end());  // f1 removed
+  EXPECT_TRUE(std::find(featuresForObjectAfter.begin(),
+                        featuresForObjectAfter.end(), f2->trackletId()) !=
+              featuresForObjectAfter.end());  // f2 still present
+}
+
+TEST(FeatureContainer, FastObjectFeatureViewIterationNonExistantObject) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  auto f2 = makeFeature(2, 100);
+  container.add(f1);
+  container.add(f2);
+
+  auto usable_it = container.usableIterator(500);
+
+  int size = std::distance(usable_it.begin(), usable_it.end());
+  EXPECT_EQ(size, 0);
+}
+
+// -----------------------------------------------------------
+// Test FastUsableObjectIterator filtering
+TEST(FeatureContainer, FilterUsableFeaturesPerObject) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100, true);
+  auto f2 = makeFeature(2, 100, false);
+  container.add(f1);
+  container.add(f2);
+
+  auto usable_it = container.usableIterator(100);
+  std::vector<Feature::Ptr> collected;
+
+  for (auto& f : usable_it) {
+    collected.push_back(f);
+  }
+
+  ASSERT_EQ(collected.size(), 1u);  // only f1 is usable
+  EXPECT_EQ(collected[0]->trackletId(), f1->trackletId());
+
+  collected.clear();
+  f1->markOutlier();
+  for (auto& f : usable_it) {
+    collected.push_back(f);
+  }
+  ASSERT_EQ(collected.size(), 0u);
+}
+
+// -----------------------------------------------------------
+// Test clearing the container
+TEST(FeatureContainer, ClearContainer) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  container.add(f1);
+
+  EXPECT_FALSE(container.empty());
+  container.clear();
+  EXPECT_TRUE(container.empty());
+  EXPECT_EQ(container.size(), 0u);
+}
+
+// -----------------------------------------------------------
+// Test removing features by tracklet
+TEST(FeatureContainer, RemoveFeatureByTracklet) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  auto f2 = makeFeature(2, 100);
+  container.add(f1);
+  container.add(f2);
+
+  // Object map validation before removal
+  auto featuresForObjectBefore = container.getByObject(100);
+  EXPECT_NE(std::find(featuresForObjectBefore.begin(),
+                      featuresForObjectBefore.end(), f1->trackletId()),
+            featuresForObjectBefore.end());
+  EXPECT_NE(std::find(featuresForObjectBefore.begin(),
+                      featuresForObjectBefore.end(), f2->trackletId()),
+            featuresForObjectBefore.end());
+
+  // Remove the first feature by tracklet
+  container.remove(f1->trackletId());
+
+  // Tracklet map validation
+  EXPECT_FALSE(container.exists(f1->trackletId()));
+  EXPECT_TRUE(container.exists(f2->trackletId()));
+
+  // Object map validation after removal
+  auto featuresForObjectAfter = container.getByObject(100);
+  EXPECT_EQ(std::find(featuresForObjectAfter.begin(),
+                      featuresForObjectAfter.end(), f1->trackletId()),
+            featuresForObjectAfter.end());  // f1 removed
+  EXPECT_NE(std::find(featuresForObjectAfter.begin(),
+                      featuresForObjectAfter.end(), f2->trackletId()),
+            featuresForObjectAfter.end());  // f2 still present
+}
+
+// -----------------------------------------------------------
+// Test removing features by object
+TEST(FeatureContainer, RemoveFeaturesByObject) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 100);
+  auto f2 = makeFeature(2, 200);
+  container.add(f1);
+  container.add(f2);
+
+  container.removeByObjectId(100);
+  EXPECT_FALSE(container.hasObject(100));
+  EXPECT_TRUE(container.hasObject(200));
+}
+
+// -----------------------------------------------------------
+// Stress test: many features, multiple objects
+TEST(FeatureContainer, StressTestMultipleObjectsAndFilter) {
+  FeatureContainer container;
+  constexpr int numObjects = 10;
+  constexpr int featuresPerObject = 100;
+
+  std::vector<Feature::Ptr> allFeatures;
+
+  for (int obj = 1; obj <= numObjects; ++obj) {
+    for (int tid = 1; tid <= featuresPerObject; ++tid) {
+      // Alternate usable flag
+      bool usable = (tid % 2 == 0);
+      auto f = makeFeature(tid + obj * 1000, obj, usable);
+      container.add(f);
+      allFeatures.push_back(f);
+    }
+  }
+
+  // Check container size
+  EXPECT_EQ(container.size(), numObjects * featuresPerObject);
+
+  // Iterate per object using FastUsableObjectIterator
+  for (int obj = 1; obj <= numObjects; ++obj) {
+    auto usable_it = container.usableIterator(obj);
+    int count = 0;
+    for (auto& f : usable_it) {
+      EXPECT_TRUE(f->usable());
+      EXPECT_EQ(f->objectId(), obj);
+      ++count;
+    }
+    EXPECT_EQ(count, featuresPerObject / 2);  // half are usable
   }
 }
 

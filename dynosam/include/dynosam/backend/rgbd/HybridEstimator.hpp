@@ -362,7 +362,7 @@ class SmartMotionFactor : public gtsam::NonlinearFactor,
     // compute G, F, E and b blocks
     computeJacobiansWithTriangulatedPoint(motions, poses, Gs, Fs, Es, b);
     // TODO: add back in will fail tests!!!
-    whitenJacobians(Gs, Fs, Es, b);
+    // whitenJacobians(Gs, Fs, Es, b);
 
     const size_t m = numMeasurements();
     CHECK_EQ(m, Es.size());
@@ -1005,80 +1005,139 @@ class SmartMotionFactor : public gtsam::NonlinearFactor,
   //   return augmentedHessian;
   // }
 
+  // somewhat original working implementation
   static gtsam::SymmetricBlockMatrix SchurComplement(
       const GFBlocks& GFs, const gtsam::Matrix& E,
       const Eigen::Matrix<double, N, N>& P, const gtsam::Vector& b) {
-    utils::ChronoTimingStats timer("smf_SchurComplement");
     // a single point is observed in m cameras
     size_t m = GFs.size();
-    // gtsam::Matrix Et = E.transpose();
 
-    gtsam::Matrix F_block_matrix(m * 3, m * HessianDim);
-    F_block_matrix.setZero();
-
-    for (size_t i = 0; i < m; i++) {
-      const Eigen::Matrix<double, 3, HessianDim>& GFblock = GFs.at(i);
-      F_block_matrix.block<3, HessianDim>(3 * i, HessianDim * i) = GFblock;
-    }
-
-    // TODO: F block should be close to diagonal - inverting can be made much
-    // faster!!!!
-    auto ft_timer =
-        std::make_unique<utils::ChronoTimingStats>("smf_F_transpose");
-    gtsam::Matrix F = F_block_matrix;
-    gtsam::Matrix Ft = F.transpose();
-    ft_timer.reset();
-
-    auto gg_timer = std::make_unique<utils::ChronoTimingStats>("smf_Gg_calc");
-    // gtsam::Matrix g = Ft * (b - E * P * Et * b);
-    // gtsam::Matrix G = Ft * F - Ft * E * P * Et * F;
-
-    // gtsam::Matrix EPtF = E.transpose() * F;  // 3×n
-    // gtsam::Matrix EPtb = E.transpose() * b;  // 3×1
-
-    // gtsam::Matrix P_EPtF = P * EPtF;         // 3×n
-    // gtsam::Vector P_EPtb = P * EPtb;         // 3×1
-
-    // gtsam::Matrix G = Ft * F - Ft * E * P_EPtF;
-    // gtsam::Vector g = Ft * b - Ft * E * P_EPtb;
-
-    // Step 1: Compute full QR decomposition of E
-    Eigen::HouseholderQR<gtsam::Matrix> qr(E);
-    gtsam::Matrix Q = qr.householderQ();  // Q is m x m
-
-    const int nm = E.rows();  // number of residuals
-    const int nr = E.cols();  // should be 3
-
-    // Step 2: Extract the nullspace basis N = Q.rightCols(m - r)
-    const int null_dim = nm - nr;
-    gtsam::Matrix N = Q.rightCols(null_dim);  // m x (m - 3)
-
-    // Step 3: Project F and b into the nullspace
-    gtsam::Matrix NF = N.transpose() * F;  // (m-3) x n
-    gtsam::Vector Nb = N.transpose() * b;  // (m-3) x 1
-
-    // Step 4: Build reduced system
-    gtsam::Matrix G = NF.transpose() * NF;  // n x n
-    gtsam::Matrix g = NF.transpose() * Nb;  // n x 1
-
-    gg_timer.reset();
-
-    // size of schur = num measurements * Hessian size + 1
-    auto shur_timer = std::make_unique<utils::ChronoTimingStats>("smf_schur");
-    size_t aug_hessian_size = m * HessianDim + 1;
-    gtsam::Matrix schur(aug_hessian_size, aug_hessian_size);
-
-    schur << G, g, g.transpose(), b.squaredNorm();
-    shur_timer.reset();
-
-    std::vector<Eigen::DenseIndex> dims(2 * m + 1);  // includes b term
-    std::fill(dims.begin(), dims.end() - 1,
-              HDim);  // assuming HDim and Xdim are the same size
+    // Create a SymmetricBlockMatrix (augmented hessian, with extra row/column
+    // with info vector)
+    // size_t M1 = ND * m + 1;
+    size_t M1 = HessianDim * m + 1;
+    std::vector<Eigen::DenseIndex> dims(m +
+                                        1);  // this also includes the b term
+    // vertical dimensions of ATA
+    std::fill(dims.begin(), dims.end() - 1, HessianDim);
     dims.back() = 1;
+    gtsam::SymmetricBlockMatrix augmentedHessian(dims,
+                                                 gtsam::Matrix::Zero(M1, M1));
 
-    gtsam::SymmetricBlockMatrix augmented_hessian(dims, schur);
-    return augmented_hessian;
+    // Blockwise Schur complement
+    for (size_t i = 0; i < m; i++) {  // for each camera
+
+      const MatrixGFD& GFi = GFs[i];
+      const auto GFiT = GFi.transpose();
+      const MatrixED Ei_P =  //
+          E.block(ZDim * i, 0, ZDim, N) * P;
+
+      // D = (Dx2) * ZDim
+      augmentedHessian.setOffDiagonalBlock(
+          i, m,
+          GFiT * b.segment<ZDim>(ZDim * i)  // F' * b
+              -
+              GFiT *
+                  (Ei_P *
+                   (E.transpose() *
+                    b)));  // D = (DxZDim) * (ZDimx3) * (N*ZDimm) * (ZDimm x 1)
+
+      // (DxD) = (DxZDim) * ( (ZDimxD) - (ZDimx3) * (3xZDim) * (ZDimxD) )
+      augmentedHessian.setDiagonalBlock(
+          i, GFiT * (GFi -
+                     Ei_P * E.block(ZDim * i, 0, ZDim, N).transpose() * GFi));
+
+      // upper triangular part of the hessian
+      for (size_t j = i + 1; j < m; j++) {  // for each camera
+        const MatrixGFD& GFj = GFs[j];
+
+        // (DxD) = (Dx2) * ( (2x2) * (2xD) )
+        augmentedHessian.setOffDiagonalBlock(
+            i, j,
+            -GFiT * (Ei_P * E.block(ZDim * j, 0, ZDim, N).transpose() * GFj));
+      }
+    }  // end of for over cameras
+
+    augmentedHessian.diagonalBlock(m)(0, 0) += b.squaredNorm();
+    return augmentedHessian;
   }
+
+  // static gtsam::SymmetricBlockMatrix SchurComplement(
+  //     const GFBlocks& GFs, const gtsam::Matrix& E,
+  //     const Eigen::Matrix<double, N, N>& P, const gtsam::Vector& b) {
+  //   utils::ChronoTimingStats timer("smf_SchurComplement");
+  //   // a single point is observed in m cameras
+  //   size_t m = GFs.size();
+  //   // gtsam::Matrix Et = E.transpose();
+
+  //   gtsam::Matrix F_block_matrix(m * 3, m * HessianDim);
+  //   F_block_matrix.setZero();
+
+  //   for (size_t i = 0; i < m; i++) {
+  //     const Eigen::Matrix<double, 3, HessianDim>& GFblock = GFs.at(i);
+  //     F_block_matrix.block<3, HessianDim>(3 * i, HessianDim * i) = GFblock;
+  //   }
+
+  //   // TODO: F block should be close to diagonal - inverting can be made much
+  //   // faster!!!!
+  //   auto ft_timer =
+  //       std::make_unique<utils::ChronoTimingStats>("smf_F_transpose");
+  //   gtsam::Matrix F = F_block_matrix;
+  //   gtsam::Matrix Ft = F.transpose();
+  //   ft_timer.reset();
+
+  //   auto gg_timer =
+  //   std::make_unique<utils::ChronoTimingStats>("smf_Gg_calc");
+  //   // gtsam::Matrix g = Ft * (b - E * P * Et * b);
+  //   // gtsam::Matrix G = Ft * F - Ft * E * P * Et * F;
+
+  //   // gtsam::Matrix EPtF = E.transpose() * F;  // 3×n
+  //   // gtsam::Matrix EPtb = E.transpose() * b;  // 3×1
+
+  //   // gtsam::Matrix P_EPtF = P * EPtF;         // 3×n
+  //   // gtsam::Vector P_EPtb = P * EPtb;         // 3×1
+
+  //   // gtsam::Matrix G = Ft * F - Ft * E * P_EPtF;
+  //   // gtsam::Vector g = Ft * b - Ft * E * P_EPtb;
+
+  //   // Step 1: Compute full QR decomposition of E
+  //   Eigen::HouseholderQR<gtsam::Matrix> qr(E);
+  //   gtsam::Matrix Q = qr.householderQ();  // Q is m x m
+
+  //   const int nm = E.rows();  // number of residuals
+  //   const int nr = E.cols();  // should be 3
+
+  //   // Step 2: Extract the nullspace basis N = Q.rightCols(m - r)
+  //   const int null_dim = nm - nr;
+  //   gtsam::Matrix N = Q.rightCols(null_dim);  // m x (m - 3)
+
+  //   // Step 3: Project F and b into the nullspace
+  //   gtsam::Matrix NF = N.transpose() * F;  // (m-3) x n
+  //   gtsam::Vector Nb = N.transpose() * b;  // (m-3) x 1
+
+  //   // Step 4: Build reduced system
+  //   gtsam::Matrix G = NF.transpose() * NF;  // n x n
+  //   gtsam::Matrix g = NF.transpose() * Nb;  // n x 1
+
+  //   gg_timer.reset();
+
+  //   // size of schur = num measurements * Hessian size + 1
+  //   auto shur_timer =
+  //   std::make_unique<utils::ChronoTimingStats>("smf_schur"); size_t
+  //   aug_hessian_size = m * HessianDim + 1; gtsam::Matrix
+  //   schur(aug_hessian_size, aug_hessian_size);
+
+  //   schur << G, g, g.transpose(), b.squaredNorm();
+  //   shur_timer.reset();
+
+  //   std::vector<Eigen::DenseIndex> dims(2 * m + 1);  // includes b term
+  //   std::fill(dims.begin(), dims.end() - 1,
+  //             HDim);  // assuming HDim and Xdim are the same size
+  //   dims.back() = 1;
+
+  //   gtsam::SymmetricBlockMatrix augmented_hessian(dims, schur);
+  //   return augmented_hessian;
+  // }
 
  protected:
   /**

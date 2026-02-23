@@ -223,10 +223,8 @@ KltFeatureTracker::KltFeatureTracker(const TrackerParams& params,
                                      Camera::Ptr camera,
                                      ImageDisplayQueue* display_queue)
     : StaticFeatureTracker(params, camera, display_queue) {
-
   auto detector = FunctionalDetector::FactoryCreate(params);
-  detector_ = std::make_shared<SparseFeatureDetector>(
-      params, detector);
+  detector_ = std::make_shared<SparseFeatureDetector>(params, detector);
 
   static const cv::Size klt_window_size(21, 21);  // Window size for KLT
   static const int klt_max_level = 3;             // Max pyramid levels for KLT
@@ -270,7 +268,7 @@ FeatureContainer KltFeatureTracker::trackStatic(
                   previous_equialized_greyscale);
 
     FeatureContainer previous_inliers;
-    auto iter = previous_frame->static_features_.beginUsable();
+    auto iter = previous_frame->static_features_.usableIterator();
     for (const auto& inlier_feature : iter) {
       previous_inliers.add(inlier_feature);
     }
@@ -563,12 +561,12 @@ bool KltFeatureTracker::trackPoints(const cv::Mat& current_processed_img,
     // Keypoint kp(static_cast<double>(kp_cv.x), static_cast<double>(kp_cv.y));
     const Keypoint kp = utils::cvPointToGtsam(verified_current.at(i));
 
-
     if (!(camera_->isKeypointContained(kp) && isWithinShrunkenImage(kp))) {
       continue;
     }
 
-    if (functional_keypoint::at<ObjectId>(kp, motion_mask) != background_label) {
+    if (functional_keypoint::at<ObjectId>(kp, motion_mask) !=
+        background_label) {
       continue;
     }
 
@@ -609,15 +607,17 @@ bool KltFeatureTracker::trackPoints(const cv::Mat& current_processed_img,
   return true;
 }
 
-bool KltFeatureTracker::shouldResample(const FeatureContainer& tracked_features) const {
-  const bool too_few_features = tracked_features.size() <
+bool KltFeatureTracker::shouldResample(
+    const FeatureContainer& tracked_features) const {
+  const bool too_few_features =
+      tracked_features.size() <
       static_cast<size_t>(params_.min_features_per_frame);
 
   constexpr static auto age_buffer = 3u;
   const auto max_static_point_age = params_.max_feature_track_age;
   const size_t expiry_age =
       static_cast<size_t>(max_static_point_age - age_buffer);
-   // if more than 80% of points on the object are going to expire within the
+  // if more than 80% of points on the object are going to expire within the
   // next (at least 3) frames
   size_t are_geriatric = 0u;
   for (const auto& feature : tracked_features) {

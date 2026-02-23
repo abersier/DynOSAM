@@ -1,4 +1,4 @@
-from dynosam_utils.evaluation.runner import run
+from dynosam_utils.evaluation.runner import run, run_dynosam_rgbd_from_rosbag
 import os
 import sys
 
@@ -73,6 +73,16 @@ omd_dataset = 3
 aria=4
 tartan_air = 5
 viode = 6
+
+def run_online_sequence(name, *args):
+    rosbag = "/root/data/craig_integration/realsense/realsense_2025-02-07-14-57-13_0/"
+    run_dynosam_rgbd_from_rosbag(
+        rosbag,
+        output_path,
+        name,
+        list(args),
+        run_pipeline=True
+    )
 
 def prep_dataset(path, name, data_loader_num, *args):
     backend_type = parallel_hybrid
@@ -192,11 +202,12 @@ def run_aria():
 
 if __name__ == '__main__':
     # run_tartan_air()
-    run_kitti()
+    # run_kitti()
     # run_viodes()
     # run_cluster()
     # run_tartan_air()
     # run_aria()
     # run_omd()
+    run_online_sequence("fixed_lag_15_isam_1_no_robust")
 
-    run_analysis("test_kitti")
+    # run_analysis("test_kitti")

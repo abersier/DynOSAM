@@ -602,7 +602,7 @@ void FeatureTracker::trackDynamicKLT(
         ImageType::RGBMono::toMono(previous_frame_->image_container_.rgb());
 
     FeatureContainer previous_inliers;
-    auto iter = previous_frame_->dynamic_features_.beginUsable();
+    auto iter = previous_frame_->dynamic_features_.usableIterator();
     for (const auto& inlier_feature : iter) {
       previous_inliers.add(inlier_feature);
     }

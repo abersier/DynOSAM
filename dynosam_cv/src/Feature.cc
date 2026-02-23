@@ -225,7 +225,7 @@ bool Feature::stereoPoint(gtsam::StereoPoint2& stereo) const {
 
 FeatureContainer::FeatureContainer() : feature_map_() {}
 
-FeatureContainer::FeatureContainer(const FeaturePtrs feature_vector) {
+FeatureContainer::FeatureContainer(const FeaturePtrs& feature_vector) {
   for (size_t i = 0; i < feature_vector.size(); i++) {
     add(feature_vector.at(i));
   }
@@ -237,17 +237,19 @@ void FeatureContainer::add(const Feature& feature) {
 }
 
 void FeatureContainer::add(Feature::Ptr feature) {
-  CHECK(!exists(feature->trackletId()))
-      << "Feailure in FeatureContainer::add - Tracklet Id "
-      << feature->trackletId() << " already exists";
-  feature_map_[feature->trackletId()] = feature;
+  const TrackletId tracklet_id = feature->trackletId();
+  CHECK(!exists(tracklet_id))
+      << "Feailure in FeatureContainer::add - Tracklet Id " << tracklet_id
+      << " already exists";
+  feature_map_[tracklet_id] = feature;
 
+  const ObjectId object_id = feature->objectId();
   // TODO: what if object id is not valid!
-  if (!object_feature_map_.exists(feature->objectId())) {
-    object_feature_map_.insert2(feature->objectId(),
-                                std::unordered_set<TrackletId>{});
+  if (!object_feature_map_.exists(object_id)) {
+    object_feature_map_.insert2(object_id,
+                                FastObjectFeatureView(object_id, this));
   }
-  object_feature_map_[feature->objectId()].insert(feature->trackletId());
+  object_feature_map_.at(object_id).insert(tracklet_id);
 }
 
 // TODO: test
@@ -266,7 +268,7 @@ void FeatureContainer::remove(TrackletId tracklet_id) {
   CHECK(object_feature_map_.exists(object_id));
   // remove tracklet id from tracklet set and if the set is now empty
   // remove object id entirely
-  auto& tracklets_per_object = object_feature_map_.at(object_id);
+  auto& tracklets_per_object = object_feature_map_.at(object_id).tracklets;
   tracklets_per_object.erase(tracklet_id);
 
   if (tracklets_per_object.empty()) {
@@ -279,16 +281,15 @@ void FeatureContainer::remove(TrackletId tracklet_id) {
 
 void FeatureContainer::removeByObjectId(ObjectId object_id) {
   // collect all tracklets
-  auto itr = FilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool {
-    return f->objectId() == object_id;
-  });
-
-  TrackletIds tracklets_to_remove;
-  for (const auto& feature : itr) {
-    CHECK_EQ(feature->objectId(), object_id);
-    tracklets_to_remove.push_back(feature->trackletId());
+  // auto itr = FilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool
+  // {
+  //   return f->objectId() == object_id;
+  // });
+  if (!object_feature_map_.exists(object_id)) {
+    return;
   }
 
+  const auto& tracklets_to_remove = object_feature_map_.at(object_id).tracklets;
   for (const auto tracklet_id : tracklets_to_remove) {
     this->remove(tracklet_id);
   }
@@ -327,12 +328,16 @@ void FeatureContainer::markOutliers(const TrackletIds& outliers) {
 size_t FeatureContainer::size() const { return feature_map_.size(); }
 
 size_t FeatureContainer::size(ObjectId object_id) const {
-  auto itr =
-      ConstFilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool {
-        return f->objectId() == object_id;
-      });
+  // auto itr =
+  //     ConstFilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool {
+  //       return f->objectId() == object_id;
+  //     });
 
-  return static_cast<size_t>(std::distance(itr.begin(), itr.end()));
+  // return static_cast<size_t>(std::distance(itr.begin(), itr.end()));
+  if (object_feature_map_.exists(object_id)) {
+    return object_feature_map_.at(object_id).size();
+  }
+  return 0;
 }
 
 Feature::Ptr FeatureContainer::getByTrackletId(TrackletId tracklet_id) const {
@@ -348,23 +353,12 @@ bool FeatureContainer::exists(TrackletId tracklet_id) const {
 
 TrackletIds FeatureContainer::getByObject(ObjectId object_id) const {
   if (object_feature_map_.exists(object_id)) {
-    const auto& tracklets = object_feature_map_.at(object_id);
+    const auto tracklets = object_feature_map_.at(object_id).tracklets;
+    // convert unordered_set to vector
     return TrackletIds(tracklets.begin(), tracklets.end());
   } else {
     return TrackletIds{};
   }
-}
-
-FeatureContainer::FilterIterator FeatureContainer::beginUsable() {
-  return FilterIterator(*this, [](const Feature::Ptr& f) -> bool {
-    return Feature::IsUsable(f);
-  });
-}
-
-FeatureContainer::FilterIterator FeatureContainer::beginUsable() const {
-  FeatureContainer& t = const_cast<FeatureContainer&>(*this);
-  return FilterIterator(
-      t, [](const Feature::Ptr& f) -> bool { return Feature::IsUsable(f); });
 }
 
 FeatureContainer::ObjectToFeatureMap::iterator
@@ -384,6 +378,55 @@ FeatureContainer::ObjectToFeatureMap::const_iterator
 FeatureContainer::endObjectIterator() const {
   return object_feature_map_.end();
 }
+
+FeatureContainer::FastUsableObjectIterator FeatureContainer::usableIterator(
+    ObjectId object_id) {
+  static FastObjectFeatureView empty_object_feature_view(object_id, this);
+
+  FastObjectFeatureView* view = nullptr;
+  if (hasObject(object_id)) {
+    view = &object_feature_map_.at(object_id);
+  } else {
+    view = &empty_object_feature_view;
+  }
+  CHECK_NOTNULL(view);
+  return FastUsableObjectIterator(*view);
+}
+
+FeatureContainer::ConstFastUsableObjectIterator
+FeatureContainer::usableIterator(ObjectId object_id) const {
+  static const FastObjectFeatureView empty_object_feature_view(
+      object_id, const_cast<FeatureContainer*>(this));
+
+  const FastObjectFeatureView* view = nullptr;
+  if (hasObject(object_id)) {
+    view = &object_feature_map_.at(object_id);
+  } else {
+    view = &empty_object_feature_view;
+  }
+  CHECK_NOTNULL(view);
+  return ConstFastUsableObjectIterator(*view);
+}
+
+// FeatureContainer::ObjectFeatureIterator
+// FeatureContainer::beginObjectFeatures(ObjectId object_id) {
+
+// }
+
+// FeatureContainer::ObjectFeatureIterator
+// FeatureContainer::endObjectFeatures(ObjectId object_id) {
+
+// }
+
+// FeatureContainer::ConstObjectFeatureIterator
+// FeatureContainer::beginObjectFeatures(ObjectId object_id) const {
+
+// }
+
+// FeatureContainer::ConstObjectFeatureIterator
+// FeatureContainer::endObjectFeatures(ObjectId object_id) const {
+
+// }
 
 // TODO: else if logic needs test!!
 std::vector<cv::Point2f> FeatureContainer::toOpenCV(TrackletIds* tracklet_ids,

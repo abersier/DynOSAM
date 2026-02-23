@@ -289,7 +289,7 @@ bool FeatureTrackerBase::drawStereoMatches(cv::Mat& output_image,
 
   int w1 = img_rgb_left.cols;
 
-  auto itr = current_frame.static_features_.beginUsable();
+  auto itr = current_frame.static_features_.usableIterator();
   for (const auto& feature : itr) {
     if (!feature->hasRightKeypoint()) {
       continue;

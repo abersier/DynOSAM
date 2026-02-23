@@ -89,6 +89,20 @@ bool Frame::exists(TrackletId tracklet_id) const {
   return result;
 }
 
+size_t Frame::numStaticUsableFeatures() const {
+  auto iter = usableStaticFeaturesBegin();
+  return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
+}
+
+size_t Frame::numDynamicUsableFeatures() const {
+  auto iter = usableDynamicFeaturesBegin();
+  return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
+}
+
+size_t Frame::numTotalFeatures() const {
+  return numStaticFeatures() + numDynamicFeatures();
+}
+
 Feature::Ptr Frame::at(TrackletId tracklet_id) const {
   if (!exists(tracklet_id)) {
     return nullptr;
@@ -381,28 +395,29 @@ bool Frame::getDynamicCorrespondences(FeaturePairs& correspondences,
   //     }
   // }
 
-  auto current_dynamic_features_iterator = FeatureFilterIterator(
-      const_cast<FeatureContainer&>(this->dynamic_features_),
-      [object_id](const Feature::Ptr& f) -> bool {
-        return Feature::IsUsable(f) && f->objectId() == object_id;
-      });
+  // auto current_dynamic_features_iterator = FeatureFilterIterator(
+  //     const_cast<FeatureContainer&>(this->dynamic_features_),
+  //     [object_id](const Feature::Ptr& f) -> bool {
+  //       return Feature::IsUsable(f) && f->objectId() == object_id;
+  //     });
 
-  // make iterator for the previous dynamic features that ensure each feature is
-  // usable and has a matching instance label
-  auto previous_dynamic_features_iterator = FeatureFilterIterator(
-      const_cast<FeatureContainer&>(previous_frame.dynamic_features_),
-      [object_id](const Feature::Ptr& f) -> bool {
-        return Feature::IsUsable(f) && f->objectId() == object_id;
-      });
+  // // make iterator for the previous dynamic features that ensure each feature
+  // is
+  // // usable and has a matching instance label
+  // auto previous_dynamic_features_iterator = FeatureFilterIterator(
+  //     const_cast<FeatureContainer&>(previous_frame.dynamic_features_),
+  //     [object_id](const Feature::Ptr& f) -> bool {
+  //       return Feature::IsUsable(f) && f->objectId() == object_id;
+  //     });
 
   // get the correspondences from these two iterators
   // we iterate over the current feature container which should only contain
   // features on the object and compare against the container
   vision_tools::getCorrespondences(
-      correspondences, previous_dynamic_features_iterator,
+      correspondences, previous_frame.dynamic_features_,
       // we iterate over the current feature container which should only contain
       // features on the object
-      current_dynamic_features_iterator);
+      this->dynamic_features_, UsableObjectLabelPredicate(object_id));
 
   // LOG(INFO) << "Found " << correspondences.size() << " correspondences for
   // object instance " << object_id << " " << (correspondences.size() > 0u);
@@ -412,25 +427,33 @@ bool Frame::getDynamicCorrespondences(FeaturePairs& correspondences,
 
 bool Frame::getStaticCorrespondences(FeaturePairs& correspondences,
                                      const Frame& previous_frame) const {
-  vision_tools::getCorrespondences(
-      correspondences, previous_frame.static_features_.beginUsable(),
-      static_features_.beginUsable());
+  // vision_tools::getCorrespondences(
+  //     correspondences, previous_frame.static_features_.usableIterator(),
+  //     static_features_.usableIterator());
+
+  vision_tools::getCorrespondences(correspondences,
+                                   previous_frame.static_features_,
+                                   static_features_, UsableFeaturePredicate());
 
   return correspondences.size() > 0u;
 }
 
 bool Frame::getDynamicCorrespondences(FeaturePairs& correspondences,
                                       const Frame& previous_frame) const {
-  vision_tools::getCorrespondences(
-      correspondences, previous_frame.dynamic_features_.beginUsable(),
-      dynamic_features_.beginUsable());
+  // vision_tools::getCorrespondences(
+  //     correspondences, previous_frame.dynamic_features_.usableIterator(),
+  //     dynamic_features_.usableIterator());
+
+  vision_tools::getCorrespondences(correspondences,
+                                   previous_frame.dynamic_features_,
+                                   dynamic_features_, UsableFeaturePredicate());
   return correspondences.size() > 0u;
 }
 
 void Frame::updateDepthsFeatureContainer(
     FeatureContainer& container, const ImageWrapper<ImageType::Depth>& depth,
     double max_depth) {
-  // auto iter = container.beginUsable();
+  // auto iter = container.usableIterator();
   // auto iter = container.begin();
 
   int count = 0;
@@ -472,7 +495,7 @@ void Frame::constructDynamicObservations() {
   const ObjectIds instance_labels =
       vision_tools::getObjectLabels(image_container_.objectMotionMask());
 
-  auto inlier_iterator = dynamic_features_.beginUsable();
+  auto inlier_iterator = dynamic_features_.usableIterator();
   for (const Feature::Ptr& dynamic_feature : inlier_iterator) {
     CHECK(!dynamic_feature->isStatic());
     CHECK(dynamic_feature->usable());
@@ -558,38 +581,6 @@ void Frame::constructDynamicObservations() {
 //     feature->objectId(new_tracking_label);
 //   }
 // }
-
-FeatureFilterIterator Frame::usableStaticFeaturesBegin() {
-  return static_features_.beginUsable();
-}
-
-FeatureFilterIterator Frame::usableStaticFeaturesBegin() const {
-  return static_features_.beginUsable();
-}
-
-FeatureFilterIterator Frame::usableDynamicFeaturesBegin() {
-  return dynamic_features_.beginUsable();
-}
-
-FeatureFilterIterator Frame::usableDynamicFeaturesBegin() const {
-  return dynamic_features_.beginUsable();
-}
-
-FeatureFilterIterator Frame::usableDynamicFeaturesBegin(ObjectId object_id) {
-  return FeatureFilterIterator(
-      this->dynamic_features_, [object_id](const Feature::Ptr& f) -> bool {
-        return Feature::IsUsable(f) && f->objectId() == object_id;
-      });
-}
-
-FeatureFilterIterator Frame::usableDynamicFeaturesBegin(
-    ObjectId object_id) const {
-  return FeatureFilterIterator(
-      const_cast<FeatureContainer&>(this->dynamic_features_),
-      [object_id](const Feature::Ptr& f) -> bool {
-        return Feature::IsUsable(f) && f->objectId() == object_id;
-      });
-}
 
 Landmark Frame::getLandmarkFromCache(LandmarkMap& cache, Feature::Ptr feature,
                                      const gtsam::Pose3& X_world) const {

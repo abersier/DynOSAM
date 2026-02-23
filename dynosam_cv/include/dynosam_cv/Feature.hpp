@@ -323,6 +323,19 @@ using enable_if_feature_ptr_iterator =
 
 }  // namespace internal
 
+struct UsableFeaturePredicate {
+  bool operator()(const Feature::Ptr& f) const { return Feature::IsUsable(f); }
+};
+
+struct UsableObjectLabelPredicate {
+  ObjectId object_id;
+  UsableObjectLabelPredicate(const ObjectId j) : object_id(j) {}
+
+  bool operator()(const Feature::Ptr& f) const {
+    return Feature::IsUsable(f) && f->objectId() == object_id;
+  }
+};
+
 /**
  * @brief Basic container mapping tracklet id's to a feature (pointer).
  *
@@ -338,80 +351,108 @@ class FeatureContainer {
   using TrackletToFeatureMap = std::unordered_map<TrackletId, Feature::Ptr>;
 
   using TrackletIdSet = std::unordered_set<TrackletId>;
-  using ObjectToFeatureMap = FastUnorderedMap<ObjectId, TrackletIdSet>;
-
-  /// @brief Vector-style iterator definition
-  using vector_iterator =
-      vector_iterator_base<TrackletToFeatureMap::iterator, Feature::Ptr>;
-  /// @brief Vector-style const iterator definition
-  using const_vector_iterator =
-      vector_iterator_base<TrackletToFeatureMap::const_iterator,
-                           const Feature::Ptr>;
+  // using ObjectToFeatureMap = FastUnorderedMap<ObjectId, TrackletIdSet>;
 
   /// @brief Internal typedefs to allow FeatureContainer to satisfy the
   /// definitions of a std::iterator See:
   /// https://en.cppreference.com/w/cpp/iterator/iterator_traits
-  using iterator = vector_iterator;
+  using iterator =
+      vector_iterator_base<TrackletToFeatureMap::iterator, Feature::Ptr>;
   using pointer = iterator::pointer;
-  using const_iterator = const_vector_iterator;
+  using const_iterator =
+      vector_iterator_base<TrackletToFeatureMap::const_iterator,
+                           const Feature::Ptr>;
   using const_pointer = const_iterator::pointer;
   using value_type = Feature::Ptr;
   using reference = Feature::Ptr&;
   using const_reference = const Feature::Ptr&;
   using difference_type = std::ptrdiff_t;
 
-  /// @brief Typedefs for Filter iteratorss for the FeatureContainer allowing
-  /// conditional iterators to be defined. Must be defined after the internal
-  /// iterator, pointer.... typedefs as internal::filter_iterator<> expects the
-  /// type defined to have a valid iterator.
-  using FilterIterator = internal::filter_iterator<FeatureContainer>;
-  using ConstFilterIterator =
-      internal::filter_const_iterator<const FeatureContainer>;
+  // Common filter view types
+  using UsableFeatureIterator =
+      internal::FilterView<FeatureContainer, UsableFeaturePredicate>;
+  using UsableObjectFeatureIterator =
+      internal::FilterView<FeatureContainer, UsableObjectLabelPredicate>;
 
-  // //Iterator will be either std::unordered_set<TrackletId>::iterator or
-  // std::unordered_set<TrackletId>::const_iterator template <typename
-  // TrackletIterator, typename FContainer> struct InternalObjectFeatureIterator
-  // {
-  //   using iterator_type = TrackletIterator;
+  using ConstUsableFeatureIterator =
+      internal::FilterView<const FeatureContainer, UsableFeaturePredicate>;
+  using ConstUsableObjectFeatureIterator =
+      internal::FilterView<const FeatureContainer, UsableObjectLabelPredicate>;
 
-  //   using value_type = Feature::Ptr;
-  //   using reference = value_type&;
-  //   using pointer = value_type*;
+  template <typename FeatureT>
+  struct _FastObjectFeatureView {
+    using This = _FastObjectFeatureView<FeatureT>;
+    const ObjectId object_id;
+    FeatureContainer* container;
+    //! Set of tracklet ids for object id j
+    TrackletIdSet tracklets{};
 
-  //   iterator_type it_;
-  //   //! Somewhat unsafe immutable pointer to the feature container
-  //   const FeatureContainer* container_;
-  //   InternalObjectFeatureIterator(iterator_type it, const FeatureContainer*
-  //   container) : it_(it), container_(container) {}
+    _FastObjectFeatureView(const ObjectId j, FeatureContainer* c)
+        : object_id(j), container(c) {}
 
-  //   reference operator*() { return container_->getByTrackletId(*it_); }
-  //   pointer operator->() { return &container_->getByTrackletId(*it_); }
+    void insert(const TrackletId& tracklet_id) {
+      tracklets.insert(tracklet_id);
+    }
+    size_t size() const { return tracklets.size(); }
 
-  //   bool operator==(const InternalObjectFeatureIterator& other) const {
-  //     return it_ == other.it_;
-  //   }
-  //   bool operator!=(const InternalObjectFeatureIterator& other) const {
-  //     return it_ != other.it_;
-  //   }
+    struct iterator {
+      using iterator_type = TrackletIdSet::const_iterator;
+      // FeatureT determines if const Feature::Ptr or Feature::Ptr
+      using value_type = FeatureT;
+      using reference = value_type&;
+      using const_reference = const reference;
+      using pointer = value_type*;
+      using difference_type = std::ptrdiff_t;
+      using iterator_category = std::forward_iterator_tag;
 
-  //   bool operator==(const iterator_type& other) const { return it_ == other;
-  //   } bool operator!=(const iterator_type& other) const { return it_ !=
-  //   other; }
+      iterator_type it_;
+      //! Somewhat unsafe immutable pointer to the feature container
+      FeatureContainer* container_;
+      iterator(iterator_type it, FeatureContainer* container)
+          : it_(it), container_(container) {}
 
-  //   InternalObjectFeatureIterator& operator++() {
-  //     ++it_;
-  //     return *this;
-  //   }
-  // };
+      // NOTE: we return the actual value from the feature map rather than using
+      // the more safe container_->getByTrackletId() this is becuase we need to
+      // return a reference so that the view can operate like a real iterator
+      // and getByTrackletId returns value value
+      const_reference operator*() const {
+        return container_->feature_map_.at(*it_);
+      }
+      reference operator*() { return container_->feature_map_.at(*it_); }
 
-  // using ObjectFeatureIterator =
-  // InternalObjectFeatureIterator<TrackletIdSet::iterator, FeatureContainer>;
-  // using ConstObjectFeatureIterator =
-  // InternalObjectFeatureIterator<TrackletIdSet::const_iterator, const
-  // FeatureContainer>;
+      bool operator==(const iterator& other) const { return it_ == other.it_; }
+      bool operator!=(const iterator& other) const { return it_ != other.it_; }
+
+      bool operator==(const iterator_type& other) const { return it_ == other; }
+      bool operator!=(const iterator_type& other) const { return it_ != other; }
+
+      iterator& operator++() {
+        ++it_;
+        return *this;
+      }
+    };
+
+    iterator begin() const { return iterator(tracklets.begin(), container); }
+    iterator end() const { return iterator(tracklets.end(), container); }
+    iterator begin() { return iterator(tracklets.begin(), container); }
+    iterator end() { return iterator(tracklets.end(), container); }
+  };
+
+  using FastObjectFeatureView = _FastObjectFeatureView<Feature::Ptr>;
+  // using ConstFastObjectFeatureView = _FastObjectFeatureView<const
+  // Feature::Ptr>;
+
+  using ObjectToFeatureMap = FastUnorderedMap<ObjectId, FastObjectFeatureView>;
+
+  // Fast becuase this iterator iteratores directly over the set of tracklets
+  // for a requested object j and therefore has many less features too look at
+  using FastUsableObjectIterator =
+      internal::FilterView<FastObjectFeatureView, UsableFeaturePredicate>;
+  using ConstFastUsableObjectIterator =
+      internal::FilterView<const FastObjectFeatureView, UsableFeaturePredicate>;
 
   FeatureContainer();
-  FeatureContainer(const FeaturePtrs feature_vector);
+  FeatureContainer(const FeaturePtrs& feature_vector);
 
   /**
    * @brief Adds a new feature to the container.
@@ -455,6 +496,10 @@ class FeatureContainer {
    * @param object_id ObjectId
    */
   void removeByObjectId(ObjectId object_id);
+
+  bool hasObject(ObjectId object_id) const {
+    return object_feature_map_.exists(object_id);
+  }
 
   /**
    * @brief Collects all feature tracklets.
@@ -529,21 +574,23 @@ class FeatureContainer {
   TrackletIds getByObject(ObjectId) const;
 
   // vector begin
-  inline vector_iterator begin() {
-    return vector_iterator(feature_map_.begin());
-  }
-  inline const_vector_iterator begin() const {
-    return const_vector_iterator(feature_map_.cbegin());
+  inline iterator begin() { return iterator(feature_map_.begin()); }
+  inline const_iterator begin() const {
+    return const_iterator(feature_map_.cbegin());
   }
 
   // vector end
-  inline vector_iterator end() { return vector_iterator(feature_map_.end()); }
-  inline const_vector_iterator end() const {
-    return const_vector_iterator(feature_map_.cend());
+  inline iterator end() { return iterator(feature_map_.end()); }
+  inline const_iterator end() const {
+    return const_iterator(feature_map_.cend());
   }
 
-  FilterIterator beginUsable();
-  FilterIterator beginUsable() const;
+  UsableFeatureIterator usableIterator() {
+    return UsableFeatureIterator(*this, UsableFeaturePredicate());
+  }
+  ConstUsableFeatureIterator usableIterator() const {
+    return ConstUsableFeatureIterator(*this, UsableFeaturePredicate());
+  }
 
   ObjectToFeatureMap::iterator beginObjectIterator();
   ObjectToFeatureMap::iterator endObjectIterator();
@@ -551,7 +598,9 @@ class FeatureContainer {
   ObjectToFeatureMap::const_iterator beginObjectIterator() const;
   ObjectToFeatureMap::const_iterator endObjectIterator() const;
 
-  // ObjectFeatureIterator beginObjectFeatures(ObjectId object_id);
+  FastUsableObjectIterator usableIterator(ObjectId object_id);
+  ConstFastUsableObjectIterator usableIterator(ObjectId object_id) const;
+  // ConstFastUsableObjectIterator usableIterator(ObjectId object_id) const;
 
   /**
    * @brief Converts the keypoints of all features in the container to
@@ -575,50 +624,64 @@ class FeatureContainer {
   ObjectToFeatureMap object_feature_map_;
 };
 
-/// @brief filter iterator over a FeatureContainer class
-using FeatureFilterIterator = FeatureContainer::FilterIterator;
-using ConstFeatureFilterIterator = FeatureContainer::ConstFilterIterator;
+/**
+ * @brief Alias to a FilterView over a feature container with some Predicate.
+ *
+ * @tparam Predicate
+ */
+template <typename Predicate>
+using FeatureIterator = internal::FilterView<FeatureContainer, Predicate>;
+
+/**
+ * @brief Alias to a FilterView over a (const) feature container with some
+ * Predicate.
+ *
+ * @tparam Predicate
+ */
+template <typename Predicate>
+using ConstFeatureIterator =
+    internal::FilterView<const FeatureContainer, Predicate>;
 
 }  // namespace dyno
 
 // add iterator traits so we can use smart thigns on the FeatureFilterIterator
 // like std::count, std::distance...
-template <>
-struct std::iterator_traits<dyno::FeatureFilterIterator>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureFilterIterator::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::FeatureFilterIterator>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureFilterIterator::pointer> {};
 
-template <>
-struct std::iterator_traits<dyno::ConstFeatureFilterIterator>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureFilterIterator::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::ConstFeatureFilterIterator>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureFilterIterator::pointer> {};
 
-template <>
-struct std::iterator_traits<dyno::FeatureContainer::vector_iterator>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureContainer::vector_iterator::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::FeatureContainer::vector_iterator>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureContainer::vector_iterator::pointer> {};
 
-template <>
-struct std::iterator_traits<dyno::FeatureContainer::const_vector_iterator>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureContainer::const_vector_iterator::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::FeatureContainer::const_vector_iterator>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureContainer::const_vector_iterator::pointer> {};
 
-template <>
-struct std::iterator_traits<dyno::FeatureContainer>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureContainer::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::FeatureContainer>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureContainer::pointer> {};
 
-template <>
-struct std::iterator_traits<const dyno::FeatureContainer>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeatureContainer::const_pointer> {};
+// template <>
+// struct std::iterator_traits<const dyno::FeatureContainer>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeatureContainer::const_pointer> {};
 
-template <>
-struct std::iterator_traits<dyno::FeaturePtrs>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeaturePtrs::pointer> {};
+// template <>
+// struct std::iterator_traits<dyno::FeaturePtrs>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeaturePtrs::pointer> {};
 
-template <>
-struct std::iterator_traits<const dyno::FeaturePtrs>
-    : public dyno::internal::filter_iterator_detail<
-          dyno::FeaturePtrs::const_pointer> {};
+// template <>
+// struct std::iterator_traits<const dyno::FeaturePtrs>
+//     : public dyno::internal::filter_iterator_detail<
+//           dyno::FeaturePtrs::const_pointer> {};
