@@ -3,13 +3,18 @@
 #include <gtsam/nonlinear/ISAM2.h>
 #include <gtsam/nonlinear/ISAM2UpdateParams.h>
 #include <gtsam_unstable/nonlinear/FixedLagSmoother.h>
+#include <gtsam_unstable/slam/SmartStereoProjectionPoseFactor.h>
 
 #include <nlohmann/json.hpp>
 
+#include "dynosam/backend/BackendDefinitions.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Trajectories.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_cv/RGBDCamera.hpp"
+#include "dynosam_opt/ISAM2.hpp"  //FOR TESTING!!!
+#include "dynosam_opt/ISAM2Result.hpp"
+#include "dynosam_opt/ISAM2UpdateParams.hpp"
 #include "dynosam_opt/IncrementalOptimization.hpp"
 #include "dynosam_opt/Symbols.hpp"
 
@@ -24,7 +29,8 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
     gtsam::KeyList additional_keys_reeliminate;
     double update_time_ms{0};
     double marginalize_time_ms{0};
-    gtsam::ISAM2Result isam_result;
+    // gtsam::ISAM2Result isam_result;
+    dyno::ISAM2Result isam_result;
   };
 
   static HybridObjectMotionSmoother::Ptr CreateWithInitialMotion(
@@ -91,7 +97,8 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   }
 
   /** return the current set of iSAM2 parameters */
-  const gtsam::ISAM2Params& params() const { return isam_.params(); }
+  // const gtsam::ISAM2Params& params() const { return isam_.params(); }
+  const dyno::ISAM2Params& params() const { return isam_.params(); }
 
   /** Access the current set of factors */
   const gtsam::NonlinearFactorGraph& getFactors() const {
@@ -112,10 +119,12 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   }
 
   /// Get results of latest isam2 update
-  const gtsam::ISAM2Result& getISAM2Result() const { return isamResult_; }
+  // const gtsam::ISAM2Result& getISAM2Result() const { return isamResult_; }
+  const dyno::ISAM2Result& getISAM2Result() const { return isamResult_; }
 
   /// Get the iSAM2 object which is used for the inference internally
-  const gtsam::ISAM2& getISAM2() const { return isam_; }
+  // const gtsam::ISAM2& getISAM2() const { return isam_; }
+  const dyno::ISAM2& getISAM2() const { return isam_; }
 
   struct DebugResult {
     HybridObjectMotionSmoother::Result result;
@@ -163,11 +172,14 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
                                  Frame::Ptr frame,
                                  const TrackletIds& tracklets);
 
-  Result updateSmoother(const gtsam::NonlinearFactorGraph& newFactors,
-                        const gtsam::Values& newTheta,
-                        const KeyTimestampMap& timestamps = KeyTimestampMap(),
-                        const gtsam::ISAM2UpdateParams& update_params =
-                            gtsam::ISAM2UpdateParams());
+  Result updateSmoother(
+      const gtsam::NonlinearFactorGraph& newFactors,
+      const gtsam::Values& newTheta,
+      const KeyTimestampMap& timestamps = KeyTimestampMap(),
+      const dyno::ISAM2UpdateParams& update_params = dyno::ISAM2UpdateParams());
+
+  PoseWithMotionTrajectory localTrajectoryImpl(
+      bool include_keyframe = false) const;
 
  protected:
   HybridObjectMotionSmoother(ObjectId object_id, Camera::Ptr camera,
@@ -194,13 +206,32 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
   FrameRangeData<gtsam::Pose3> keyframe_range_;
 
   /** Create default parameters */
-  static gtsam::ISAM2Params DefaultISAM2Params() {
-    gtsam::ISAM2Params params;
+  // static gtsam::ISAM2Params DefaultISAM2Params() {
+  //   gtsam::ISAM2Params params;
+  //   params.findUnusedFactorSlots = true;
+  //   params.keyFormatter = DynosamKeyFormatter;
+  //   params.relinearizeThreshold = 0.01;
+  //   // this value is very important for accuracy
+  //   params.relinearizeSkip = 1;
+  //   params.evaluateNonlinearError = true;
+  //   return params;
+  // }
+  static dyno::ISAM2Params DefaultISAM2Params() {
+    dyno::ISAM2Params params;
     params.findUnusedFactorSlots = true;
+    // OKAY this seems to be extremely important!
+    // when cacheLinearizedFactors = true (default) at least on gtsam 4.2.0
+    // then when collecting the factors that are affected by new variables
+    // relinearizeAffectedFactors checks if the effected keys are also part of
+    // the relinearization keys as provided by both the fluid relin check and as
+    // part of the additional params. New affected keys as part of smart factors
+    // are NOT part of the relin keys and therefore the cached LINEAR factor
+    // will be used (which does not include the new variable!)
+    params.cacheLinearizedFactors = false;
     params.keyFormatter = DynosamKeyFormatter;
     params.relinearizeThreshold = 0.01;
     // this value is very important for accuracy
-    params.relinearizeSkip = 1;
+    // params.relinearizeSkip = 1;
     params.evaluateNonlinearError = true;
     return params;
   }
@@ -213,12 +244,25 @@ class HybridObjectMotionSmoother : public gtsam::FixedLagSmoother {
 
   /** An iSAM2 object used to perform inference. The smoother lag is controlled
    * by what factors are removed each iteration */
-  gtsam::ISAM2 isam_;
+  // gtsam::ISAM2 isam_;
+  dyno::ISAM2 isam_;
 
   /** Store results of latest isam2 update */
-  gtsam::ISAM2Result isamResult_;
+  // gtsam::ISAM2Result isamResult_;
+  dyno::ISAM2Result isamResult_;
 
   std::vector<DebugResult> debug_results_;
+
+  gtsam::FastMap<FrameId, gtsam::Pose3> camera_poses_;
+
+  /// SmartFactor stuff
+  FactorMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr> factor_map_;
+  gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
+      factor_to_tracklet_id_;
+
+  // Keyframe LM solve stuff
+  gtsam::NonlinearFactorGraph KF_factors_;
+  gtsam::Values KF_values_;
 
   /** Erase any keys associated with timestamps before the provided time */
   void eraseKeysBefore(double timestamp);

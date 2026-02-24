@@ -249,9 +249,10 @@ struct UpdateImpl {
 
     for (gtsam::Key index : markedKeys) {
       // Only add if not unused
-      if (result->unusedKeys.find(index) == result->unusedKeys.end())
+      if (result->unusedKeys.find(index) == result->unusedKeys.end()) {
         // Make a copy of these, as we'll soon add to them
         result->observedKeys.push_back(index);
+      }
     }
   }
 

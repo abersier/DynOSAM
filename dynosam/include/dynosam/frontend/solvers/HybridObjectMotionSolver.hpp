@@ -65,8 +65,8 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
                                       const Frame::Ptr frame,
                                       const TrackletIds& tracklets) const;
 
-  // HybridObjectMotionSRIF::Ptr createAndInsertFilter(
-  //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
+  FullHybridObjectMotionSRIF::Ptr createAndInsertFilter(
+      ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
   // HybridObjectMotionSmoother::Ptr createAndInsertFilter(
   //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
 
@@ -87,8 +87,8 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
   MultiObjectTrajectories object_trajectories_;
 
-  // gtsam::FastMap<ObjectId, HybridObjectMotionSRIF::Ptr> filters_;
-  gtsam::FastMap<ObjectId, HybridObjectMotionSmoother::Ptr> filters_;
+  gtsam::FastMap<ObjectId, FullHybridObjectMotionSRIF::Ptr> filters_;
+  // gtsam::FastMap<ObjectId, HybridObjectMotionSmoother::Ptr> filters_;
 
   // Info from the last frame. ONly stores change info with keyframes
   gtsam::FastMap<ObjectId, ObjectPoseChangeInfo> pose_change_info_;

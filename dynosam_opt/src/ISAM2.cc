@@ -97,6 +97,7 @@ GaussianFactorGraph ISAM2::relinearizeAffectedFactors(
     bool inside = true;
     bool useCachedLinear = params_.cacheLinearizedFactors;
     for (Key key : nonlinearFactors_[idx]->keys()) {
+      LOG(INFO) << DynosamKeyFormatter(key) << "for index " << idx;
       if (affectedKeysSet.find(key) == affectedKeysSet.end()) {
         inside = false;
         break;
@@ -279,6 +280,7 @@ void ISAM2::recalculateIncremental(const ISAM2UpdateParams& updateParams,
   affectedAndNewKeys.insert(affectedAndNewKeys.end(),
                             result->observedKeys.begin(),
                             result->observedKeys.end());
+
   GaussianFactorGraph factors =
       relinearizeAffectedFactors(updateParams, affectedAndNewKeys, relinKeys);
 
@@ -342,6 +344,8 @@ void ISAM2::recalculateIncremental(const ISAM2UpdateParams& updateParams,
         result->observedKeys.size() < affectedFactorsVarIndex.size() ? 1 : 0;
     for (Key var : result->observedKeys) constraintGroups.emplace(var, group);
   }
+
+  LOG(INFO) << "Here";
 
   // Remove unaffected keys from the constraints
   for (FastMap<Key, int>::iterator iter = constraintGroups.begin();
@@ -455,6 +459,7 @@ ISAM2Result ISAM2::update(const NonlinearFactorGraph& newFactors,
   update.pushBackFactors(newFactors, &nonlinearFactors_, &linearFactors_,
                          &variableIndex_, &result.newFactorsIndices,
                          &result.keysWithRemovedFactors);
+
   update.computeUnusedKeys(newFactors, variableIndex_,
                            result.keysWithRemovedFactors, &result.unusedKeys);
 
@@ -465,6 +470,7 @@ ISAM2Result ISAM2::update(const NonlinearFactorGraph& newFactors,
   // 3. Mark linear update
   update.gatherInvolvedKeys(newFactors, nonlinearFactors_,
                             result.keysWithRemovedFactors, &result.markedKeys);
+
   update.updateKeys(result.markedKeys, &result);
   result.involvedVariables = result.markedKeys.size();
 
@@ -493,6 +499,7 @@ ISAM2Result ISAM2::update(const NonlinearFactorGraph& newFactors,
   // 7. Linearize new factors
   update.linearizeNewFactors(newFactors, theta_, nonlinearFactors_.size(),
                              result.newFactorsIndices, &linearFactors_);
+
   update.augmentVariableIndex(newFactors, result.newFactorsIndices,
                               &variableIndex_);
 
