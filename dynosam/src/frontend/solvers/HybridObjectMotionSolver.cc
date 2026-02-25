@@ -29,7 +29,7 @@ void HybridObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
   for (const auto& [obj_id, _] : frame_k->object_observations_) {
     current_objects.insert(obj_id);
   }
-  for (const auto& [obj_id, _] : filters_) {
+  for (const auto& [obj_id, _] : solvers_) {
     if (current_objects.find(obj_id) == current_objects.end()) {
       object_statuses_[obj_id] = ObjectTrackingStatus::Lost;
       deleteObject(obj_id);
@@ -213,7 +213,7 @@ bool HybridObjectMotionSolver::solveImpl(
     Frame::Ptr frame_k, Frame::Ptr frame_km1, ObjectId object_id,
     Motion3ReferenceFrame& motion_estimate) {
   // Initialize or update tracking status
-  bool is_new = !filters_.exists(object_id);
+  bool is_new = !solvers_.exists(object_id);
   bool is_resampled = std::find(frame_k->retracked_objects_.begin(),
                                 frame_k->retracked_objects_.end(),
                                 object_id) != frame_k->retracked_objects_.end();
@@ -307,15 +307,13 @@ bool HybridObjectMotionSolver::solveImpl(
 
   if (is_new) {
     auto filter = createAndInsertFilter(object_id, frame_km1, inlier_tracklets);
-    filter->predictAndUpdate(gtsam::Pose3::Identity(), frame_km1,
-                             inlier_tracklets, 0);
     keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
   } else {
     // const bool new_KF = is_resampled;
     const bool new_KF = false;
     // const bool new_KF = frame_k->getFrameId() % 12 == 0;
     if (new_KF) {
-      auto filter = filters_.at(object_id);
+      auto filter = solvers_.at(object_id);
       CHECK_NOTNULL(filter);
       gtsam::Pose3 new_KF_pose;
       if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
@@ -329,10 +327,10 @@ bool HybridObjectMotionSolver::solveImpl(
             constructObjectPose(object_id, frame_km1, inlier_tracklets);
         keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
       } else {
-        CHECK_EQ(filter->getFrameId(), frame_km1->getFrameId())
-            << "j=" << object_id << " k=" << filter->getFrameId();
+        CHECK_EQ(filter->frameId(), frame_km1->getFrameId())
+            << "j=" << object_id << " k=" << filter->frameId();
         // this is the pose as the last frame (ie k-1) which will serve as
-        new_KF_pose = filter->getPose();
+        new_KF_pose = filter->pose();
         keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
       }
 
@@ -346,12 +344,12 @@ bool HybridObjectMotionSolver::solveImpl(
   }
 
   // auto filter = threadSafeFilterAccess(object_id);
-  auto filter = filters_.at(object_id);
+  auto filter = solvers_.at(object_id);
   CHECK_NOTNULL(filter);
 
-  filter->predictAndUpdate(H_W_km1_k_pnp, frame_k, inlier_tracklets, 0);
+  filter->update(H_W_km1_k_pnp, frame_k, inlier_tracklets);
 
-  const auto H_W_KF_k = filter->getKeyFramedMotionReference();
+  const auto H_W_KF_k = filter->keyFrameMotionReference();
   LOG(INFO) << "Motion solved j= " << object_id << ": k= " << H_W_KF_k.from()
             << " -> " << H_W_KF_k.to();
 
@@ -393,7 +391,7 @@ bool HybridObjectMotionSolver::solveImpl(
 
   // sepate KF logic (ie we can keyframe temporally)
 
-  const gtsam::Pose3 H_w_km1_k = filter->getF2FMotion();
+  const gtsam::Pose3 H_w_km1_k = filter->frameToFrameMotion();
 
   motion_estimate = Motion3ReferenceFrame(
       H_w_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
@@ -642,8 +640,8 @@ bool HybridObjectMotionSolver::solveImpl(
 
 void HybridObjectMotionSolver::deleteObject(ObjectId object_id) {
   {
-    const std::lock_guard<std::mutex> lock(filters_mutex_);
-    filters_.erase(object_id);
+    const std::lock_guard<std::mutex> lock(solvers_mutex_);
+    solvers_.erase(object_id);
   }
 
   {
@@ -664,12 +662,12 @@ void HybridObjectMotionSolver::deleteObject(ObjectId object_id) {
 
 bool HybridObjectMotionSolver::getObjectStructureinL(
     ObjectId object_id, StatusLandmarkVector& object_points) const {
-  if (!filters_.exists(object_id)) {
+  if (!solvers_.exists(object_id)) {
     return false;
   }
-  auto filter = filters_.at(object_id);
+  auto filter = solvers_.at(object_id);
 
-  const auto fixed_points = filter->getCurrentLinearizedPoints();
+  const auto fixed_points = filter->getObjectPoints();
   for (const auto& [tracklet_id, m_L] : fixed_points) {
     object_points.push_back(LandmarkStatus::Dynamic(
         // currently no covariance!
@@ -682,15 +680,15 @@ bool HybridObjectMotionSolver::getObjectStructureinL(
 
 bool HybridObjectMotionSolver::getObjectStructureinW(
     ObjectId object_id, StatusLandmarkVector& object_points) const {
-  if (!filters_.exists(object_id)) {
+  if (!solvers_.exists(object_id)) {
     return false;
   }
-  auto filter = filters_.at(object_id);
+  auto filter = solvers_.at(object_id);
 
-  const auto fixed_points = filter->getCurrentLinearizedPoints();
-  const auto frame_id_k = filter->getFrameId();
-  const auto timestamp = filter->getTimestamp();
-  const auto L_W_k = filter->getPose();
+  const auto fixed_points = filter->getObjectPoints();
+  const auto frame_id_k = filter->frameId();
+  const auto timestamp = filter->timestamp();
+  const auto L_W_k = filter->pose();
   for (const auto& [tracklet_id, m_L] : fixed_points) {
     const auto m_W_k = L_W_k * m_L;
     object_points.push_back(LandmarkStatus::Dynamic(
@@ -1058,15 +1056,19 @@ gtsam::Pose3 HybridObjectMotionSolver::objectPoseFromCentroid(
   return gtsam::Pose3(gtsam::Rot3::Identity(), object_position);
 }
 
-std::shared_ptr<FullHybridObjectMotionSRIF>
+HybridObjectMotionSolverImpl::Ptr
 HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
                                                 Frame::Ptr frame,
                                                 const TrackletIds& tracklets) {
   gtsam::Matrix33 R = gtsam::Matrix33::Identity() * 1.0;
   // Initial State Covariance P (6x6)
   gtsam::Matrix66 P = gtsam::Matrix66::Identity() * 0.3;
-  // Process Model noise (6x6)
-  gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
+  // // Process Model noise (6x6)
+  // gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
+  gtsam::Vector6 q_diag;
+  q_diag << 1e-4, 1e-4, 1e-4,  // Rotation noise (std approx 0.01 rad)
+      1e-3, 1e-3, 1e-3;        // Translation noise (std approx 0.03 m)
+  gtsam::Matrix66 Q = q_diag.asDiagonal();
 
   gtsam::Pose3 keyframe_pose = constructObjectPose(object_id, frame, tracklets);
 
@@ -1075,8 +1077,8 @@ HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
       object_id, gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
       frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
 
-  const std::lock_guard<std::mutex> lock(filters_mutex_);
-  filters_.insert2(object_id, filter);
+  const std::lock_guard<std::mutex> lock(solvers_mutex_);
+  solvers_.insert2(object_id, filter);
 
   LOG(INFO) << "Created new filter for object " << object_id << " at frame "
             << frame->getFrameId();
@@ -1092,13 +1094,13 @@ void HybridObjectMotionSolver::updateTrajectories(
   const auto timestamp_k = frame_k->getTimestamp();
 
   for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
-    CHECK(filters_.exists(object_id));
+    CHECK(solvers_.exists(object_id));
 
     CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
     CHECK_EQ(motion_reference_frame.to(), frame_id_k);
 
-    auto filter = filters_.at(object_id);
-    gtsam::Pose3 L_k_j = filter->getPose();
+    auto filter = solvers_.at(object_id);
+    gtsam::Pose3 L_k_j = filter->pose();
     object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
                                 PoseWithMotion{L_k_j, motion_reference_frame});
   }

@@ -40,7 +40,7 @@ void ChronoTimeGenerator::onStop() { tic_time_ = Timer::tic(); }
 
 double ChronoTimeGenerator::calcDelta() const {
   const auto toc = Timer::toc<std::chrono::nanoseconds>(tic_time_);
-  return static_cast<double>(toc.count());
+  return Timer::toUnits<std::nano>(toc);
 }
 
 ChronoTimingStats::ChronoTimingStats(const std::string& tag, int glog_level,

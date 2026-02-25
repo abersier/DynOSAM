@@ -28,14 +28,9 @@ HybridObjectMotionSmoother::CreateWithInitialMotion(
 HybridObjectMotionSmoother::HybridObjectMotionSmoother(ObjectId object_id,
                                                        Camera::Ptr camera,
                                                        double smootherLag)
-    : gtsam::FixedLagSmoother(smootherLag),
-      object_id_(object_id),
-      logger_prefix_("hybrid_motion_smoother_j" + std::to_string(object_id)),
-      isam_(DefaultISAM2Params()) {
-  rgbd_camera_ = CHECK_NOTNULL(camera)->safeGetRGBDCamera();
-  CHECK(rgbd_camera_);
-  stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
-}
+    : HybridObjectMotionSolverImpl(object_id, camera),
+      gtsam::FixedLagSmoother(smootherLag),
+      isam_(DefaultISAM2Params()) {}
 
 HybridObjectMotionSmoother::~HybridObjectMotionSmoother() {
   if (!debug_results_.empty()) {
@@ -64,35 +59,28 @@ PoseWithMotionTrajectory HybridObjectMotionSmoother::localTrajectory() const {
   return localTrajectoryImpl(kIncludeKFInTrajectory);
 }
 
-Motion3ReferenceFrame HybridObjectMotionSmoother::getKeyFramedMotionReference()
-    const {
-  return Motion3ReferenceFrame(
-      getKeyFramedMotion(), Motion3ReferenceFrame::Style::KF,
-      ReferenceFrame::GLOBAL, getKeyFrameId(), getFrameId());
-}
-
-gtsam::Pose3 HybridObjectMotionSmoother::getKeyFramedMotion() const {
-  const gtsam::Symbol sym(ObjectMotionSymbol(object_id_, getFrameId()));
+gtsam::Pose3 HybridObjectMotionSmoother::keyFrameMotion() const {
+  const gtsam::Symbol sym(ObjectMotionSymbol(object_id_, frameId()));
   // TODO: bring back!
   //  CHECK(isam_.valueExists(sym));
   CHECK(smoother_state_.exists(sym));
-  const gtsam::Pose3 L_W_KF = getKeyFramePose();
+  const gtsam::Pose3 L_W_KF = keyFramePose();
   const gtsam::Pose3 H_W_KF_k = smoother_state_.at<gtsam::Pose3>(sym);
   // const gtsam::Pose3 G_W_KF_k = calculateEstimate<gtsam::Pose3>(sym);
   // const gtsam::Pose3 G_W_KF_k =
   // smoother_state_.at<gtsam::Pose3>(sym).inverse(); const gtsam::Pose3
-  // H_W_KF_k = camera_poses_.at(getFrameId()) * G_W_KF_k * L_W_KF.inverse();
+  // H_W_KF_k = camera_poses_.at(frameId()) * G_W_KF_k * L_W_KF.inverse();
   return H_W_KF_k;
 }
 
-gtsam::Pose3 HybridObjectMotionSmoother::getF2FMotion() const {
-  const gtsam::Pose3 H_W_KF_k = getKeyFramedMotion();
-  if (getKeyFrameId() == getFrameId()) {
+gtsam::Pose3 HybridObjectMotionSmoother::frameToFrameMotion() const {
+  const gtsam::Pose3 H_W_KF_k = keyFrameMotion();
+  if (keyFrameId() == frameId()) {
     return H_W_KF_k;
   }
-  const gtsam::Pose3 L_W_KF = getKeyFramePose();
+  const gtsam::Pose3 L_W_KF = keyFramePose();
 
-  FrameId frame_id_km1 = getFrameId() - 1u;
+  FrameId frame_id_km1 = frameId() - 1u;
 
   const gtsam::Symbol prev_motion_symbol(
       ObjectMotionSymbol(object_id_, frame_id_km1));
@@ -114,7 +102,7 @@ gtsam::Pose3 HybridObjectMotionSmoother::getF2FMotion() const {
 }
 
 gtsam::FastMap<TrackletId, gtsam::Point3>
-HybridObjectMotionSmoother::getCurrentLinearizedPoints() const {
+HybridObjectMotionSmoother::getObjectPoints() const {
   // TODO: smoother state or LKF state?
   const std::map<gtsam::Key, gtsam::Point3> keyed_object_point_map =
       getObjectPointsFromSmootherState();
@@ -128,27 +116,21 @@ HybridObjectMotionSmoother::getCurrentLinearizedPoints() const {
   return object_point_map;
 }
 
-gtsam::Pose3 HybridObjectMotionSmoother::getKeyFramePose() const {
-  auto kf_data = keyframe_range_.find(getFrameId());
+gtsam::Pose3 HybridObjectMotionSmoother::keyFramePose() const {
+  auto kf_data = keyframe_range_.find(frameId());
   CHECK(kf_data);
 
   const auto [_, LKF] = *kf_data;
   return LKF;
 }
 
-gtsam::Pose3 HybridObjectMotionSmoother::getPose() const {
-  return getKeyFramedMotion() * getKeyFramePose();
-}
-
-HybridObjectMotionSmoother::Result
-HybridObjectMotionSmoother::createNewKeyedMotion(const gtsam::Pose3& L_KF,
-                                                 Frame::Ptr frame,
-                                                 const TrackletIds& tracklets) {
+void HybridObjectMotionSmoother::createNewKeyedMotion(
+    const gtsam::Pose3& L_KF, Frame::Ptr frame, const TrackletIds& tracklets) {
   if (VLOG_IS_ON(10)) {
     const std::string current_frame =
-        frames_since_lKF_.empty() ? "None" : std::to_string(getFrameId());
+        frames_since_lKF_.empty() ? "None" : std::to_string(frameId());
     const std::string current_KF =
-        frames_since_lKF_.empty() ? "None" : std::to_string(getKeyFrameId());
+        frames_since_lKF_.empty() ? "None" : std::to_string(keyFrameId());
     VLOG(10) << "Creating new KeyMotion "
              << info_string(frame->getFrameId(), object_id_)
              << " current k=" << current_frame << " KF=" << current_KF;
@@ -187,33 +169,33 @@ HybridObjectMotionSmoother::createNewKeyedMotion(const gtsam::Pose3& L_KF,
   // update and add points at initial frame corresponding with an identity
   // motion allow the update function to insert new frames and timestamps given
   // the frame
-  return updateFromInitialMotion(gtsam::Pose3::Identity(), frame, tracklets);
+  updateFromInitialMotion(gtsam::Pose3::Identity(), frame, tracklets);
 }
 
-HybridObjectMotionSmoother::Result HybridObjectMotionSmoother::update(
-    const gtsam::Pose3& H_W_km1_k_predict, Frame::Ptr frame,
-    const TrackletIds& tracklets) {
+void HybridObjectMotionSmoother::update(const gtsam::Pose3& H_W_km1_k_predict,
+                                        Frame::Ptr frame,
+                                        const TrackletIds& tracklets) {
   CHECK(!frames_since_lKF_.empty())
       << "HybridObjectMotionSmoother::update "
       << " cannot be called without first creating a valid MotionFrame!";
 
   gtsam::Pose3 H_W_KF_km1 = gtsam::Pose3::Identity();
-  // if we have at least one previous entry (otherwise getFrameId behaviour is
+  // if we have at least one previous entry (otherwise frameId behaviour is
   // undefined which arguanle is poor design!)
-  // if (isam_.valueExists(ObjectMotionSymbol(object_id_, getFrameId()))) {
-  if (smoother_state_.exists(ObjectMotionSymbol(object_id_, getFrameId()))) {
+  // if (isam_.valueExists(ObjectMotionSymbol(object_id_, frameId()))) {
+  if (smoother_state_.exists(ObjectMotionSymbol(object_id_, frameId()))) {
     // const gtsam::Pose3 G_W_KF_k =
     // calculateEstimate<gtsam::Pose3>(ObjectMotionSymbol(object_id_,
-    // getFrameId())); const gtsam::Pose3 G_W_KF_k =
+    // frameId())); const gtsam::Pose3 G_W_KF_k =
     // smoother_state_.at<gtsam::Pose3>(ObjectMotionSymbol(object_id_,
-    // getFrameId())).inverse(); const gtsam::Pose3 L_KF = getKeyFramePose();
-    // H_W_KF_km1  = camera_poses_.at(getFrameId()) * G_W_KF_k * L_KF.inverse();
+    // frameId())).inverse(); const gtsam::Pose3 L_KF = keyFramePose();
+    // H_W_KF_km1  = camera_poses_.at(frameId()) * G_W_KF_k * L_KF.inverse();
     H_W_KF_km1 = smoother_state_.at<gtsam::Pose3>(
-        ObjectMotionSymbol(object_id_, getFrameId()));
+        ObjectMotionSymbol(object_id_, frameId()));
   }
   // propogate initial guess
   const gtsam::Pose3 H_W_KF_k = H_W_km1_k_predict * H_W_KF_km1;
-  return updateFromInitialMotion(H_W_KF_k, frame, tracklets);
+  updateFromInitialMotion(H_W_KF_k, frame, tracklets);
 }
 
 PoseWithMotionTrajectory HybridObjectMotionSmoother::localTrajectoryImpl(
@@ -224,10 +206,10 @@ PoseWithMotionTrajectory HybridObjectMotionSmoother::localTrajectoryImpl(
     return PoseWithMotionTrajectory{};
   }
 
-  auto kf_data = keyframe_range_.find(getFrameId());
+  auto kf_data = keyframe_range_.find(frameId());
   const auto [frame_KF_id, L_W_KF] = *kf_data;
 
-  CHECK_EQ(frame_KF_id, getKeyFrameId());
+  CHECK_EQ(frame_KF_id, keyFrameId());
 
   // build trajectory from best state estimate since last KF
   PoseWithMotionTrajectory local_trajectory;
@@ -296,17 +278,16 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
   // using frame_id before update
 
   const FrameId frame_id = frame->getFrameId();
-  const Timestamp timestamp = frame->getTimestamp();
 
-  // update temporal data-structure immediately so getFrameId() and
-  // getKeyFrameId() functions work
+  // update temporal data-structure immediately so frameId() and
+  // keyFrameId() functions work
   const bool is_keyframe = frames_since_lKF_.empty();
 
   frames_since_lKF_.push_back(frame_id);
-  timestamps_since_lKF_.push_back(timestamp);
+  timestamps_since_lKF_.push_back(frame->getTimestamp());
 
   if (is_keyframe) {
-    CHECK(getFrameId() == getKeyFrameId());
+    CHECK(frameId() == keyFrameId());
     LOG(INFO) << "IS KF!";
   }
 
@@ -316,7 +297,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
   // fixed camera pose
   const gtsam::Pose3 X_W_k = frame->getPose();
   // get current keyframe pose
-  const gtsam::Pose3 L_KF = getKeyFramePose();
+  const gtsam::Pose3 L_KF = keyFramePose();
 
   camera_poses_.insert2(frame_id, X_W_k);
 
@@ -391,7 +372,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 
   avg_feature_age /= num_tracks_used;
 
-  if (getFrameId() == getKeyFrameId()) {
+  if (frameId() == keyFrameId()) {
     CHECK(is_keyframe);
     gtsam::SharedNoiseModel identity_motion_model =
         gtsam::noiseModel::Isotropic::Sigma(6u, 0.01);
@@ -458,7 +439,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
       }
 
       const gtsam::Symbol kf_motion_symbol(
-          ObjectMotionSymbol(object_id_, getKeyFrameId()));
+          ObjectMotionSymbol(object_id_, keyFrameId()));
       // always upda the motion directly becuase we know it will be in the next
       // state
       KF_values_.update(kf_motion_symbol,
@@ -491,9 +472,9 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
   // TODO: debug flag
   // debug_result.smoother_stats.fill(&isam_);
   debug_result.object_id = object_id_;
-  debug_result.frame_id = getFrameId();
-  debug_result.timestamp = getTimestamp();
-  debug_result.frame_id_KF = getKeyFrameId();
+  debug_result.frame_id = frameId();
+  debug_result.timestamp = timestamp();
+  debug_result.frame_id_KF = keyFrameId();
 
   debug_result.num_tracks = num_tracks_used;
   debug_result.average_feature_age = avg_feature_age;
@@ -514,11 +495,11 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //     const TrackletIds& tracklets) {
 //   // using frame_id before update
 
-//   const FrameId frame_id = frame->getFrameId();
+//   const FrameId frame_id = frame->frameId();
 //   const Timestamp timestamp = frame->getTimestamp();
 
-//   // update temporal data-structure immediately so getFrameId() and
-//   // getKeyFrameId() functions work
+//   // update temporal data-structure immediately so frameId() and
+//   // keyFrameId() functions work
 //   frames_since_lKF_.push_back(frame_id);
 //   timestamps_since_lKF_.push_back(timestamp);
 
@@ -528,7 +509,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //   // fixed camera pose
 //   const gtsam::Pose3 X_W_k = frame->getPose();
 //   // get current keyframe pose
-//   const gtsam::Pose3 L_KF = getKeyFramePose();
+//   const gtsam::Pose3 L_KF = keyFramePose();
 
 //   camera_poses_.insert2(frame_id, X_W_k);
 
@@ -644,7 +625,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 
 //   avg_feature_age /= num_tracks_used;
 
-//   if (getFrameId() == getKeyFrameId()) {
+//   if (frameId() == keyFrameId()) {
 //     gtsam::SharedNoiseModel identity_motion_model =
 //         gtsam::noiseModel::Isotropic::Sigma(6u, 0.01);
 
@@ -752,9 +733,9 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //   // TODO: debug flag
 //   // debug_result.smoother_stats.fill(&isam_);
 //   debug_result.object_id = object_id_;
-//   debug_result.frame_id = getFrameId();
+//   debug_result.frame_id = frameId();
 //   debug_result.timestamp = getTimestamp();
-//   debug_result.frame_id_KF = getKeyFrameId();
+//   debug_result.frame_id_KF = keyFrameId();
 
 //   debug_result.num_tracks = num_tracks_used;
 //   debug_result.average_feature_age = avg_feature_age;
@@ -775,11 +756,11 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //     const TrackletIds& tracklets) {
 //   // using frame_id before update
 
-//   const FrameId frame_id = frame->getFrameId();
+//   const FrameId frame_id = frame->frameId();
 //   const Timestamp timestamp = frame->getTimestamp();
 
-//   // update temporal data-structure immediately so getFrameId() and
-//   // getKeyFrameId() functions work
+//   // update temporal data-structure immediately so frameId() and
+//   // keyFrameId() functions work
 //   frames_since_lKF_.push_back(frame_id);
 //   timestamps_since_lKF_.push_back(timestamp);
 
@@ -789,7 +770,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //   // fixed camera pose
 //   const gtsam::Pose3 X_W_k = frame->getPose();
 //   // get current keyframe pose
-//   const gtsam::Pose3 L_KF = getKeyFramePose();
+//   const gtsam::Pose3 L_KF = keyFramePose();
 
 //   gtsam::Values new_values;
 //   gtsam::NonlinearFactorGraph new_factors;
@@ -852,7 +833,7 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 
 //   avg_feature_age /= num_tracks_used;
 
-//   if (getFrameId() == getKeyFrameId()) {
+//   if (frameId() == keyFrameId()) {
 //     gtsam::SharedNoiseModel identity_motion_model =
 //         gtsam::noiseModel::Isotropic::Sigma(6u, 0.01);
 
@@ -893,9 +874,9 @@ HybridObjectMotionSmoother::updateFromInitialMotion(
 //   // TODO: debug flag
 //   debug_result.smoother_stats.fill(&isam_);
 //   debug_result.object_id = object_id_;
-//   debug_result.frame_id = getFrameId();
+//   debug_result.frame_id = frameId();
 //   debug_result.timestamp = getTimestamp();
-//   debug_result.frame_id_KF = getKeyFrameId();
+//   debug_result.frame_id_KF = keyFrameId();
 
 //   debug_result.num_tracks = num_tracks_used;
 //   debug_result.average_feature_age = avg_feature_age;

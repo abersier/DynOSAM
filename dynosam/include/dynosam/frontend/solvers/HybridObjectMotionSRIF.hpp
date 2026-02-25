@@ -3,6 +3,7 @@
 #include <gtsam/geometry/Cal3_S2Stereo.h>
 #include <gtsam/geometry/StereoPoint2.h>
 
+#include "dynosam/frontend/solvers/HybridObjectMotionSolver-Impl.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/CsvParser.hpp"
@@ -99,8 +100,6 @@ class HybridObjectMotionSRIF {
   void resetState(const gtsam::Pose3& L_e, FrameId frame_id_e,
                   Timestamp timestamp_e);
 
-  void relinearize();
-
  private:
   /**
    * @brief EKF Prediction Step (Trivial motion model for W)
@@ -164,7 +163,7 @@ class HybridObjectMotionSRIF {
   CsvWriter logger_;
 };
 
-class FullHybridObjectMotionSRIF {
+class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
  public:
   DYNO_POINTER_TYPEDEFS(FullHybridObjectMotionSRIF)
   FullHybridObjectMotionSRIF(const ObjectId object_id,
@@ -177,21 +176,31 @@ class FullHybridObjectMotionSRIF {
 
   ~FullHybridObjectMotionSRIF();
 
-  const gtsam::Pose3& getKeyFramePose() const;
-  const gtsam::Pose3& lastCameraPose() const;
-  FrameId getKeyFrameId() const;
-  Timestamp getKeyFrameTimestamp() const;
-  FrameId getFrameId() const;
-  Timestamp getTimestamp() const;
+  gtsam::Pose3 keyFramePose() const override;
+  gtsam::Pose3 lastCameraPose() const;
+  FrameId keyFrameId() const override;
+  // Timestamp getKeyFrameTimestamp() const;
+  FrameId frameId() const override;
+  Timestamp timestamp() const override;
 
-  const gtsam::FastMap<TrackletId, gtsam::Point3>& getCurrentLinearizedPoints()
-      const;
+  PoseWithMotionTrajectory trajectory() const override {
+    return PoseWithMotionTrajectory{};
+  }
+  PoseWithMotionTrajectory localTrajectory() const override {
+    return PoseWithMotionTrajectory{};
+  }
 
-  gtsam::Pose3 getPose() const;
+  gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const;
 
-  void predictAndUpdate(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
-                        const TrackletIds& tracklets,
-                        const int num_irls_iterations = 1);
+  // void predictAndUpdate(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr
+  // frame,
+  //                       const TrackletIds& tracklets,
+  //                       const int num_irls_iterations = 1);
+  void update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+              const TrackletIds& tracklets) override;
+
+  void createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+                            const TrackletIds& tracklets) override;
 
   /**
    * @brief Recovers the state perturbation delta_w by solving R * delta_w = d.
@@ -203,11 +212,9 @@ class FullHybridObjectMotionSRIF {
 
   // this is H_W_e_k
   // calculate best estimate!!
-  gtsam::Pose3 getKeyFramedMotion() const;
+  gtsam::Pose3 keyFrameMotion() const override;
 
-  inline gtsam::Pose3 getBestEstimate() const { return getKeyFramedMotion(); }
-
-  Motion3ReferenceFrame getKeyFramedMotionReference() const;
+  inline gtsam::Pose3 getBestEstimate() const { return keyFrameMotion(); }
 
   /**
    * @brief Recovers the full state pose W by applying the perturbation
@@ -215,7 +222,7 @@ class FullHybridObjectMotionSRIF {
    *
    * LIES: thie is H_W_km1_k
    */
-  gtsam::Pose3 getF2FMotion() const;
+  gtsam::Pose3 frameToFrameMotion() const override;
 
   /**
    * @brief Recovers the state covariance P by inverting the information matrix.
@@ -229,6 +236,7 @@ class FullHybridObjectMotionSRIF {
    */
   gtsam::Matrix66 getInformationMatrix() const;
 
+ private:
   /**
    * @brief Resets information d_info_ and R_info.
    * d_inifo is set to zero and R_info is constructed from the initial
@@ -258,9 +266,11 @@ class FullHybridObjectMotionSRIF {
                                       const TrackletIds& tracklets,
                                       const int num_irls_iterations = 1);
 
+  void removeOutlierTracklets(const TrackletIds& to_remove);
+  void marginalizeInInformationForm(const TrackletIds& to_remove);
+
   // TODO: FOR testing
  private:
-  const ObjectId object_id_;
   //! Nominal state (linearization point)
   gtsam::Pose3 H_linearization_point_;
   //! Process Noise Covariance (for prediction step)
@@ -283,12 +293,12 @@ class FullHybridObjectMotionSRIF {
   //! Timestamp used for the last update
   Timestamp timestamp_;
 
-  gtsam::Matrix R_info_;
-  gtsam::Vector d_info_;
+  // gtsam::Matrix R_info_;
+  // gtsam::Vector d_info_;
 
-  // --- System Parameters ---
-  std::shared_ptr<RGBDCamera> rgbd_camera_;
-  gtsam::Cal3_S2Stereo::shared_ptr stereo_calibration_;
+  // Persistent Information State
+  gtsam::Matrix Lambda_;  // Information Matrix (square, symmetric)
+  gtsam::Vector eta_;     // Information Vector
 
   //! Points in L (current linearization)
   gtsam::FastMap<TrackletId, gtsam::Point3> m_linearized_;

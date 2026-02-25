@@ -163,6 +163,7 @@ class BaseTimingStatsCollector {
   // Time delta (dt) in nano seconds
   inline double delta() const { return timing_generator_.calcDelta(); }
   inline double deltaMilliseconds() const { return delta() / 1e6; }
+  inline double deltaSeconds() const { return delta() / 1e9; }
 
   // not that it will log to glog, but that the glog verbosity level is set
   // such that it will log to the collector

@@ -61,9 +61,9 @@ tracker_params:
   prefer_provided_optical_flow: false
   prefer_provided_object_detection: true
 
-  max_dynamic_features_per_frame: 400
+  max_dynamic_features_per_frame: 100
   min_distance_btw_tracked_and_detected_dynamic_features: 2
-  max_dynamic_feature_age: 1000 #20
+  max_dynamic_feature_age: 20 #20
 
 
   # dynamic keyframing criteria

@@ -44,9 +44,9 @@ class Timer {
   static TimePoint tic() { return Clock::now(); }
 
   // Stop timer and report duration in given time.
-  // Returns duration in milliseconds by default.
+  // Returns duration in nanoseconds by default.
   // call .count() on returned duration to have number of ticks.
-  template <typename T = std::chrono::milliseconds>
+  template <typename T = std::chrono::nanoseconds>
   static T toc(const TimePoint& start) {
     return std::chrono::duration_cast<T>(Clock::now() - start);
   }
@@ -65,20 +65,22 @@ class Timer {
            1e9;
   }
 
-  template <typename U, typename T = std::chrono::milliseconds>
+  // period should be std::milli, std::nano etc
+  // for seconds std::ratio<1>
+  template <typename Period, typename T>
   static double toUnits(const T& time) {
-    const auto unit = std::chrono::duration_cast<U>(time);
-    return static_cast<double>(unit.count());
+    using Target = std::chrono::duration<double, Period>;
+    return std::chrono::duration_cast<Target>(time).count();
   }
 
-  template <typename T = std::chrono::milliseconds>
+  template <typename T = std::chrono::nanoseconds>
   static double toSeconds(const T& time) {
-    return toUnits<std::chrono::seconds>(time);
+    return toUnits<std::ratio<1>>(time);
   }
 };
 
 // Usage: measure<>::execution(function, arguments)
-template <typename T = std::chrono::milliseconds>
+template <typename T = std::chrono::nanoseconds>
 struct Measure {
   template <typename F, typename... Args>
   static typename T::rep execution(F&& func, Args&&... args) {

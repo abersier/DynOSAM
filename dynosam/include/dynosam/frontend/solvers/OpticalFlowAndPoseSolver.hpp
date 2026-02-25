@@ -9,6 +9,7 @@
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/TimingStats.hpp"
 #include "dynosam_opt/FactorGraphTools.hpp"
+#include "dynosam_opt/NonlinearOptimizer.hpp"
 #include "dynosam_opt/Symbols.hpp"
 
 namespace dyno {
@@ -169,15 +170,23 @@ class OpticalFlowAndPoseSolver {
     // this is basically a set of prior looking factors on a pose so we know we
     // need to eliminate the pose last to avoid fill in therefore we use our own
     // custom ordering that has the pose last
-    // opt_params.setOrdering(ordering);
+    opt_params.setOrdering(ordering);
     if (VLOG_IS_ON(200))
       opt_params.verbosity = gtsam::NonlinearOptimizerParams::Verbosity::ERROR;
 
     {
       utils::ChronoTimingStats timer("of_pose_solver.LM_solve", 7);
-      optimised_values = gtsam::LevenbergMarquardtOptimizer(
-                             mutable_graph, optimised_values, opt_params)
-                             .optimize();
+      dyno::NonlinearOptimizer<gtsam::LevenbergMarquardtOptimizer> solver(
+          mutable_graph, optimised_values, opt_params);
+
+      NonlinearOptimizerSummary summary;
+      NonlinearOptimizerOptions options;
+      CHECK(solver.solve(optimised_values, options, &summary));
+
+      LOG(INFO) << "Initial error: " << summary.initial_error << " final error "
+                << summary.final_error << " time[s] "
+                << summary.cumulative_time_in_seconds
+                << " #iterations= " << summary.numIterations();
     }
 
     gtsam::FactorIndices outlier_factors;
