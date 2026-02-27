@@ -268,3 +268,42 @@ TEST(TrajectoryBase, DoesNotModifyPreviousIfNotFound) {
   // Ensure previous not overwritten
   EXPECT_EQ(previous.frame_id, 999);
 }
+
+TEST(TrajectoryBase, GetRangeBasicAndClamping) {
+  Trajectory<int> traj;
+
+  // Insert frames 0..4
+  for (FrameId i = 0; i <= 4; ++i) {
+    traj.insert(i, i * 0.1, static_cast<int>(i));
+  }
+
+  // --- 1. Full range ---
+  {
+    auto sub = traj.range(std::nullopt, std::nullopt);
+    EXPECT_EQ(sub.size(), 5);
+    EXPECT_EQ(sub.first().frame_id, 0);
+    EXPECT_EQ(sub.last().frame_id, 4);
+  }
+
+  // --- 2. Normal subrange ---
+  {
+    auto sub = traj.range(1, 3);
+    EXPECT_EQ(sub.size(), 3);
+    EXPECT_EQ(sub.first().frame_id, 1);
+    EXPECT_EQ(sub.last().frame_id, 3);
+  }
+
+  // --- 3. end > max → clamp ---
+  {
+    auto sub = traj.range(2, 100);
+    EXPECT_EQ(sub.size(), 3);  // 2,3,4
+    EXPECT_EQ(sub.first().frame_id, 2);
+    EXPECT_EQ(sub.last().frame_id, 4);
+  }
+
+  // --- 4. start > max → throw ---
+  { EXPECT_THROW(traj.range(100, std::nullopt), DynosamException); }
+
+  // --- 5. start <= max but start > end → throw ---
+  { EXPECT_THROW(traj.range(3, 1), DynosamException); }
+}

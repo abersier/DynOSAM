@@ -255,6 +255,16 @@ class MotionErrorEvaluator(Evaluator):
             return tools.ObjectMotionTrajectory(self.object_poses_traj_ref[object_id], self.object_motion_traj_ref[object_id])
         return None
 
+    def get_mottion_error(self):
+        results = {}
+        for object_id, object_traj, _ in common_entries(self._object_motions_traj, self._object_motions_traj_ref):
+            # motion errors in L
+            # rme_t and rme_r are dyno_metrics.RME
+            _, rme_t, rme_r = self._compute_motion_in_L_errors(object_id, object_traj)
+            results[object_id] = {}
+            results[object_id]["trans"] = rme_t
+            results[object_id]["rot"] = rme_r
+        return results
 
 
     def process(self, plot_collection: evo_plot.PlotCollection, results: Dict):
@@ -288,9 +298,9 @@ class MotionErrorEvaluator(Evaluator):
         for object_id, object_traj, object_traj_ref in common_entries(self._object_motions_traj, self._object_motions_traj_ref):
 
             # motion errors in W
-            absolute_motion_errors = self._compute_motion_in_W_errors(object_id, object_traj, object_traj_ref)
+            absolute_motion_errors, _, _ = self._compute_motion_in_W_errors(object_id, object_traj, object_traj_ref)
             # motion errors in L
-            relatvive_motion_errors = self._compute_motion_in_L_errors(object_id, object_traj, plot_collection)
+            relatvive_motion_errors, _, _ = self._compute_motion_in_L_errors(object_id, object_traj, plot_collection)
 
 
             # expect results to already have results["objects"][id] prepared
@@ -337,33 +347,16 @@ class MotionErrorEvaluator(Evaluator):
                 f"Object Motion Error{object_id}",
                 fig)
 
-        return results_per_object
+        return results_per_object, ape_trans, ape_rot
 
     def _compute_motion_in_L_errors(self, object_id, object_motion_traj, plots: Optional[evo_plot.PlotCollection] = None) -> Dict:
         if object_id not in self._object_poses_traj_ref:
             logger.warning(f"{object_id} not found for object pose ground truth. Skipping RME calculation")
-            return None
+            return None, None, None
 
         # ground truth object poses
         object_poses_ref_traj = self._object_poses_traj_ref[object_id]
         object_motion_traj_est = object_motion_traj
-
-        # object_poses = object_poses_ref_traj.poses_se3
-
-        # for object_pose_k_1, object_pose_k, object_motion_k in zip(object_poses[:-1], object_poses[1:], object_motion_traj.poses_se3[1:]):
-        #     object_motion_L.append(lie_algebra.se3_inverse(object_pose_k) @ object_motion_k @ object_pose_k_1)
-        #     object_motion_L_gt.append(lie_algebra.se3())
-
-        # # for motion_L, motion_L_ref in zip(object_motion_L, object_motion_L_gt):
-        # object_traj_in_L = trajectory.PoseTrajectory3D(poses_se3=np.array(object_motion_L), timestamps=object_motion_traj.timestamps[1:])
-        # object_traj_in_L_ref = trajectory.PoseTrajectory3D(poses_se3=np.array(object_motion_L_gt), timestamps=object_motion_traj.timestamps[1:])
-
-        # # only interested in APE as this matches our error metrics
-        # ape_trans = metrics.APE(metrics.PoseRelation.translation_part)
-        # ape_rot = metrics.APE(metrics.PoseRelation.rotation_angle_deg)
-
-        print(object_poses_ref_traj)
-        print(object_motion_traj_est)
 
         data = (object_poses_ref_traj, object_motion_traj_est)
         rme_trans = dyno_metrics.RME(metrics.PoseRelation.translation_part)
@@ -401,7 +394,7 @@ class MotionErrorEvaluator(Evaluator):
                 f"Object RME {object_id}",
                 fig)
 
-        return results_per_object
+        return results_per_object, rme_trans, rme_rot
 
     def _process_pose_traj(self,plot_collection: evo_plot.PlotCollection, results: Dict):
         # est and ref object trajectories
@@ -1024,6 +1017,7 @@ class DatasetEvaluator:
     # args should be dictionary of keyword arguments. shoudl default be none?
     def __init__(self, output_folder_path:str, args = None) -> None:
         self._output_folder_path = output_folder_path
+        self._sequence_name = os.path.basename(os.path.normpath(output_folder_path))
         self._args = args
 
     def run_analysis(self):
@@ -1051,7 +1045,7 @@ class DatasetEvaluator:
                     self._create_new_file_path(data_files.plot_collection_name + "_metrics.pdf"),
                     confirm_overwrite=False)
 
-            table_formatter.save_pdf(self._create_new_file_path("result_tables"))
+            table_formatter.save_pdf(self._create_new_file_path(self._sequence_name + "_result_tables"))
 
                 # # plot_collection.show()
                 # self._save_to_pdf(data_files.plot_collection_name, plot_collection, results)

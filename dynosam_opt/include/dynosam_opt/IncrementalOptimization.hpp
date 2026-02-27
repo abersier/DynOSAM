@@ -449,6 +449,8 @@ class IncrementalInterface {
 
       gtsam::NonlinearFactorGraph new_factors_mutable;
       new_factors_mutable.push_back(new_factors.begin(), new_factors.end());
+      // important that these factors go at the end so that we can track
+      // which factors the user added
       new_factors_mutable.push_back(pior_factors.begin(), pior_factors.end());
 
       // Update with graph and GN optimized values

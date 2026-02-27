@@ -24,9 +24,9 @@ def generate_launch_description():
                 {"online": False},
             ],
         ),
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            arguments=["0.0", "0.0", "0.0", "1.57", "-1.57", "0.0", "world", "robot"]
-        )
+        # Node(
+        #     package='tf2_ros',
+        #     executable='static_transform_publisher',
+        #     arguments=["0.0", "0.0", "0.0", "1.57", "-1.57", "0.0", "world", "robot"]
+        # )
     ])

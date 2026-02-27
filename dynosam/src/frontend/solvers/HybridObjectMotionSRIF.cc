@@ -72,8 +72,8 @@ double conditionNumberR(const Eigen::MatrixXd& R) {
 
 HybridObjectMotionSRIF::HybridObjectMotionSRIF(
     const ObjectId object_id, const gtsam::Pose3& initial_state_H,
-    const gtsam::Pose3& L_e, const FrameId& frame_id_e,
-    const Timestamp& timestamp_e, const gtsam::Matrix66& initial_P,
+    const gtsam::Pose3& L_e, const FrameId& frame_id_KF,
+    const Timestamp& timestamp_KF, const gtsam::Matrix66& initial_P,
     const gtsam::Matrix66& Q, const gtsam::Matrix33& R, Camera::Ptr camera,
     double huber_k)
     : object_id_(object_id),
@@ -91,7 +91,7 @@ HybridObjectMotionSRIF::HybridObjectMotionSRIF(
   CHECK(rgbd_camera_);
   stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
 
-  resetState(L_e, frame_id_e, timestamp_e);
+  resetState(L_e, frame_id_KF, timestamp_KF);
 }
 
 HybridObjectMotionSRIF::~HybridObjectMotionSRIF() {
@@ -101,16 +101,16 @@ HybridObjectMotionSRIF::~HybridObjectMotionSRIF() {
 }
 
 const gtsam::Pose3& HybridObjectMotionSRIF::getKeyFramePose() const {
-  return L_e_;
+  return L_KF_;
 }
 const gtsam::Pose3& HybridObjectMotionSRIF::lastCameraPose() const {
   return X_K_;
 }
-FrameId HybridObjectMotionSRIF::getKeyFrameId() const { return frame_id_e_; }
+FrameId HybridObjectMotionSRIF::getKeyFrameId() const { return frame_id_KF_; }
 FrameId HybridObjectMotionSRIF::getFrameId() const { return frame_id_; }
 
 Timestamp HybridObjectMotionSRIF::getKeyFrameTimestamp() const {
-  return timestamp_e_;
+  return timestamp_KF_;
 }
 Timestamp HybridObjectMotionSRIF::getTimestamp() const { return timestamp_; }
 
@@ -182,15 +182,15 @@ void HybridObjectMotionSRIF::predict(const gtsam::Pose3& H_W_km1_k) {
   // previous motion -> assume constant!
   // gtsam::Pose3 H_W_km1_k = getF2FMotion();
 
-  // gtsam::Pose3 L_km1 = previous_H_ * L_e_;
-  // gtsam::Pose3 L_k = H_current_mean * L_e_;
+  // gtsam::Pose3 L_km1 = previous_H_ * L_KF_;
+  // gtsam::Pose3 L_k = H_current_mean * L_KF_;
 
   // //calculate motion relative to object
   // gtsam::Pose3 local_motion = L_km1.inverse() * L_k;
   // // forward predict pose using constant velocity model
   // gtsam::Pose3 predicted_pose = L_k * local_motion;
   // // convert pose back to motion
-  // gtsam::Pose3 predicted_motion = predicted_pose * L_e_.inverse();
+  // gtsam::Pose3 predicted_motion = predicted_pose * L_KF_.inverse();
 
   previous_H_ = H_current_mean;
 
@@ -232,7 +232,7 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
   const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
   // const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
   // G will project the point from the object frame into the camera frame
-  const gtsam::Pose3 G_w = A * L_e_;
+  const gtsam::Pose3 G_w = A * L_KF_;
   const gtsam::Matrix6 J_correction = -A.AdjointMap();
 
   gtsam::StereoCamera gtsam_stereo_camera(G_w.inverse(), stereo_calibration_);
@@ -254,10 +254,10 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
       // linearization (ie k-1)
       const gtsam::Point3 m_X_k = frame->backProjectToCamera(tracklet_id);
       Landmark m_init = HybridObjectMotion::projectToObject3(
-          X_W_k, getKeyFramedMotion(), L_e_, m_X_k);
+          X_W_k, getKeyFramedMotion(), L_KF_, m_X_k);
       m_linearized_.insert2(tracklet_id, m_init);
       // VLOG(10) << "Initalising new point i=" << tracklet_id << " Le " <<
-      // L_e_;
+      // L_KF_;
       num_new_features++;
     } else {
       num_tracked_features++;
@@ -325,7 +325,7 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
     //  single linearization point (W_linearization_point_) that we had at the
     //  start of the update.
     const gtsam::Pose3 A = X_W_k_inv * H_current_mean;
-    const gtsam::Pose3 G_w = A * L_e_;
+    const gtsam::Pose3 G_w = A * L_KF_;
     gtsam::StereoCamera gtsam_stereo_camera_current(G_w.inverse(),
                                                     stereo_calibration_);
 
@@ -428,8 +428,8 @@ HybridObjectMotionSRIFResult HybridObjectMotionSRIF::update(
 }
 
 void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
-                                        FrameId frame_id_e,
-                                        Timestamp timestamp_e) {
+                                        FrameId frame_id_KF,
+                                        Timestamp timestamp_KF) {
   // 2. Initialize SRIF State (R, d) from EKF State (W, P)
   // W_linearization_point_ is set to initial_state_W
   // The initial perturbation is 0, so the initial d_info_ is 0.
@@ -452,11 +452,11 @@ void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
   // will this give us discontinuinities betweek keyframes?
   //  reset other variables
   previous_H_ = gtsam::Pose3::Identity();
-  L_e_ = L_e;
-  frame_id_e_ = frame_id_e;
-  frame_id_ = frame_id_e;
-  timestamp_e_ = timestamp_e;
-  timestamp_ = timestamp_e;
+  L_KF_ = L_e;
+  frame_id_KF_ = frame_id_KF;
+  frame_id_ = frame_id_KF;
+  timestamp_KF_ = timestamp_KF;
+  timestamp_ = timestamp_KF;
   X_K_ = gtsam::Pose3::Identity();
 
   m_linearized_.clear();
@@ -485,8 +485,8 @@ void HybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
 
 FullHybridObjectMotionSRIF::FullHybridObjectMotionSRIF(
     const ObjectId object_id, const gtsam::Pose3& initial_state_H,
-    const gtsam::Pose3& L_e, const FrameId& frame_id_e,
-    const Timestamp& timestamp_e, const gtsam::Matrix66& initial_P,
+    const gtsam::Pose3& L_e, const FrameId& frame_id_KF,
+    const Timestamp& timestamp_KF, const gtsam::Matrix66& initial_P,
     const gtsam::Matrix66& Q, const gtsam::Matrix33& R, Camera::Ptr camera,
     double huber_k)
     : HybridObjectMotionSolverImpl(object_id, camera),
@@ -499,22 +499,22 @@ FullHybridObjectMotionSRIF::FullHybridObjectMotionSRIF(
       logger_(CsvHeader("timestamp", "frame_id", "residual", "initial_error",
                         "weighted_error", "new_features", "existing_tracks",
                         "cond_R")) {
-  resetState(L_e, frame_id_e, timestamp_e);
+  resetState(L_e, frame_id_KF, timestamp_KF);
 }
 
 FullHybridObjectMotionSRIF::~FullHybridObjectMotionSRIF() {
-  const std::string file_out =
-      "full_hybrid_srif_j_" + std::to_string(object_id_) + ".csv";
-  OfstreamWrapper::WriteOutCsvWriter(logger_, file_out);
+  // const std::string file_out =
+  //     "full_hybrid_srif_j_" + std::to_string(object_id_) + ".csv";
+  // OfstreamWrapper::WriteOutCsvWriter(logger_, file_out);
 }
 
-gtsam::Pose3 FullHybridObjectMotionSRIF::keyFramePose() const { return L_e_; }
+gtsam::Pose3 FullHybridObjectMotionSRIF::keyFramePose() const { return L_KF_; }
 gtsam::Pose3 FullHybridObjectMotionSRIF::lastCameraPose() const { return X_K_; }
-FrameId FullHybridObjectMotionSRIF::keyFrameId() const { return frame_id_e_; }
+FrameId FullHybridObjectMotionSRIF::keyFrameId() const { return frame_id_KF_; }
 FrameId FullHybridObjectMotionSRIF::frameId() const { return frame_id_; }
 
 // Timestamp FullHybridObjectMotionSRIF::getKeyFrameTimestamp() const {
-//   return timestamp_e_;
+//   return timestamp_KF_;
 // }
 Timestamp FullHybridObjectMotionSRIF::timestamp() const { return timestamp_; }
 
@@ -523,15 +523,16 @@ FullHybridObjectMotionSRIF::getObjectPoints() const {
   return m_linearized_;
 }
 
-void FullHybridObjectMotionSRIF::update(const gtsam::Pose3& H_w_km1_k_predict,
+bool FullHybridObjectMotionSRIF::update(const gtsam::Pose3& H_w_km1_k_predict,
                                         Frame::Ptr frame,
                                         const TrackletIds& tracklets) {
   utils::ChronoTimingStats timer("hybrid_object_motion_srif.update");
   predict(H_w_km1_k_predict);
 
-  const FrameId frame_id_before_update = frame_id_;
+  // updateSchur(frame, tracklets);
   update(frame, tracklets, 1);
-  const FrameId frame_id_after_update = frame_id_;
+  // TODO: always assume successful solve for now!
+  return true;
 }
 
 /**
@@ -554,16 +555,19 @@ const gtsam::Pose3& FullHybridObjectMotionSRIF::getCurrentLinearization()
 }
 
 gtsam::Pose3 FullHybridObjectMotionSRIF::keyFrameMotion() const {
-  // return H_linearization_point_.retract(getStatePerturbation());
   return H_linearization_point_;
 }
 
-gtsam::Pose3 FullHybridObjectMotionSRIF::frameToFrameMotion() const {
+Motion3ReferenceFrame FullHybridObjectMotionSRIF::frameToFrameMotionReference()
+    const {
   // gtsam::Pose3 H_W_e_k =
   // H_linearization_point_.retract(getStatePerturbation());
-  gtsam::Pose3 H_W_e_k = H_linearization_point_;
-  gtsam::Pose3 H_W_e_km1 = previous_H_;
-  return H_W_e_k * H_W_e_km1.inverse();
+  gtsam::Pose3 H_W_KF_k = H_linearization_point_;
+  gtsam::Pose3 H_W_km1_k = H_W_KF_k * H_W_KF_km1_->inverse();
+
+  return Motion3ReferenceFrame(H_W_km1_k, Motion3ReferenceFrame::Style::F2F,
+                               ReferenceFrame::GLOBAL, H_W_KF_km1_.to(),
+                               frameId());
 }
 
 gtsam::Matrix66 FullHybridObjectMotionSRIF::getCovariance() const {
@@ -577,6 +581,8 @@ gtsam::Matrix66 FullHybridObjectMotionSRIF::getInformationMatrix() const {
 
 void FullHybridObjectMotionSRIF::predict(const gtsam::Pose3& H_W_km1_k) {
   utils::ChronoTimingStats timer("full_hybrid_object_motion_srif.predict");
+
+  H_W_KF_km1_ = this->keyFrameMotionReference();
 
   // gtsam::Vector delta = Lambda_.llt().solve(eta_);
   // LOG(INFO) << H_linearization_point_;
@@ -592,8 +598,8 @@ void FullHybridObjectMotionSRIF::predict(const gtsam::Pose3& H_W_km1_k) {
   // information space
   // is wrong implemntation or is poorly tuned?
   gtsam::Matrix66 P_pose = Lambda_.block<6, 6>(0, 0).inverse();
-  P_pose += Q_;
-  Lambda_.block<6, 6>(0, 0) = P_pose.inverse();
+  // P_pose += Q_;
+  // Lambda_.block<6, 6>(0, 0) = P_pose.inverse();
 
   // 4. CRITICAL: Add a small "Floor" of information to keep the matrix positive
   // definite
@@ -603,9 +609,8 @@ void FullHybridObjectMotionSRIF::predict(const gtsam::Pose3& H_W_km1_k) {
   eta_.setZero();
 }
 
-HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
-    Frame::Ptr frame, const TrackletIds& tracklets,
-    const int num_irls_iterations) {
+HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::updateSchur(
+    Frame::Ptr frame, const TrackletIds& tracklets) {
   const gtsam::Pose3& X_W_k = frame->getPose();
   const gtsam::Pose3 X_W_k_inv = X_W_k.inverse();
   X_K_ = X_W_k;
@@ -627,7 +632,7 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
     if (m_linearized_.find(tid) == m_linearized_.end()) {
       const gtsam::Point3 m_X_k = frame->backProjectToCamera(tid);
       m_linearized_[tid] = HybridObjectMotion::projectToObject3(
-          X_W_k, keyFrameMotion(), L_e_, m_X_k);
+          X_W_k, keyFrameMotion(), L_KF_, m_X_k);
       tracklet_to_slot_[tid] = 6 + (tracklet_to_slot_.size() * 3);
     }
   }
@@ -662,34 +667,28 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
 
   // const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
   // G will project the point from the object frame into the camera frame
-  const gtsam::Pose3 G_w = A * L_e_;
+  const gtsam::Pose3 G_w = A * L_KF_;
   gtsam::StereoCamera stereo_cam(G_w.inverse(), stereo_calibration_);
 
-  utils::ChronoTimingStats timer_irls(
-      "full_hybrid_object_motion_srif.update.irls");
+  // --- 1. Accumulators ---
+  // We copy the PRIOR pose info. We will add current frame info to this.
+  gtsam::Matrix66 Lambda_pose_reduced = Lambda_.block<6, 6>(0, 0);
+  gtsam::Vector6 eta_pose_reduced = eta_.head<6>();
 
-  // 1. Initialize our reduced Pose-only system
-  // We start with the persistent Pose information (the prior)
-  gtsam::Matrix66 Lambda_pose = Lambda_.block<6, 6>(0, 0);
-  gtsam::Vector6 eta_pose = eta_.head<6>();
-
-  // Temporary storage to avoid re-calculating during back-substitution
-  struct PointUpdateBlock {
-    TrackletId tid;
+  struct PointData {
     int slot;
-    gtsam::Matrix33 inv_Lambda_mm;
-    gtsam::Matrix36 Lambda_mh;
-    gtsam::Vector3 eta_m;
+    TrackletId tid;
+    gtsam::Matrix33 L_mm;
+    gtsam::Matrix63 L_hm;
+    gtsam::Vector3 e_m;
   };
-  std::vector<PointUpdateBlock> point_blocks;
-  point_blocks.reserve(tracklets.size());
+  std::vector<PointData> point_registry;
 
   double average_residual = 0;
-  size_t good_tracks = 0;
+  double good_tracks = 0;
 
-  // 2. Accumulation Loop (The "Reduce" Phase)
+  // --- 2. The Reduction Loop ---
   for (const auto& tid : tracklets) {
-    if (tracklet_to_slot_.find(tid) == tracklet_to_slot_.end()) continue;
     int slot = tracklet_to_slot_[tid];
 
     // --- Linearization ---
@@ -716,143 +715,349 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
     gtsam::Matrix33 info_weight = w * R_inv_;
     gtsam::Matrix36 Jh_c = Jh * J_corr;
 
-    // --- Local Information Blocks ---
-    // Combine current measurement with persistent history
-    gtsam::Matrix33 Lambda_mm =
-        (Jm.transpose() * info_weight * Jm) + Lambda_.block<3, 3>(slot, slot);
-    gtsam::Matrix33 inv_Lmm = Lambda_mm.inverse();
+    // Step A: Calculate current frame blocks
+    gtsam::Matrix33 current_Lmm = Jm.transpose() * info_weight * Jm;
+    gtsam::Matrix63 current_Lhm = Jh_c.transpose() * info_weight * Jm;
+    gtsam::Matrix66 current_Lhh = Jh_c.transpose() * info_weight * Jh_c;
+    gtsam::Vector3 current_em = Jm.transpose() * info_weight * res;
+    gtsam::Vector6 current_eh = Jh_c.transpose() * info_weight * res;
 
-    // Combine current coupling with persistent history
-    gtsam::Matrix63 Lambda_hm =
-        (Jh_c.transpose() * info_weight * Jm) + Lambda_.block<6, 3>(0, slot);
+    // Step B: Merge with PERSISTENT history
+    gtsam::Matrix33 L_mm_total = current_Lmm + Lambda_.block<3, 3>(slot, slot);
+    gtsam::Matrix63 L_hm_total = current_Lhm + Lambda_.block<6, 3>(0, slot);
+    gtsam::Vector3 e_m_total = current_em + eta_.segment<3>(slot);
 
-    // Combine current residual with persistent history
-    gtsam::Vector3 eta_m =
-        (Jm.transpose() * info_weight * res) + eta_.segment<3>(slot);
+    // Step C: Schur Reduction
+    // This is the part that must be exact.
+    gtsam::Matrix33 invLmm = L_mm_total.inverse();
 
-    // --- THE SCHUR REDUCTION ---
-    Lambda_pose += (Jh_c.transpose() * info_weight * Jh_c) -
-                   (Lambda_hm * inv_Lmm * Lambda_hm.transpose());
-    eta_pose +=
-        (Jh_c.transpose() * info_weight * res) - (Lambda_hm * inv_Lmm * eta_m);
+    // update the pose system: Add the direct info, subtract the marginalized
+    // info
+    Lambda_pose_reduced +=
+        current_Lhh - (L_hm_total * invLmm * L_hm_total.transpose());
+    eta_pose_reduced += current_eh - (L_hm_total * invLmm * e_m_total);
 
-    // --- STEP 2.5: BAKE INTO PERSISTENT LAMBDA ---
-    // This ensures the next frame starts with this frame's knowledge
-    Lambda_.block<3, 3>(slot, slot) = Lambda_mm;
-    Lambda_.block<6, 3>(0, slot) = Lambda_hm;
-    Lambda_.block<3, 6>(slot, 0) = Lambda_hm.transpose();
-
-    // Store for back-substitution
-    point_blocks.push_back({tid, slot, inv_Lmm, Lambda_hm.transpose(), eta_m});
+    // Register for Bake-in
+    point_registry.push_back({slot, tid, L_mm_total, L_hm_total, e_m_total});
   }
 
-  average_residual /= (double)good_tracks;
-  LOG(INFO) << "Residual " << average_residual;
+  // --- 3. Atomic Solve ---
+  // This delta_h is now numerically identical to the full solve
+  gtsam::Vector6 delta_h = Lambda_pose_reduced.llt().solve(eta_pose_reduced);
 
-  // 3. Solve for Pose (Fast 6x6)
-  gtsam::Vector6 delta_pose = Lambda_pose.llt().solve(eta_pose);
-  // if (!delta_pose.allFinite()) return {999.0, 0};
+  // --- 4. Back-Substitution and Global Sync ---
+  for (const auto& p : point_registry) {
+    gtsam::Matrix33 invLmm = p.L_mm.inverse();
+    gtsam::Vector3 delta_m = invLmm * (p.e_m - p.L_hm.transpose() * delta_h);
 
-  // 4. Back-Substitution (The "Update Points" Phase)
-  for (const auto& pb : point_blocks) {
-    // Formula: delta_m = inv(Lambda_mm) * (eta_m - Lambda_mh * delta_pose)
-    gtsam::Vector3 delta_m =
-        pb.inv_Lambda_mm * (pb.eta_m - pb.Lambda_mh * delta_pose);
+    // A. Update Mean
+    m_linearized_[p.tid] += delta_m;
 
-    // Update landmark linearization point
-    m_linearized_[pb.tid] += delta_m;
+    // B. Bake Persistent Knowledge (Persistence!)
+    Lambda_.block<3, 3>(p.slot, p.slot) = p.L_mm;
+    Lambda_.block<6, 3>(0, p.slot) = p.L_hm;
+    Lambda_.block<3, 6>(p.slot, 0) = p.L_hm.transpose();
   }
 
-  // 5. Update Pose linearization point
-  H_linearization_point_ = H_linearization_point_.retract(delta_pose);
+  // Update Pose Mean
+  H_linearization_point_ = H_linearization_point_.retract(delta_h);
 
-  // Update the persistent Pose-Pose block as well
-  Lambda_.block<6, 6>(0, 0) = Lambda_pose;
+  const gtsam::Pose3 L_W_k = this->pose();
+  const Motion3ReferenceFrame H_W_km1_k = frameToFrameMotionReference();
 
-  // 6. Final "Cleanup"
-  // Since we are now at the new linearization point, the 'residual' info is
-  // consumed
-  eta_.setZero();
+  trajectory_.insert(frame_id_, timestamp_, {L_W_k, H_W_km1_k});
+
+  // C. Final Global Sync
+  Lambda_.block<6, 6>(0, 0) = Lambda_pose_reduced;
+
+  if (!to_marginalize.empty()) {
+    // Solve via Cholesky
+    LOG(INFO) << "Marginalizing points" << container_to_string(to_marginalize);
+    utils::ChronoTimingStats timer_LLT(
+        "full_hybrid_object_motion_srif.update.marginalize");
+    marginalizeInInformationForm(to_marginalize);
+  }
+
+  // must happen after marginalize
+  eta_.setZero();  // Residuals consumed
+
+  return HybridObjectMotionSRIFResult{};
+}
+
+HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
+    Frame::Ptr frame, const TrackletIds& tracklets,
+    const int num_irls_iterations) {
+  const gtsam::Pose3& X_W_k = frame->getPose();
+  const gtsam::Pose3 X_W_k_inv = X_W_k.inverse();
+  X_K_ = X_W_k;
+  frame_id_ = frame->getFrameId();
+  timestamp_ = frame->getTimestamp();
+
+  utils::ChronoTimingStats timer_update("hybrid_srif.update_total");
+
+  // 1. Identify visibility and new features
+  std::set<TrackletId> visible_set(tracklets.begin(), tracklets.end());
+  TrackletIds to_marginalize;
+  for (const auto& [tid, slot] : tracklet_to_slot_) {
+    if (visible_set.find(tid) == visible_set.end()) {
+      to_marginalize.push_back(tid);
+    }
+  }
+
+  for (const auto& tid : tracklets) {
+    if (m_linearized_.find(tid) == m_linearized_.end()) {
+      const gtsam::Point3 m_X_k = frame->backProjectToCamera(tid);
+      m_linearized_[tid] = HybridObjectMotion::projectToObject3(
+          X_W_k, keyFrameMotion(), L_KF_, m_X_k);
+      tracklet_to_slot_[tid] = 6 + (tracklet_to_slot_.size() * 3);
+    }
+  }
+
+  const size_t current_dim = 6 + (tracklet_to_slot_.size() * 3);
+
+  LOG(INFO) << "Vector dimensions " << current_dim;
+  LOG(INFO) << "Num points: " << tracklet_to_slot_.size();
+
+  // Resize Lambda_ and eta_ instead of R and d
+  if (Lambda_.rows() < current_dim) {
+    size_t old_dim = Lambda_.rows();
+    Lambda_.conservativeResize(current_dim, current_dim);
+    // Fill new blocks with zeros and then add the landmark priors to the
+    // diagonal
+    Lambda_.block(0, old_dim, old_dim, current_dim - old_dim).setZero();
+    Lambda_.block(old_dim, 0, current_dim - old_dim, current_dim).setZero();
+    for (size_t i = old_dim; i < current_dim; i += 3) {
+      // TODO: should be initalise by uncertainty on H too!
+      Lambda_.block<3, 3>(i, i) =
+          gtsam::Matrix33::Identity() * 100;  // 0.1m sigma -> 1/0.01 info
+    }
+
+    eta_.conservativeResize(current_dim);
+    eta_.segment(old_dim, current_dim - old_dim).setZero();
+  }
+
+  // --- Accumulation ---
+  // No R^T*R here! We just work on the existing Lambda_
+  const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
+  const gtsam::Matrix66 J_corr = -A.AdjointMap();
+
+  // const gtsam::Pose3 A = X_W_k_inv * H_linearization_point_;
+  // G will project the point from the object frame into the camera frame
+  const gtsam::Pose3 G_w = A * L_KF_;
+  gtsam::StereoCamera stereo_cam(G_w.inverse(), stereo_calibration_);
+
+  utils::ChronoTimingStats timer_irls(
+      "full_hybrid_object_motion_srif.update.irls");
+
+  // 1. Initialize our reduced Pose-only system
+  // We start with the persistent Pose information (the prior)
+  gtsam::Matrix66 Lambda_pose = Lambda_.block<6, 6>(0, 0);
+  gtsam::Vector6 eta_pose = eta_.head<6>();
+
+  // Temporary storage to avoid re-calculating during back-substitution
+  // struct PointUpdateBlock {
+  //   TrackletId tid;
+  //   int slot;
+  //   gtsam::Matrix33 inv_Lambda_mm;
+  //   gtsam::Matrix36 Lambda_mh;
+  //   gtsam::Vector3 eta_m;
+  // };
+  // std::vector<PointUpdateBlock> point_blocks;
+  // point_blocks.reserve(tracklets.size());
+
+  // double average_residual = 0;
+  // double good_tracks = 0;
+
+  // // 2. Accumulation Loop (The "Reduce" Phase)
+  // for (const auto& tid : tracklets) {
+  //   if (tracklet_to_slot_.find(tid) == tracklet_to_slot_.end()) continue;
+  //   int slot = tracklet_to_slot_[tid];
+
+  //   // --- Linearization ---
+  //   gtsam::Matrix36 Jh;
+  //   gtsam::Matrix33 Jm;
+  //   gtsam::StereoPoint2 z_pred;
+  //   try {
+  //     z_pred = stereo_cam.project2(m_linearized_[tid], Jh, Jm);
+  //   } catch (...) {
+  //     continue;
+  //   }  // Skip points behind camera
+
+  //   gtsam::Vector3 res =
+  //       (rgbd_camera_->getStereo(frame->at(tid)).second - z_pred).vector();
+
+  //   // Robust Weighting
+  //   double error = std::sqrt(res.transpose() * R_inv_ * res);
+  //   double w = (error <= huber_k_) ? 1.0 : huber_k_ / error;
+  //   if (w < 1e-6) continue;
+
+  //   average_residual += res.norm();
+  //   good_tracks++;
+
+  //   gtsam::Matrix33 info_weight = w * R_inv_;
+  //   gtsam::Matrix36 Jh_c = Jh * J_corr;
+
+  //   // --- Local Information Blocks ---
+  //   // Combine current measurement with persistent history
+  //   gtsam::Matrix33 Lambda_mm =
+  //       (Jm.transpose() * info_weight * Jm) + Lambda_.block<3, 3>(slot,
+  //       slot);
+  //   gtsam::Matrix33 inv_Lmm = Lambda_mm.inverse();
+
+  //   // Combine current coupling with persistent history
+  //   gtsam::Matrix63 Lambda_hm =
+  //       (Jh_c.transpose() * info_weight * Jm) + Lambda_.block<6, 3>(0, slot);
+
+  //   // Combine current residual with persistent history
+  //   gtsam::Vector3 eta_m =
+  //       (Jm.transpose() * info_weight * res) + eta_.segment<3>(slot);
+
+  //   // --- THE SCHUR REDUCTION ---
+  //   Lambda_pose += (Jh_c.transpose() * info_weight * Jh_c) -
+  //                  (Lambda_hm * inv_Lmm * Lambda_hm.transpose());
+  //   eta_pose +=
+  //       (Jh_c.transpose() * info_weight * res) - (Lambda_hm * inv_Lmm *
+  //       eta_m);
+
+  //   // --- STEP 2.5: BAKE INTO PERSISTENT LAMBDA ---
+  //   // This ensures the next frame starts with this frame's knowledge
+  //   Lambda_.block<3, 3>(slot, slot) = Lambda_mm;
+  //   Lambda_.block<6, 3>(0, slot) = Lambda_hm;
+  //   Lambda_.block<3, 6>(slot, 0) = Lambda_hm.transpose();
+
+  //   // Store for back-substitution
+  //   point_blocks.push_back({tid, slot, inv_Lmm, Lambda_hm.transpose(),
+  //   eta_m});
+  // }
+
+  // average_residual /= good_tracks;
+  // LOG(INFO) << "Residual " << average_residual;
+
+  // // 3. Solve for Pose (Fast 6x6)
+  // gtsam::Vector6 delta_pose = Lambda_pose.llt().solve(eta_pose);
+  // // if (!delta_pose.allFinite()) return {999.0, 0};
+
+  // // 4. Back-Substitution (The "Update Points" Phase)
+  // for (const auto& pb : point_blocks) {
+  //   // Formula: delta_m = inv(Lambda_mm) * (eta_m - Lambda_mh * delta_pose)
+  //   gtsam::Vector3 delta_m =
+  //       pb.inv_Lambda_mm * (pb.eta_m - pb.Lambda_mh * delta_pose);
+
+  //   // Update landmark linearization point
+  //   m_linearized_[pb.tid] += delta_m;
+  // }
+
+  // // 5. Update Pose linearization point
+  // H_linearization_point_ = H_linearization_point_.retract(delta_pose);
+
+  // // Update the persistent Pose-Pose block as well
+  // Lambda_.block<6, 6>(0, 0) = Lambda_pose;
+
+  // const gtsam::Pose3 L_W_k = this->pose();
+  // const Motion3ReferenceFrame H_W_km1_k = frameToFrameMotionReference();
+
+  // trajectory_.insert(frame_id_, timestamp_, {L_W_k, H_W_km1_k});
+
+  // // 6. Final "Cleanup"
+  // // Since we are now at the new linearization point, the 'residual' info is
+  // // consumed
+  // eta_.setZero();
 
   // return {0.0, point_blocks.size()};
 
   // // NOT actually implemented!
-  // for (int iter = 0; iter < num_irls_iterations; ++iter) {
+  for (int iter = 0; iter < num_irls_iterations; ++iter) {
+    double average_residual = 0;
+    double num_good_points = 0;
+    for (const auto& tid : tracklets) {
+      int slot = tracklet_to_slot_.at(tid);
+      // gtsam::Matrix36 Jh;
+      // gtsam::Matrix33 Jm;
 
-  //   double average_residual = 0;
-  //   for (const auto& tid : tracklets) {
-  //     int slot = tracklet_to_slot_.at(tid);
-  //     gtsam::Matrix36 Jh;
-  //     gtsam::Matrix33 Jm;
+      // gtsam::StereoPoint2 z_pred = stereo_cam.project2(m_linearized_.at(tid),
+      // Jh, Jm);
 
-  //     gtsam::StereoPoint2 z_pred = stereo_cam.project2(m_linearized_.at(tid),
-  //     Jh, Jm); gtsam::Vector3 res =
-  //     (rgbd_camera_->getStereo(frame->at(tid)).second - z_pred).vector();
+      gtsam::Matrix36 Jh;
+      gtsam::Matrix33 Jm;
+      gtsam::StereoPoint2 z_pred;
+      try {
+        z_pred = stereo_cam.project2(m_linearized_[tid], Jh, Jm);
+      } catch (...) {
+        continue;
+        // TODO: should immedialy remove as this is effecting the linearization
+        // point!!
+      }  // Skip points behind camera
 
-  //     double error_sq = res.transpose() * R_inv_ * res;
-  //     double error = std::sqrt(error_sq);
+      gtsam::Vector3 res =
+          (rgbd_camera_->getStereo(frame->at(tid)).second - z_pred).vector();
 
-  //     // Calculate Huber weight w(e) = min(1, delta / |e|)
-  //     double w = (error <= huber_k_) ? 1.0 : huber_k_ / error;
+      double error_sq = res.transpose() * R_inv_ * res;
+      double error = std::sqrt(error_sq);
 
-  //     // 2. Outlier Rejection: If weight is too small, ignore this
-  //     measurement
-  //     // This prevents the "Near-Zero" information from messing up the matrix
-  //     inversion if (w < 1e-6) {
-  //         continue;
-  //     }
+      // Calculate Huber weight w(e) = min(1, delta / |e|)
+      double w = (error <= huber_k_) ? 1.0 : huber_k_ / error;
 
-  //     average_residual += res.norm();
+      // 2. Outlier Rejection: If weight is too small, ignore this measurement
+      // This prevents the "Near-Zero" information from messing up the matrix
+      // inversion
+      if (w < 1e-6) {
+        continue;
+      }
 
-  //     // because R is meant to be from sigmas
-  //     gtsam::Matrix33 Omega = w * R_inv_.inverse(); // Add Huber w here if
-  //     needed gtsam::Matrix36 Jh_c = Jh * J_corr;
+      average_residual += res.norm();
+      num_good_points++;
 
-  //     // Add information directly
-  //     // Update Pose-Pose block (6x6)
-  //     Lambda_.block<6, 6>(0, 0) += Jh_c.transpose() * Omega * Jh_c;
-  //     // Update Point-Point block (3x3)
-  //     Lambda_.block<3, 3>(slot, slot) += Jm.transpose() * Omega * Jm;
-  //      // Update Pose-Point coupling (6x3)
-  //     gtsam::Matrix63 J_pose_point = Jh_c.transpose() * Omega * Jm;
-  //     Lambda_.block<6, 3>(0, slot) += J_pose_point;
-  //     Lambda_.block<3, 6>(slot, 0) += J_pose_point.transpose();
+      // because R is meant to be from sigmas
+      gtsam::Matrix33 Omega = w * R_inv_.inverse();
+      gtsam::Matrix36 Jh_c = Jh * J_corr;
 
-  //     eta_.head<6>() += Jh_c.transpose() * Omega * res;
-  //     eta_.segment<3>(slot) += Jm.transpose() * Omega * res;
-  //   }
+      // Add information directly
+      // Update Pose-Pose block (6x6)
+      Lambda_.block<6, 6>(0, 0) += Jh_c.transpose() * Omega * Jh_c;
+      // Update Point-Point block (3x3)
+      Lambda_.block<3, 3>(slot, slot) += Jm.transpose() * Omega * Jm;
+      // Update Pose-Point coupling (6x3)
+      gtsam::Matrix63 J_pose_point = Jh_c.transpose() * Omega * Jm;
+      Lambda_.block<6, 3>(0, slot) += J_pose_point;
+      Lambda_.block<3, 6>(slot, 0) += J_pose_point.transpose();
 
-  //   average_residual /= (double)tracklets.size();
-  //   LOG(INFO) << "Residual " << average_residual;
+      eta_.head<6>() += Jh_c.transpose() * Omega * res;
+      eta_.segment<3>(slot) += Jm.transpose() * Omega * res;
+    }
 
-  //   //always solve at the start to help with initalisation
-  //   if(frame_id_ % 4 == 0 || frame_id_ == frame_id_e_ || frame_id_ - 1u ==
-  //   frame_id_e_) {
-  //      // Solve via Cholesky
-  //     utils::ChronoTimingStats timer_LLT(
-  //       "full_hybrid_object_motion_srif.update.cholesky");
-  //     Eigen::LLT<gtsam::Matrix> llt(Lambda_);
-  //     gtsam::Vector delta = llt.solve(eta_);
+    average_residual /= num_good_points;
+    LOG(INFO) << "Residual " << average_residual;
 
-  //     // Update means
-  //     H_linearization_point_ =
-  //     H_linearization_point_.retract(delta.head<6>()); for (auto& [tid, slot]
-  //     : tracklet_to_slot_) {
-  //       const auto d_i = delta.segment<3>(slot);
-  //       m_linearized_[tid] += d_i;
-  //     }
+    // always solve at the start to help with initalisation
+    //  if(frame_id_ % 4 == 0 || frame_id_ == frame_id_KF_ || frame_id_ - 1u ==
+    //  frame_id_KF_) {
+    if (true) {
+      // Solve via Cholesky
+      utils::ChronoTimingStats timer_LLT(
+          "full_hybrid_object_motion_srif.update.cholesky");
+      Eigen::LLT<gtsam::Matrix> llt(Lambda_);
+      gtsam::Vector delta = llt.solve(eta_);
 
-  //     // 6. After retraction, your eta_ for the NEXT iteration must be 0
-  //     // because the "error" has been moved into the linearization point.
-  //     // However, the Lambda_ (Information) from this frame must be SAVED
-  //     // only AFTER the final iteration.
+      // Update means
+      H_linearization_point_ = H_linearization_point_.retract(delta.head<6>());
+      for (auto& [tid, slot] : tracklet_to_slot_) {
+        const auto d_i = delta.segment<3>(slot);
+        m_linearized_[tid] += d_i;
+      }
 
-  //     // In a pure Information Filter, we don't need to convert back to R.
-  //     // We just reset eta for the next re-linearization or next frame.
-  //     eta_.setZero();
-  //   }
+      // 6. After retraction, your eta_ for the NEXT iteration must be 0
+      // because the "error" has been moved into the linearization point.
+      // However, the Lambda_ (Information) from this frame must be SAVED
+      // only AFTER the final iteration.
 
-  // }
+      // In a pure Information Filter, we don't need to convert back to R.
+      // We just reset eta for the next re-linearization or next frame.
+      const gtsam::Pose3 L_W_k = this->pose();
+      const Motion3ReferenceFrame H_W_km1_k = frameToFrameMotionReference();
+
+      trajectory_.insert(frame_id_, timestamp_, {L_W_k, H_W_km1_k});
+    }
+  }
 
   // 3. Marginalize (Now just a slice operation)
   if (!to_marginalize.empty()) {
@@ -863,7 +1068,9 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
     marginalizeInInformationForm(to_marginalize);
   }
 
-  return HybridObjectMotionSRIFResult{0.0, 0.0};
+  eta_.setZero();
+
+  return HybridObjectMotionSRIFResult{};
 
   // utils::ChronoTimingStats timer("full_hybrid_object_motion_srif.update");
 
@@ -872,7 +1079,7 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
   //   if (m_linearized_.find(tid) == m_linearized_.end()) {
   //     const gtsam::Point3 m_X_k = frame->backProjectToCamera(tid);
   //     m_linearized_[tid] = HybridObjectMotion::projectToObject3(
-  //         frame->getPose(), getKeyFramedMotion(), L_e_, m_X_k);
+  //         frame->getPose(), getKeyFramedMotion(), L_KF_, m_X_k);
 
   //     // Add new slot in state vector: Pose(6) + 3*N
   //     int new_slot = 6 + (tracklet_to_slot_.size() * 3);
@@ -901,7 +1108,7 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
 
   // const gtsam::Pose3 A = frame->getPose().inverse() * H_linearization_point_;
   // const gtsam::Matrix6 J_correction = -A.AdjointMap();
-  // gtsam::StereoCamera stereo_cam((A * L_e_).inverse(), stereo_calibration_);
+  // gtsam::StereoCamera stereo_cam((A * L_KF_).inverse(), stereo_calibration_);
 
   // // 1. Convert Square-Root Prior to Information form
   // // This is the starting point for this frame's optimization
@@ -1049,10 +1256,12 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
   // return HybridObjectMotionSRIFResult{0.0, 0.0};
 }
 
-void FullHybridObjectMotionSRIF::createNewKeyedMotion(
+bool FullHybridObjectMotionSRIF::createNewKeyedMotion(
     const gtsam::Pose3& L_KF, Frame::Ptr frame, const TrackletIds& tracklets) {
   resetState(L_KF, frame->getFrameId(), frame->getTimestamp());
   update(gtsam::Pose3::Identity(), frame, tracklets);
+  // TODO: for now!
+  return true;
 }
 
 void FullHybridObjectMotionSRIF::removeOutlierTracklets(
@@ -1202,8 +1411,8 @@ void FullHybridObjectMotionSRIF::marginalizeInInformationForm(
 }
 
 void FullHybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
-                                            FrameId frame_id_e,
-                                            Timestamp timestamp_e) {
+                                            FrameId frame_id_KF,
+                                            Timestamp timestamp_KF) {
   // 2. Initialize SRIF State (R, d) from EKF State (W, P)
   // W_linearization_point_ is set to initial_state_W
   // The initial perturbation is 0, so the initial d_info_ is 0.
@@ -1220,15 +1429,19 @@ void FullHybridObjectMotionSRIF::resetState(const gtsam::Pose3& L_e,
 
   // will this give us discontinuinities betweek keyframes?
   //  reset other variables
-  previous_H_ = gtsam::Pose3::Identity();
-  L_e_ = L_e;
-  frame_id_e_ = frame_id_e;
-  frame_id_ = frame_id_e;
-  timestamp_e_ = timestamp_e;
-  timestamp_ = timestamp_e;
+  L_KF_ = L_e;
+  frame_id_KF_ = frame_id_KF;
+  frame_id_ = frame_id_KF;
+  timestamp_KF_ = timestamp_KF;
+  timestamp_ = timestamp_KF;
   X_K_ = gtsam::Pose3::Identity();
 
+  H_W_KF_km1_ = Motion3ReferenceFrame(
+      gtsam::Pose3::Identity(), MotionRepresentationStyle::KF,
+      ReferenceFrame::GLOBAL, frame_id_KF_, frame_id_);
+
   m_linearized_.clear();
+  tracklet_to_slot_.clear();
 
   // should always be identity since the deviation from L_e = I when frame = e
   // the initial H should not be parsed into the constructor by this logic as

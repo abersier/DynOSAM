@@ -13,8 +13,7 @@ class HybridObjectMotionSolverImpl {
   DYNO_POINTER_TYPEDEFS(HybridObjectMotionSolverImpl)
 
   HybridObjectMotionSolverImpl(ObjectId object_id, Camera::Ptr camera)
-      : object_id_(object_id),
-        logger_prefix_("hybrid_motion_smoother_j" + std::to_string(object_id)) {
+      : object_id_(object_id) {
     rgbd_camera_ = CHECK_NOTNULL(camera)->safeGetRGBDCamera();
     CHECK(rgbd_camera_);
     stereo_calibration_ = rgbd_camera_->getFakeStereoCalib();
@@ -28,22 +27,27 @@ class HybridObjectMotionSolverImpl {
 
   virtual gtsam::Pose3 keyFrameMotion() const = 0;
   virtual gtsam::Pose3 keyFramePose() const = 0;
-  virtual gtsam::Pose3 frameToFrameMotion() const = 0;
+  virtual Motion3ReferenceFrame frameToFrameMotionReference() const = 0;
 
-  virtual Motion3ReferenceFrame keyFrameMotionReference() {
+  virtual Motion3ReferenceFrame keyFrameMotionReference() const {
     return Motion3ReferenceFrame(
         keyFrameMotion(), Motion3ReferenceFrame::Style::KF,
         ReferenceFrame::GLOBAL, keyFrameId(), frameId());
+  }
+
+  virtual gtsam::Pose3 frameToFrameMotion() const {
+    // Motion3ReferenceFrame auto casts to pose
+    return frameToFrameMotionReference();
   }
 
   virtual gtsam::Pose3 pose() const {
     return keyFrameMotion() * keyFramePose();
   }
 
-  virtual void update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+  virtual bool update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
                       const TrackletIds& tracklets) = 0;
 
-  virtual void createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+  virtual bool createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
                                     const TrackletIds& tracklets) = 0;
 
   virtual gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const = 0;
@@ -58,8 +62,6 @@ class HybridObjectMotionSolverImpl {
 
  protected:
   const ObjectId object_id_;
-  const std::string logger_prefix_;
-
   std::shared_ptr<RGBDCamera> rgbd_camera_;
   gtsam::Cal3_S2Stereo::shared_ptr stereo_calibration_;
 };

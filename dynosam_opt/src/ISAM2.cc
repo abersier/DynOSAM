@@ -82,6 +82,7 @@ GaussianFactorGraph ISAM2::relinearizeAffectedFactors(
     const ISAM2UpdateParams& updateParams, const FastList<Key>& affectedKeys,
     const KeySet& relinKeys) {
   gttic(relinearizeAffectedFactors);
+
   FactorIndexSet candidates =
       UpdateImpl::GetAffectedFactors(affectedKeys, variableIndex_);
 
@@ -97,7 +98,6 @@ GaussianFactorGraph ISAM2::relinearizeAffectedFactors(
     bool inside = true;
     bool useCachedLinear = params_.cacheLinearizedFactors;
     for (Key key : nonlinearFactors_[idx]->keys()) {
-      LOG(INFO) << DynosamKeyFormatter(key) << "for index " << idx;
       if (affectedKeysSet.find(key) == affectedKeysSet.end()) {
         inside = false;
         break;
@@ -344,8 +344,6 @@ void ISAM2::recalculateIncremental(const ISAM2UpdateParams& updateParams,
         result->observedKeys.size() < affectedFactorsVarIndex.size() ? 1 : 0;
     for (Key var : result->observedKeys) constraintGroups.emplace(var, group);
   }
-
-  LOG(INFO) << "Here";
 
   // Remove unaffected keys from the constraints
   for (FastMap<Key, int>::iterator iter = constraintGroups.begin();

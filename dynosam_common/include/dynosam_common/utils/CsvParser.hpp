@@ -35,6 +35,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <tuple>
 #include <typeinfo>
@@ -281,8 +282,14 @@ class CsvWriter {
       this->newRow();
     }
 
-    if (value_count_ > 0) this->ss_ << this->seperator_;
-    this->ss_ << str;
+    {
+      // thread-safe access to internal writer
+      // this should be the only place where the writer is actually modified
+      const std::lock_guard<std::mutex> lock(mutex_);
+      if (value_count_ > 0) this->ss_ << this->seperator_;
+      this->ss_ << str;
+    }
+
     this->value_count_++;
 
     return *this;
@@ -314,6 +321,8 @@ class CsvWriter {
   const std::string seperator_;
   size_t value_count_;
   std::stringstream ss_;
+
+  mutable std::mutex mutex_;
 };
 
 }  // namespace dyno

@@ -1293,7 +1293,7 @@ void FeatureTracker::propogateMask(ImageContainer& image_container) {
     }
 
     // this is a lovely magic number inherited from some old code :)
-    if (temp_label.size() < 150) {
+    if (temp_label.size() < 20) {
       LOG(WARNING) << "not enoug points to track object " << instance_labels[i]
                    << " points size - " << temp_label.size();
       // TODO:mark has static!!???

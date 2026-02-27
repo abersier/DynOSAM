@@ -215,6 +215,9 @@ struct ReferenceFrameValue {
   ReferenceFrameValue(ConstEstimate& estimate, ReferenceFrame frame)
       : estimate_(estimate), frame_(frame) {}
 
+  const Estimate* operator->() const { return &estimate_; }
+  const Estimate* operator->() { return &estimate_; }
+
   operator Estimate&() { return estimate_; }
   operator const Estimate&() const { return estimate_; }
   operator const ReferenceFrame&() const { return frame_; }

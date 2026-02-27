@@ -1,6 +1,109 @@
 #include "dynosam/frontend/solvers/HybridObjectMotionSolver.hpp"
 
+#include <gflags/gflags.h>
+
+DEFINE_int32(hybrid_motion_solver, 0,
+             "Which solver to use. 0: EIF, 1: Smart Smoother, 2: Full "
+             "Smoother, 3: PnP Only");
+
 namespace dyno {
+
+// A class that just uses PnP to solve the motion but looks like a solver object
+// so it integrates in with the HybridObjectMotionSmoother
+class PnPOnlySolver : public HybridObjectMotionSolverImpl {
+ private:
+  gtsam::Pose3 L_KF_;
+  // Frame Id for the reference KF
+  FrameId frame_id_KF_;
+  // Timestamp for the KeyMotion
+  Timestamp timestamp_KF_;
+  //! Frame id used for last update
+  FrameId frame_id_;
+  //! Timestamp used for the last update
+  Timestamp timestamp_;
+
+  FrameId frame_id_km1_;
+
+  PoseWithMotionTrajectory trajectory_;
+
+  // Accumulated motion
+  gtsam::Pose3 H_W_KF_k_;
+
+  // latest frame-to-frame motion
+  gtsam::Pose3 H_W_km1_k_;
+
+ protected:
+  PnPOnlySolver(ObjectId object_id, Camera::Ptr camera)
+      : HybridObjectMotionSolverImpl(object_id, camera) {}
+
+ public:
+  DYNO_POINTER_TYPEDEFS(PnPOnlySolver)
+
+  static PnPOnlySolver::Ptr CreateWithInitialMotion(
+      const ObjectId object_id, const gtsam::Pose3& L_KF_k, Frame::Ptr frame_k,
+      const TrackletIds& tracklets) {
+    auto smoother = std::shared_ptr<PnPOnlySolver>(
+        new PnPOnlySolver(object_id, frame_k->getCamera()));
+    smoother->createNewKeyedMotion(L_KF_k, frame_k, tracklets);
+    return smoother;
+  }
+
+  bool update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+              const TrackletIds& tracklets) override {
+    H_W_km1_k_ = H_w_km1_k_predict;
+
+    // update accumulated motion
+    H_W_KF_k_ = H_W_km1_k_ * H_W_KF_k_;
+    gtsam::Pose3 L_W_k = H_W_KF_k_ * L_KF_;
+
+    frame_id_km1_ = frame_id_;
+    frame_id_ = frame->getFrameId();
+    timestamp_ = frame->getTimestamp();
+
+    // frameToFrameMotionReference will be valid after H_W_km1_k_, frame_id_km1_
+    // and frame_id_ are set
+    trajectory_.insert(frame_id_, timestamp_,
+                       {L_W_k, frameToFrameMotionReference()});
+    return true;
+  }
+
+  bool createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+                            const TrackletIds& tracklets) override {
+    frame_id_ = frame->getFrameId();
+    timestamp_ = frame->getTimestamp();
+    frame_id_KF_ = frame->getFrameId();
+    timestamp_KF_ = frame->getTimestamp();
+    frame_id_km1_ = frame->getFrameId();
+
+    L_KF_ = L_KF;
+    H_W_KF_k_ = gtsam::Pose3::Identity();
+    return true;
+  }
+
+  PoseWithMotionTrajectory trajectory() const override { return trajectory_; }
+
+  PoseWithMotionTrajectory localTrajectory() const override {
+    return trajectory_.range(keyFrameId());
+  }
+
+  gtsam::Pose3 keyFrameMotion() const override { return H_W_KF_k_; }
+
+  Motion3ReferenceFrame frameToFrameMotionReference() const override {
+    return Motion3ReferenceFrame(H_W_km1_k_, Motion3ReferenceFrame::Style::F2F,
+                                 ReferenceFrame::GLOBAL, frame_id_km1_,
+                                 frame_id_);
+  }
+
+  gtsam::Pose3 keyFramePose() const override { return L_KF_; }
+
+  FrameId keyFrameId() const override { return frame_id_KF_; }
+  FrameId frameId() const override { return frame_id_; }
+  Timestamp timestamp() const override { return timestamp_; }
+
+  gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const override {
+    return {};
+  }
+};
 
 HybridObjectMotionSolver::HybridObjectMotionSolver(
     const HybridObjectMotionSolverParams& params,
@@ -9,9 +112,16 @@ HybridObjectMotionSolver::HybridObjectMotionSolver(
     : params_(params),
       pnp_ransac_solver_(params.pnp_ransac_params, camera_params),
       optical_flow_pose_solver_(params.optical_flow_solver_params),
-      shared_ground_truth_(shared_ground_truth) {
+      shared_ground_truth_(shared_ground_truth),
+      logger_(
+          CsvHeader("timestamp", "frame_id", "solve_time", "number_tracks")) {
   VLOG(10) << "HybridObjectMotionSolver initalised with ground truth "
            << std::boolalpha << shared_ground_truth_.valid();
+}
+
+HybridObjectMotionSolver::~HybridObjectMotionSolver() {
+  const std::string file_out = "hybrid_motion_solver_details.csv";
+  OfstreamWrapper::WriteOutCsvWriter(logger_, getOutputFilePath(file_out));
 }
 
 void HybridObjectMotionSolver::solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
@@ -247,6 +357,7 @@ bool HybridObjectMotionSolver::solveImpl(
                  });
   CHECK_EQ(all_tracklets.size(), n_matches);
 
+  utils::ChronoTimingStats update_timer("hybrid_motion_solver.solve_impl", 50);
   Pose3SolverResult geometric_result =
       pnp_ransac_solver_.solve3d2d(dynamic_correspondences);
 
@@ -275,14 +386,13 @@ bool HybridObjectMotionSolver::solveImpl(
     object_statuses_[object_id] = ObjectTrackingStatus::WellTracked;
   }
 
-  // bool object_retracked = false;
-  // if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked ||
-  //     previous_tracking_state == ObjectTrackingStatus::Lost) {
-  //   LOG(INFO) << "Previous tracking status "
-  //             << to_string(previous_tracking_state) << " setting to
-  //             retracked";
-  //   object_retracked = true;
-  // }
+  bool object_retracked = false;
+  if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked ||
+      previous_tracking_state == ObjectTrackingStatus::Lost) {
+    LOG(INFO) << "Previous tracking status "
+              << to_string(previous_tracking_state) << " setting to retracked";
+    object_retracked = true;
+  }
 
   const gtsam::Pose3 X_W_k = frame_k->getPose();
   const gtsam::Pose3 G_W = geometric_result.best_result;
@@ -298,10 +408,8 @@ bool HybridObjectMotionSolver::solveImpl(
     // inliers should be a subset of the original refined inlier tracks
     inlier_tracklets = refinement_result.inliers;
   }
-  const gtsam::Pose3 H_W_km1_k_pnp = X_W_k * G_W_inv;
 
-  // // before we even do a filter update!!
-  // // ObjectPoseChangeInfo info;
+  const gtsam::Pose3 H_W_km1_k_pnp = X_W_k * G_W_inv;
 
   ObjectKeyFrameStatus keyframe_status{ObjectKeyFrameStatus::NonKeyFrame};
 
@@ -309,8 +417,8 @@ bool HybridObjectMotionSolver::solveImpl(
     auto filter = createAndInsertFilter(object_id, frame_km1, inlier_tracklets);
     keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
   } else {
-    // const bool new_KF = is_resampled;
-    const bool new_KF = false;
+    const bool new_KF = object_retracked;
+    // const bool new_KF = false;
     // const bool new_KF = frame_k->getFrameId() % 12 == 0;
     if (new_KF) {
       auto filter = solvers_.at(object_id);
@@ -334,67 +442,35 @@ bool HybridObjectMotionSolver::solveImpl(
         keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
       }
 
-      // filter->relinearize();
-
-      // filter->resetState(new_KF_pose, frame_km1->getFrameId(),
-      //                    frame_km1->getTimestamp());
-      // filter->predictAndUpdate(gtsam::Pose3::Identity(), frame_km1,
-      //                          inlier_tracklets, 2);
+      filter->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
     }
   }
 
-  // auto filter = threadSafeFilterAccess(object_id);
-  auto filter = solvers_.at(object_id);
-  CHECK_NOTNULL(filter);
+  auto solver = solvers_.at(object_id);
+  CHECK_NOTNULL(solver);
+  const bool solver_okay =
+      solver->update(H_W_km1_k_pnp, frame_k, inlier_tracklets);
+  auto update_time_ms = update_timer.stop();
 
-  filter->update(H_W_km1_k_pnp, frame_k, inlier_tracklets);
+  if (!solver_okay) {
+    LOG(WARNING) << "Solver failed "
+                 << info_string(frame_k->getFrameId(), object_id);
+    const std::lock_guard<std::mutex> lock(object_status_mutex_);
+    object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
 
-  const auto H_W_KF_k = filter->keyFrameMotionReference();
-  LOG(INFO) << "Motion solved j= " << object_id << ": k= " << H_W_KF_k.from()
-            << " -> " << H_W_KF_k.to();
-
-  // always add motion at k not k-1?
-  if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
-    // motion is after the reset?
-    // ObjectPoseChangeInfo info;
-    // info.frame_id = filter->getFrameId();
-    // info.H_W_KF_k = H_W_KF_k;
-    // info.L_W_KF = filter->getKeyFramePose();
-    // info.L_W_k = filter->getPose();
-
-    // // TODO: shouldnt need this?
-    // // to get here we must be well-tracked!
-    // info.motion_track_status = ObjectTrackingStatus::WellTracked;
-
-    // info.regular_keyframe = false;
-    // info.anchor_keyframe = false;
-
-    // //TODO: replace flags in info with ObjectKeyFrameStatus
-    // if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-    //   info.regular_keyframe = true;
-    //   info.anchor_keyframe = true;
-    // } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-    //   info.regular_keyframe = true;
-    // }
-
-    // CHECK(getObjectStructureinL(object_id,  info.initial_object_points));
-
-    //   LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
-    //           << "motion KF: " << info.H_W_KF_k.from()
-    //           << " to: " << info.H_W_KF_k.to() << " with regular kf "
-    //           << std::boolalpha << info.regular_keyframe << " anchor kf "
-    //           << info.anchor_keyframe;
-
-    // // Make threaf safe!!
-    // pose_change_info_.insert2(object_id, info);
+    return false;
   }
 
-  // sepate KF logic (ie we can keyframe temporally)
+  const auto H_W_km1_k = solver->frameToFrameMotion();
 
-  const gtsam::Pose3 H_w_km1_k = filter->frameToFrameMotion();
+  logger_ << frame_k->getTimestamp() << frame_k->getFrameId() << update_time_ms
+          << inlier_tracklets.size();
+  // always add motion at k not k-1?
+  if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
+  }
 
   motion_estimate = Motion3ReferenceFrame(
-      H_w_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
+      H_W_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
       frame_km1->getFrameId(), frame_k->getFrameId());
 
   frame_k->dynamic_features_.markOutliers(outlier_tracklets);
@@ -1060,61 +1136,78 @@ HybridObjectMotionSolverImpl::Ptr
 HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
                                                 Frame::Ptr frame,
                                                 const TrackletIds& tracklets) {
-  gtsam::Matrix33 R = gtsam::Matrix33::Identity() * 1.0;
-  // Initial State Covariance P (6x6)
-  gtsam::Matrix66 P = gtsam::Matrix66::Identity() * 0.3;
-  // // Process Model noise (6x6)
-  // gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
-  gtsam::Vector6 q_diag;
-  q_diag << 1e-4, 1e-4, 1e-4,  // Rotation noise (std approx 0.01 rad)
-      1e-3, 1e-3, 1e-3;        // Translation noise (std approx 0.03 m)
-  gtsam::Matrix66 Q = q_diag.asDiagonal();
-
   gtsam::Pose3 keyframe_pose = constructObjectPose(object_id, frame, tracklets);
 
-  constexpr static double kHuberKFilter = 0.05;
-  auto filter = std::make_shared<FullHybridObjectMotionSRIF>(
-      object_id, gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
-      frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
+  HybridObjectMotionSolverImpl::Ptr solver = nullptr;
+  if (FLAGS_hybrid_motion_solver == 0) {
+    gtsam::Matrix33 R = gtsam::Matrix33::Identity() * 1.0;
+    // Initial State Covariance P (6x6)
+    gtsam::Matrix66 P = gtsam::Matrix66::Identity() * 0.3;
+    // // Process Model noise (6x6)
+    // gtsam::Matrix66 Q = gtsam::Matrix66::Identity() * 0.2;
+    gtsam::Vector6 q_diag;
+    q_diag << 1e-2, 1e-4, 1e-4,  // Rotation noise (std approx 0.01 rad)
+        1e-3, 1e-3, 1e-3;        // Translation noise (std approx 0.03 m)
+    gtsam::Matrix66 Q = q_diag.asDiagonal();
+
+    constexpr static double kHuberKFilter = 0.05;
+    solver = std::make_shared<FullHybridObjectMotionSRIF>(
+        object_id, gtsam::Pose3::Identity(), keyframe_pose, frame->getFrameId(),
+        frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
+  } else if (FLAGS_hybrid_motion_solver == 1) {
+    // run as smoother with smart factors
+    constexpr static bool run_as_smart = true;
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
+        object_id, 15, keyframe_pose, frame, tracklets, run_as_smart);
+  } else if (FLAGS_hybrid_motion_solver == 2) {
+    // run as full smoother
+    constexpr static bool run_as_smart = false;
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
+        object_id, 15, keyframe_pose, frame, tracklets, run_as_smart);
+  } else if (FLAGS_hybrid_motion_solver == 3) {
+    solver = PnPOnlySolver::CreateWithInitialMotion(object_id, keyframe_pose,
+                                                    frame, tracklets);
+  }
+  CHECK_NOTNULL(solver);
 
   const std::lock_guard<std::mutex> lock(solvers_mutex_);
-  solvers_.insert2(object_id, filter);
+  solvers_.insert2(object_id, solver);
 
   LOG(INFO) << "Created new filter for object " << object_id << " at frame "
             << frame->getFrameId();
 
-  return filter;
+  return solver;
 }
 
 void HybridObjectMotionSolver::updateTrajectories(
     MultiObjectTrajectories& object_trajectories,
-    const MotionEstimateMap& motion_estimates, Frame::Ptr frame_k,
-    Frame::Ptr frame_km1) {
-  const auto frame_id_k = frame_k->getFrameId();
-  const auto timestamp_k = frame_k->getTimestamp();
+    const MotionEstimateMap& motion_estimates, Frame::Ptr /*frame_k*/,
+    Frame::Ptr /*frame_km1*/) {
+  // const auto frame_id_k = frame_k->getFrameId();
+  // const auto timestamp_k = frame_k->getTimestamp();
 
-  for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
-    CHECK(solvers_.exists(object_id));
+  // for (const auto& [object_id, motion_reference_frame] : motion_estimates) {
+  //   CHECK(solvers_.exists(object_id));
 
-    CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
-    CHECK_EQ(motion_reference_frame.to(), frame_id_k);
+  //   CHECK_EQ(motion_reference_frame.from(), frame_id_k - 1u);
+  //   CHECK_EQ(motion_reference_frame.to(), frame_id_k);
 
-    auto filter = solvers_.at(object_id);
-    gtsam::Pose3 L_k_j = filter->pose();
-    object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
-                                PoseWithMotion{L_k_j, motion_reference_frame});
-  }
+  //   auto filter = solvers_.at(object_id);
+  //   gtsam::Pose3 L_k_j = filter->pose();
+  //   object_trajectories_.insert(object_id, frame_id_k, timestamp_k,
+  //                               PoseWithMotion{L_k_j,
+  //                               motion_reference_frame});
+  // }
 
-  object_trajectories = object_trajectories_;
+  // object_trajectories = object_trajectories_;
 
   // FOR SMOOTHER!!
-  // for (const auto& [object_id, _] : motion_estimates) {
-  //   CHECK(filters_.exists(object_id));
+  for (const auto& [object_id, _] : motion_estimates) {
+    CHECK(solvers_.exists(object_id));
 
-  //   PoseWithMotionTrajectory trajectory =
-  //   filters_.at(object_id)->trajectory();
-  //   object_trajectories.insert2(object_id, trajectory);
-  // }
+    PoseWithMotionTrajectory trajectory = solvers_.at(object_id)->trajectory();
+    object_trajectories.insert2(object_id, trajectory);
+  }
 }
 
 }  // namespace dyno

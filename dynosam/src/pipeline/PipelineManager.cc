@@ -513,7 +513,7 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
       output_registra->registerQueue(&backend_viz_input_queue_);
     }
 
-    if (external_backend_display_) {
+    if (external_backend_display_ && output_registra) {
       LOG(INFO) << "Connecting BackendModuleDisplay";
       auto external_backend_display = external_backend_display_;
       output_registra->registerCallback(

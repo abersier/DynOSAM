@@ -27,6 +27,7 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   DYNO_POINTER_TYPEDEFS(HybridObjectMotionSmoother)
 
   struct Result {
+    bool solver_okay{false};
     gtsam::KeyVector marginalized_keys;
     gtsam::KeyList additional_keys_reeliminate;
     double update_time_ms{0};
@@ -38,18 +39,18 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   static HybridObjectMotionSmoother::Ptr CreateWithInitialMotion(
       const ObjectId object_id, double smoother_lag,
       const gtsam::Pose3& L_KF_km1, Frame::Ptr frame_km1,
-      const TrackletIds& tracklets);
+      const TrackletIds& tracklets, bool run_as_smart = false);
 
   ~HybridObjectMotionSmoother();
 
   // should only be called once a valid createNewKeyedMotion has been called!
-  void update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+  bool update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
               const TrackletIds& tracklets) override;
 
   // This is basically reset
   //  What information from the previous state do we propogate over (ie.
   //  points?) if any
-  void createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+  bool createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
                             const TrackletIds& tracklets) override;
 
   // trajectory should with F2F motion!!
@@ -63,14 +64,23 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
    */
   PoseWithMotionTrajectory localTrajectory() const override;
 
-  FrameId keyFrameId() const override { return frames_since_lKF_.front(); }
-  FrameId frameId() const override { return frames_since_lKF_.back(); }
-  Timestamp timestamp() const override { return timestamps_since_lKF_.back(); }
+  FrameId keyFrameId() const override {
+    CHECK(!frames_since_lKF_.empty());
+    return frames_since_lKF_.front();
+  }
+  FrameId frameId() const override {
+    CHECK(!frames_since_lKF_.empty());
+    return frames_since_lKF_.back();
+  }
+  Timestamp timestamp() const override {
+    CHECK(!timestamps_since_lKF_.empty());
+    return timestamps_since_lKF_.back();
+  }
 
   // Motion3ReferenceFrame getKeyFramedMotionReference() const override;
-  gtsam::Pose3 keyFrameMotion() const;
+  gtsam::Pose3 keyFrameMotion() const override;
 
-  gtsam::Pose3 frameToFrameMotion() const override;
+  Motion3ReferenceFrame frameToFrameMotionReference() const override;
   gtsam::Pose3 keyFramePose() const override;
 
   gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const override;
@@ -141,7 +151,7 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     int num_motions_in_smoother{0};
   };
 
- private:
+ protected:
   std::map<gtsam::Key, gtsam::Point3> getObjectPointsFromState(
       const gtsam::Values& values) const;
 
@@ -182,7 +192,30 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
  protected:
   HybridObjectMotionSmoother(ObjectId object_id, Camera::Ptr camera,
-                             double smootherLag = 0.0);
+                             double smootherLag = 0.0,
+                             bool run_as_smart = false);
+  const std::string logger_prefix_;
+
+  Result updateFromInitialMotionFullState(const gtsam::Pose3& H_W_KF_k_initial,
+                                          Frame::Ptr frame,
+                                          const TrackletIds& tracklets);
+
+  Result updateFromInitialMotionSmart(const gtsam::Pose3& H_W_KF_k_initial,
+                                      Frame::Ptr frame,
+                                      const TrackletIds& tracklets);
+
+  gtsam::Pose3 keyFrameMotionFullState(FrameId frame_id,
+                                       const gtsam::Values& values) const;
+  gtsam::Pose3 keyFrameMotionSmart(FrameId frame_id,
+                                   const gtsam::Values& values) const;
+
+  using GetKeyFrameMotionImpl =
+      std::function<gtsam::Pose3(FrameId, const gtsam::Values&)>;
+  using UpdateMotionFromInitialImpl = std::function<Result(
+      const gtsam::Pose3&, Frame::Ptr, const TrackletIds&)>;
+
+  GetKeyFrameMotionImpl get_keyframe_motion_impl;
+  UpdateMotionFromInitialImpl update_motion_from_initial_impl;
 
   // Trajectory since last KF?
   // Updated when new KF made since past variables will not be updated
@@ -191,9 +224,6 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   // first frame is KF and last is k
   FrameIds frames_since_lKF_;
   std::vector<Timestamp> timestamps_since_lKF_;
-
-  std::shared_ptr<RGBDCamera> rgbd_camera_;
-  gtsam::Cal3_S2Stereo::shared_ptr stereo_calibration_;
 
   // Trajectory up to the current KF
   // Nont only will this trajectory be "frozen" (in the sense that)
@@ -228,7 +258,7 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     params.keyFormatter = DynosamKeyFormatter;
     params.relinearizeThreshold = 0.01;
     // this value is very important for accuracy
-    // params.relinearizeSkip = 1;
+    params.relinearizeSkip = 1;
     params.evaluateNonlinearError = true;
     return params;
   }

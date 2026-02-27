@@ -151,6 +151,55 @@ class TrajectoryBase {
   Timestamp endTime() const { return last().timestamp; }
 
   /**
+   * @brief Slice a range of this trajectory and return a new trajectory.
+   *
+   * If start greater than end, DynosamException is thrown.
+   *
+   * If the provided end > the actual max frame, a rnage up to the last frame is
+   * provided.
+   *
+   * Both start and end are optinal, if not proviced defaults to minFrame and
+   * maxFrame respectively.
+   *
+   * @param start std::optional<FrameId>
+   * @param end std::optional<FrameId>
+   * @return Derived
+   */
+  Derived range(std::optional<FrameId> start = {},
+                std::optional<FrameId> end = {}) const {
+    if (empty()) {
+      return Derived{};
+    }
+
+    if (!start && !end) {
+      return derived();
+      ;
+    }
+
+    auto begin_it =
+        (start) ? trajectory_.lower_bound(*start) : trajectory_.begin();
+
+    auto last_key = end.value_or(trajectory_.rbegin()->first);
+    // clamp to max frame in case user provides on that is greater than the last
+    // frame
+    last_key = std::min(last_key, maxFrame());
+
+    if (begin_it->first > last_key) {
+      throw DynosamException(
+          "Cannot construct range query for " + trajectoryName() +
+          " provided start " + (start ? std::to_string(*start) : "None") +
+          " > " + " provided end " + (end ? std::to_string(*end) : "None"));
+    }
+
+    Derived result;
+    for (auto it = begin_it; it != trajectory_.end() && it->first <= last_key;
+         ++it)
+      result.insert(*it);
+
+    return result;
+  }
+
+  /**
    * @brief Get the previous entry in the trajectory.
    *
    * Entry may not be frame_id - 1 if trajectory has multiple segments
@@ -179,6 +228,8 @@ class TrajectoryBase {
 
   std::vector<Entry> toVector() const {
     std::vector<Entry> destination;
+    destination.reserve(size());
+
     std::transform(begin(), end(), std::back_inserter(destination),
                    [](auto entry) { return entry; });
     return destination;
@@ -186,6 +237,8 @@ class TrajectoryBase {
 
   std::vector<Data> toDataVector() const {
     std::vector<Data> destination;
+    destination.reserve(size());
+
     std::transform(begin(), end(), std::back_inserter(destination),
                    [](auto entry) { return entry.data; });
     return destination;
@@ -251,8 +304,8 @@ class TrajectoryBase {
   TrajectoryBase(const TrajectoryImpl& trajectory) : trajectory_(trajectory) {}
   Derived& insert(const Entry& entry) {
     if (entry.timestamp < 0) {
-      throw DynosamException("Negative timestamp provided to Trajectory<" +
-                             type_name<TData>() + "> at frame id " +
+      throw DynosamException("Negative timestamp provided to" +
+                             trajectoryName() + " at frame id " +
                              std::to_string(entry.frame_id));
     }
 
@@ -279,6 +332,10 @@ class TrajectoryBase {
   }
 
  private:
+  std::string trajectoryName() const {
+    return "Trajectory<" + type_name<TData>() + ">";
+  }
+
   TrajectoryImpl trajectory_;
 };
 

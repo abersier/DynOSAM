@@ -27,6 +27,8 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
                            const CameraParams& camera_params,
                            const SharedGroundTruth& shared_ground_truth = {});
 
+  ~HybridObjectMotionSolver();
+
   void solve(Frame::Ptr frame_k, Frame::Ptr frame_km1,
              MultiObjectTrajectories& trajectories_out,
              MotionEstimateMap& motion_estimate_out,
@@ -89,6 +91,7 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
   MultiObjectTrajectories object_trajectories_;
 
   gtsam::FastMap<ObjectId, HybridObjectMotionSolverImpl::Ptr> solvers_;
+  CsvWriter logger_;
   // Info from the last frame. ONly stores change info with keyframes
   gtsam::FastMap<ObjectId, ObjectPoseChangeInfo> pose_change_info_;
 

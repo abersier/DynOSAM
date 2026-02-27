@@ -90,7 +90,7 @@ class HybridObjectMotionSRIF {
   /**
    * @brief Resets information d_info_ and R_info.
    * d_inifo is set to zero and R_info is constructed from the initial
-   * covariance P. L_e_ is updated with new value and previous_H_ reset to
+   * covariance P. L_KF_ is updated with new value and previous_H_ reset to
    * identity
    *
    * @param L_e
@@ -129,11 +129,11 @@ class HybridObjectMotionSRIF {
   const gtsam::Matrix33 R_inv_;
   const gtsam::Matrix66 initial_P_;
 
-  gtsam::Pose3 L_e_;
+  gtsam::Pose3 L_KF_;
   // Frame Id for the reference KF
-  FrameId frame_id_e_;
+  FrameId frame_id_KF_;
   // Timestamp for the KeyMotion
-  Timestamp timestamp_e_;
+  Timestamp timestamp_KF_;
   //! Last camera pose used within predict
   gtsam::Pose3 X_K_;
   //! Frame id used for last update
@@ -183,11 +183,9 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
   FrameId frameId() const override;
   Timestamp timestamp() const override;
 
-  PoseWithMotionTrajectory trajectory() const override {
-    return PoseWithMotionTrajectory{};
-  }
+  PoseWithMotionTrajectory trajectory() const override { return trajectory_; }
   PoseWithMotionTrajectory localTrajectory() const override {
-    return PoseWithMotionTrajectory{};
+    return trajectory_.range(keyFrameId());
   }
 
   gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const;
@@ -196,10 +194,10 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
   // frame,
   //                       const TrackletIds& tracklets,
   //                       const int num_irls_iterations = 1);
-  void update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
+  bool update(const gtsam::Pose3& H_w_km1_k_predict, Frame::Ptr frame,
               const TrackletIds& tracklets) override;
 
-  void createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
+  bool createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
                             const TrackletIds& tracklets) override;
 
   /**
@@ -222,7 +220,7 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
    *
    * LIES: thie is H_W_km1_k
    */
-  gtsam::Pose3 frameToFrameMotion() const override;
+  Motion3ReferenceFrame frameToFrameMotionReference() const override;
 
   /**
    * @brief Recovers the state covariance P by inverting the information matrix.
@@ -240,7 +238,7 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
   /**
    * @brief Resets information d_info_ and R_info.
    * d_inifo is set to zero and R_info is constructed from the initial
-   * covariance P. L_e_ is updated with new value and previous_H_ reset to
+   * covariance P. L_KF_ is updated with new value and previous_H_ reset to
    * identity
    *
    * @param L_e
@@ -266,6 +264,9 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
                                       const TrackletIds& tracklets,
                                       const int num_irls_iterations = 1);
 
+  HybridObjectMotionSRIFResult updateSchur(Frame::Ptr frame,
+                                           const TrackletIds& tracklets);
+
   void removeOutlierTracklets(const TrackletIds& to_remove);
   void marginalizeInInformationForm(const TrackletIds& to_remove);
 
@@ -281,11 +282,11 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
   const gtsam::Matrix33 R_inv_;
   const gtsam::Matrix66 initial_P_;
 
-  gtsam::Pose3 L_e_;
+  gtsam::Pose3 L_KF_;
   // Frame Id for the reference KF
-  FrameId frame_id_e_;
+  FrameId frame_id_KF_;
   // Timestamp for the KeyMotion
-  Timestamp timestamp_e_;
+  Timestamp timestamp_KF_;
   //! Last camera pose used within predict
   gtsam::Pose3 X_K_;
   //! Frame id used for last update
@@ -300,13 +301,15 @@ class FullHybridObjectMotionSRIF : public HybridObjectMotionSolverImpl {
   gtsam::Matrix Lambda_;  // Information Matrix (square, symmetric)
   gtsam::Vector eta_;     // Information Vector
 
+  PoseWithMotionTrajectory trajectory_;
+
   //! Points in L (current linearization)
   gtsam::FastMap<TrackletId, gtsam::Point3> m_linearized_;
 
   gtsam::FastMap<TrackletId, int> tracklet_to_slot_;
 
   //! should be from e to k-1. Currently set in predict
-  gtsam::Pose3 previous_H_;
+  Motion3ReferenceFrame H_W_KF_km1_;
   double huber_k_{1.23};
 
   // constexpr static int StateDim = gtsam::traits<gtsam::Pose3>::dimension;
