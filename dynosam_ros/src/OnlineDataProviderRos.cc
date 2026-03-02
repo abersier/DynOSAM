@@ -264,10 +264,17 @@ void AllImagesOnlineProviderRos::subscribeImages() {
   static const std::array<std::string, 4>& topics = {
       "image/rgb", "image/depth", "image/flow", "image/mask"};
 
+  // make multiimage sync and and queue have similar depth
+  static constexpr size_t queue_size = 1000;
+  auto image_qos = rclcpp::SensorDataQoS()
+                       .keep_last(queue_size)  // large queue
+                       .best_effort();
+
   MultiSyncConfig config;
-  config.queue_size = 20;
-  // config.subscriber_options.callback_group =
-  //     node_ref.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  config.queue_size = queue_size;
+  config.subscriber_qos = image_qos;
+  config.subscriber_options.callback_group =
+      node_ref.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
   std::shared_ptr<MultiImageSync4> multi_image_sync =
       std::make_shared<MultiImageSync4>(node_ref, topics, config);
@@ -326,10 +333,17 @@ void RGBDOnlineProviderRos::subscribeImages() {
   static const std::array<std::string, 2>& topics = {"image/rgb",
                                                      "image/depth"};
 
+  // make multiimage sync and and queue have similar depth
+  // reliable important so we dont drop frames we're quite reliant on frame
+  // to frame tracking!
+  static constexpr size_t queue_size = 1000;
+  auto image_qos = rclcpp::SensorDataQoS().keep_last(queue_size).reliable();
+
   MultiSyncConfig config;
-  config.queue_size = 1000;
-  config.subscriber_options.callback_group =
-      node_ref.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  config.queue_size = queue_size;
+  config.subscriber_qos = image_qos;
+  // config.subscriber_options.callback_group =
+  //     node_ref.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
   std::shared_ptr<MultiImageSync2> multi_image_sync =
       std::make_shared<MultiImageSync2>(node_ref, topics, config);
@@ -353,11 +367,11 @@ void RGBDOnlineProviderRos::subscribeImages() {
         const FrameId frame_id = frame_id_;
         frame_id_++;
 
-        ImageContainer image_container(frame_id, timestamp);
-        image_container.rgb(rgb).depth(depth);
+        auto image_container =
+            std::make_shared<ImageContainer>(frame_id, timestamp);
+        (*image_container).rgb(rgb).depth(depth);
 
-        image_container_callback_(
-            std::make_shared<ImageContainer>(image_container));
+        image_container_callback_(image_container);
       });
   CHECK(multi_image_sync->connect());
   image_subscriber_ = multi_image_sync;

@@ -76,7 +76,7 @@ def run_dynosam_rgbd_from_rosbag(rosbag_path, output_path, name, additional_args
 
     # Define the ros2 bag play command wrapped as an ExecuteProcess
     rosbag_play = ExecuteProcess(
-        cmd=['ros2', 'bag', 'play', rosbag_path], # Replace with your bag path
+        cmd=['ros2', 'bag', 'play', '-r', '0.5', rosbag_path], # Replace with your bag path
         output='screen'
     )
 

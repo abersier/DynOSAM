@@ -966,6 +966,8 @@ HybridObjectMotionSRIFResult FullHybridObjectMotionSRIF::update(
   // return {0.0, point_blocks.size()};
 
   // // NOT actually implemented!
+  // TODO: try instead with actual hybrid factor. Use robust cost here
+  // and then get whitened system
   for (int iter = 0; iter < num_irls_iterations; ++iter) {
     double average_residual = 0;
     double num_good_points = 0;

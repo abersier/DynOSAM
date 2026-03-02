@@ -109,17 +109,6 @@ struct MultiSyncConfig {
 template <typename Msg, size_t N>
 class MultiSync : public MultiSyncBase {
  public:
-  struct Config {
-    uint32_t queue_size = 20u;
-    //! Initalised with SensorDataQoS
-    rclcpp::QoS subscriber_qos = rclcpp::QoS(
-        rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
-    rclcpp::SubscriptionOptions subscriber_options{};
-
-    Config() = default;
-    Config(uint32_t _queue_size) : queue_size(_queue_size) {}
-  };
-
 #if MESSAGE_FILTERS_USES_NODE_INTERFACE
   // In ROS Kilted curent version the message filter subscriber base requires a
   // node interface to the patramters and topics not the node itself. See:

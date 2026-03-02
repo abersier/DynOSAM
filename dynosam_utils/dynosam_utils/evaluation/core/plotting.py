@@ -166,7 +166,7 @@ class ObjectTrajectoryPlotter(object):
         self._colours = None
 
     def plot(self,
-             fig: Figure,
+            fig: Figure,
             obj_trajectories: typing.Dict[str, evo_trajectory.PosePath3D],
             obj_trajectories_ref: Optional[typing.Dict[str, evo_trajectory.PosePath3D]] = None,
             plot_mode=evo_plot.PlotMode.xy,
@@ -180,7 +180,7 @@ class ObjectTrajectoryPlotter(object):
             raise evo_plot.PlotException(f"Expected trajectories and ref trajectories to have the same length {len(obj_trajectories)} != {len(obj_trajectories_ref)}")
 
         if len(obj_trajectories) == 0:
-            return ax
+            return fig.gca()
 
         # get all top level params
         plot_axis_est = kwargs.pop("plot_axis_est", False)

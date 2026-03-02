@@ -368,8 +368,7 @@ class IncrementalInterface {
     }
 
     auto toc = utils::Timer::toc<std::chrono::nanoseconds>(tic);
-    timing_ =
-        std::chrono::duration_cast<std::chrono::milliseconds>(toc).count();
+    timing_ = utils::Timer::toUnits<std::milli>(toc);
     was_smoother_ok_ = is_smoother_ok;
     result_ = *result;
 
@@ -469,7 +468,7 @@ class IncrementalInterface {
         LOG(WARNING)
             << "Smoother recovery failed. Most likely, the additional "
                "prior factors were insufficient to keep the system from "
-               "becoming indeterminant.";
+               "becoming indeterminant. New values not added to system!";
         return false;
       }
 

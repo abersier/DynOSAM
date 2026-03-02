@@ -256,7 +256,14 @@ PoseWithMotionTrajectory HybridObjectMotionSmoother::localTrajectoryImpl(
     CHECK(kf_data->contains(frame_id));
 
     const gtsam::Symbol H_key_k = ObjectMotionSymbol(object_id_, frame_id);
-    CHECK(state_since_lKF_.exists(H_key_k));
+    // TODO: bit of a hack - in the case that the isam2 solver fails
+    // e.g with ILS, the values will not be added to the smoother
+    //  and therefore will not appear in state_since_lKF_
+    //  currently just skip!!
+    if (!state_since_lKF_.exists(H_key_k)) {
+      continue;
+    }
+    CHECK(state_since_lKF_.exists(H_key_k)) << DynosamKeyFormatter(H_key_k);
 
     // // const gtsam::Pose3 H_W_KF_k =
     // state_since_lKF_.at<gtsam::Pose3>(H_key_k); const gtsam::Pose3 G_W_KF_k =
