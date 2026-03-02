@@ -2,7 +2,7 @@
 
 ### EDIT THIS TO WHEREVER YOU'RE STORING YOU DATA ###
 # folder should exist before you mount it
-DYNOSAM_ROOT=~/Documents/Thesis/dynosam_pkg
+DYNOSAM_ROOT=~/Thesis/ros2_ws/dynosam_pkg
 
 LOCAL_DATA_FOLDER=$DYNOSAM_ROOT/datasets/
 LOCAL_RESULTS_FOLDER=$DYNOSAM_ROOT/results/
