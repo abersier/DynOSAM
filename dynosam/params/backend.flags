@@ -54,7 +54,7 @@
 # if true, only run as Static SLAM (mostly for debug/testing)
 --regular_backend_static_only=false
 
---min_static_observations=2
+--min_static_observations=0
 --min_dynamic_observations=0
 
 
@@ -78,7 +78,7 @@
 # currently only for rgbd, indicates which updater the rgbd backend should use
 # i.e which formulation is used for solving
 # MotionInWorld = 0, LLWorld=1, Parallel-Hybrid=3
---backend_updater_enum=3
+--backend_updater_enum=8
 
 --init_H_with_identity=true
 --updater_suffix=

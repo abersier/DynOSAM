@@ -3,7 +3,7 @@
 --use_byte_tracker=false
 
 --init_object_pose_from_gt=false
---use_frontend_logger=false
+--use_frontend_logger=true
 
 # --semantic_mask_step_size=16
 
@@ -15,7 +15,7 @@
 
 --log_projected_masks=false
 --set_dense_labelled_cloud=false
---use_object_motion_filtering=false
+--use_object_motion_filtering=true
 
 --set_dense_labelled_cloud=false
 
