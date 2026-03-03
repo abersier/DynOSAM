@@ -122,28 +122,27 @@ def plot_experiments(experiment_folders, title, select_objects = None):
 
 
         motion_eval = dataset_eval.create_motion_error_evaluator(data_files)
-        # motions_errors = motion_eval.get_mottion_error()
+        motions_errors = motion_eval.get_mottion_error()
 
         object_poses = motion_eval.object_poses_traj
 
         for object_id, trajectory  in object_poses.items():
             if select_objects is None or (select_objects is not None and object_id in select_objects):
-                print(trajectory)
                 trajectory_helper.append(trajectory)
                 object_pose_map[label + "_obj" + str(object_id)] = trajectory
                 objects_plotted.add(object_id)
 
         # # # === Compute averaged object errors ===
-        # trans_timestamps, avg_trans_errors = accumulate_average_error(
-        #     motions_errors, "trans"
-        # )
+        trans_timestamps, avg_trans_errors = accumulate_average_error(
+            motions_errors, "trans"
+        )
 
-        # rot_timestamps, avg_rot_errors = accumulate_average_error(
-        #     motions_errors, "rot"
-        # )
+        rot_timestamps, avg_rot_errors = accumulate_average_error(
+            motions_errors, "rot"
+        )
 
-        # rmse_trans_error = rmse(np.array(avg_trans_errors))
-        # rmse_rot_error = np.mean(np.array(avg_rot_errors))
+        rmse_trans_error = rmse(np.array(avg_trans_errors))
+        rmse_rot_error = np.mean(np.array(avg_rot_errors))
 
         # === Load solve/tracks ===
         timestamps, solve_times, number_tracks = load_csv(csv_path)
@@ -152,9 +151,9 @@ def plot_experiments(experiment_folders, title, select_objects = None):
 
         color = color_cycle[i % len(color_cycle)]
 
-        # print("--------------------RMSE Error-------------------")
-        # print(f"Sequence {label}:")
-        # print(f"RMSE (ME) Translation: {rmse_trans_error} Rotation: {rmse_rot_error}")
+        print("--------------------RMSE Error-------------------")
+        print(f"Sequence {label}:")
+        print(f"RMSE (ME) Translation: {rmse_trans_error} Rotation: {rmse_rot_error}")
 
         # === Plot solve + tracks ===
         ax_main.plot(
@@ -176,22 +175,22 @@ def plot_experiments(experiment_folders, title, select_objects = None):
         # )
 
         # === Plot averaged translation error ===
-        # ax_trans.plot(
-        #     trans_timestamps,
-        #     avg_trans_errors,
-        #     color=color,
-        #     linestyle="-",
-        #     label=label
-        # )
+        ax_trans.plot(
+            trans_timestamps,
+            avg_trans_errors,
+            color=color,
+            linestyle="-",
+            label=label
+        )
 
-        # # === Plot averaged rotation error ===
-        # ax_rot.plot(
-        #     rot_timestamps,
-        #     avg_rot_errors,
-        #     color=color,
-        #     linestyle="-",
-        #     label=label
-        # )
+        # === Plot averaged rotation error ===
+        ax_rot.plot(
+            rot_timestamps,
+            avg_rot_errors,
+            color=color,
+            linestyle="-",
+            label=label
+        )
 
     real_time_value_ms = 50
     ax_main.axhline(real_time_value_ms, color='red', linestyle='--')
@@ -213,6 +212,9 @@ def plot_experiments(experiment_folders, title, select_objects = None):
     ax_main.legend()
     ax_trans.legend()
     ax_rot.legend()
+
+    ax_rot.set_yscale("log")
+    ax_trans.set_yscale("log")
 
     ax_main.grid(True)
 
@@ -242,30 +244,33 @@ def plot_experiments(experiment_folders, title, select_objects = None):
     file_path = title + "_doo_comparusons"
 
     fig1.savefig(file_path + "_solve_time.jpg")
-    # trajectory_fig.savefig(file_path + "_trajectories.jpg")
+    # # trajectory_fig.savefig(file_path + "_trajectories.jpg")
     # fig2.savefig(file_path + "_me_t.jpg")
     # fig3.savefig(file_path + "_me_r.jpg")
 
-    # plt.show()
+    plt.show()
 
 if __name__ == "__main__":
     experiment_folders = [
-        # "/root/results/frontend_filtering/kitti04_FS",
         # "/root/results/frontend_filtering/omd_SS",
         # "/root/results/frontend_filtering/omd_FS",
         # "/root/results/frontend_filtering/omd_EIF",
         # "/root/results/frontend_filtering/omd_PnP",
-        # "/root/results/frontend_filtering/kitti20_FS",
-        # "/root/results/frontend_filtering/kitti20_EIF",
-        # "/root/results/frontend_filtering/kitti20_PnP",
+        # "/root/results/frontend_filtering/kitti00_MO",
+        # "/root/results/frontend_filtering/kitti00_SS",
+        # "/root/results/frontend_filtering/kitti00_FS",
+        # "/root/results/frontend_filtering/kitti00_EIF",
+        # "/root/results/frontend_filtering/kitti00_PnP",
         # "/root/results/frontend_filtering/kitti04_FS",
         # "/root/results/frontend_filtering/kitti04_SS",
         # "/root/results/frontend_filtering/kitti04_EIF",
         # "/root/results/frontend_filtering/kitti04_PnP",
+        # "/root/results/frontend_filtering/kitti04_MO",
         "/root/results/frontend_filtering/tech_lab_1_FS",
         "/root/results/frontend_filtering/tech_lab_1_SS",
         "/root/results/frontend_filtering/tech_lab_1_EIF",
+        "/root/results/frontend_filtering/tech_lab_1_MO",
         "/root/results/frontend_filtering/tech_lab_1_PnP",
     ]
 
-    plot_experiments(experiment_folders, "/root/results/frontend_filtering/tech_lab_1", select_objects=[2])
+    plot_experiments(experiment_folders, "/root/results/frontend_filtering/tech_lab_1_with_MO", select_objects=[2])

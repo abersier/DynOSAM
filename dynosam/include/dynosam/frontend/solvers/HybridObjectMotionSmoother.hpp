@@ -36,10 +36,12 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     dyno::ISAM2Result isam_result;
   };
 
+  enum Solver { Full, Smart, MotionOnly };
+
   static HybridObjectMotionSmoother::Ptr CreateWithInitialMotion(
       const ObjectId object_id, double smoother_lag,
       const gtsam::Pose3& L_KF_km1, Frame::Ptr frame_km1,
-      const TrackletIds& tracklets, bool run_as_smart = false);
+      const TrackletIds& tracklets, const Solver& solver);
 
   ~HybridObjectMotionSmoother();
 
@@ -192,9 +194,20 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
  protected:
   HybridObjectMotionSmoother(ObjectId object_id, Camera::Ptr camera,
-                             double smootherLag = 0.0,
-                             bool run_as_smart = false);
+                             double smootherLag, const Solver& solver);
   const std::string logger_prefix_;
+
+  // virtual Result updateFromInitialMotionImpl(
+  //   const gtsam::Pose3& H_W_KF_k_initial,
+  //   Frame::Ptr frame,
+  //   const TrackletIds& tracklets,
+  //   gtsam::Pose3& H_W_KF_k,
+  //   std::map<gtsam::Key, gtsam::Point3>& m_L_points
+  // ) = 0;
+
+  // virtual gtsam::Pose3 getKeyframeMotionImpl(
+  //   FrameId frame_id,
+  //   const gtsam::Values& values) const = 0;
 
   Result updateFromInitialMotionFullState(const gtsam::Pose3& H_W_KF_k_initial,
                                           Frame::Ptr frame,
@@ -203,6 +216,10 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   Result updateFromInitialMotionSmart(const gtsam::Pose3& H_W_KF_k_initial,
                                       Frame::Ptr frame,
                                       const TrackletIds& tracklets);
+
+  Result updateFromInitialMotionOnly(const gtsam::Pose3& H_W_KF_k_initial,
+                                     Frame::Ptr frame,
+                                     const TrackletIds& tracklets);
 
   gtsam::Pose3 keyFrameMotionFullState(FrameId frame_id,
                                        const gtsam::Values& values) const;
@@ -229,7 +246,9 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   // Nont only will this trajectory be "frozen" (in the sense that)
   // no motions will be in the current state
   // but also all motions will be related to a different KeyMotion pose
-  PoseWithMotionTrajectory trajectory_till_lKF_;
+  // the trajectory from lkf to k is retrived with localTrajectory
+  // trajectory is upto and inclusive of lKF
+  PoseWithMotionTrajectory trajectory_upto_lKF_;
   FrameRangeData<gtsam::Pose3> keyframe_range_;
 
   /** Create default parameters */
@@ -286,6 +305,9 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   FactorMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr> factor_map_;
   gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
       factor_to_tracklet_id_;
+
+  // For motion only
+  gtsam::FastMap<TrackletId, gtsam::Point3> m_L_points_;
 
   // Keyframe LM solve stuff
   gtsam::NonlinearFactorGraph KF_factors_;

@@ -322,6 +322,30 @@ gtsam::Vector StereoHybridMotionFactor2::evaluateError(
   }
 }
 
+StereoHybridMotionFactor3::StereoHybridMotionFactor3(
+    const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_KF,
+    const gtsam::Pose3& X_W_k, const gtsam::Point3& m_L,
+    const gtsam::SharedNoiseModel& model, gtsam::Cal3_S2Stereo::shared_ptr K,
+    gtsam::Key H_W_K_k_key, bool throw_cheirality)
+    : Base(model, H_W_K_k_key),
+      StereoHybridMotionFactorBase(measured, L_KF, K, throw_cheirality),
+      X_W_k_(X_W_k),
+      m_L_(m_L) {}
+
+gtsam::Vector StereoHybridMotionFactor3::evaluateError(
+    const gtsam::Pose3& H_W_KF_k, boost::optional<gtsam::Matrix&> J1) const {
+  try {
+    // J1 corresponds with second entry in Base (ie. motion)
+    return StereoHybridMotionFactorBase::evaluateError(X_W_k_, H_W_KF_k, m_L_,
+                                                       {}, J1, {});
+  } catch (const CheiralityException&) {
+    // only derived class knows about the key so throw here not in base
+    // which throws CheiralityException
+    // CheiralityException is only thrown if throw_cheirality true
+    throw gtsam::StereoCheiralityException(this->key1());
+  }
+}
+
 gtsam::Vector HybridSmoothingFactor::evaluateError(
     const gtsam::Pose3& e_H_km2_world, const gtsam::Pose3& e_H_km1_world,
     const gtsam::Pose3& e_H_k_world, boost::optional<gtsam::Matrix&> J1,

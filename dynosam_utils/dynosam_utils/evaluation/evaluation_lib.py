@@ -261,6 +261,9 @@ class MotionErrorEvaluator(Evaluator):
             # motion errors in L
             # rme_t and rme_r are dyno_metrics.RME
             _, rme_t, rme_r = self._compute_motion_in_L_errors(object_id, object_traj)
+            if rme_t is None or rme_r is None:
+                continue
+
             results[object_id] = {}
             results[object_id]["trans"] = rme_t
             results[object_id]["rot"] = rme_r
@@ -362,8 +365,12 @@ class MotionErrorEvaluator(Evaluator):
         rme_trans = dyno_metrics.RME(metrics.PoseRelation.translation_part)
         rme_rot = dyno_metrics.RME(metrics.PoseRelation.rotation_angle_deg)
 
-        rme_trans.process_data(data)
-        rme_rot.process_data(data)
+
+        try:
+            rme_trans.process_data(data)
+            rme_rot.process_data(data)
+        except trajectory.TrajectoryException as e:
+            return None, None, None
 
         results_per_object = {}
         results_per_object["ape_translation"] = rme_trans.get_all_statistics()

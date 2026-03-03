@@ -293,10 +293,15 @@ class TrajectoryBase {
   }
 
   friend std::ostream& operator<<(std::ostream& os, const This& trajectory) {
-    os << "Trajectory (" << type_name<TData>()
-       << ") size: " << trajectory.size()
-       << " start frame: " << trajectory.minFrame()
-       << " end frame: " << trajectory.maxFrame();
+    os << trajectory.trajectoryName();
+
+    if (trajectory.empty()) {
+      os << " is empty";
+    } else {
+      os << " size: " << trajectory.size()
+         << " start frame: " << trajectory.minFrame()
+         << " end frame: " << trajectory.maxFrame();
+    }
     return os;
   }
 

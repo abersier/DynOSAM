@@ -215,16 +215,18 @@ def run_hybrid_solver_comparison_kitti():
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_EIF", kitti_dataset, "--ending_frame=150", "--hybrid_motion_solver=0")
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_PnP", kitti_dataset, "--ending_frame=150", "--hybrid_motion_solver=2")
 
-    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_SS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=1")
-    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_FS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=2")
-    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_EIF", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=0")
-    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_PnP", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=3")
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_MO", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=4")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_SS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=1")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_FS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=2")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_EIF", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=0")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_PnP", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=3")
 
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_MO", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=4")
 
-    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_SS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=1")
-    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_FS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=2")
-    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_EIF", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=0")
-    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_PnP", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=3")
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_SS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=1")
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_FS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=2")
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_EIF", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=0")
+    # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_PnP", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=3")
 
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_SS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=1")
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_FS", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=2")
@@ -245,7 +247,7 @@ def run_hybrid_solver_comparison_kitti():
     # run_analysis("kitti00_PnP")
 
 def run_uts_tech_lab_solver_comparison_test():
-    pass
+    run_online_sequence("tech_lab_1_MO_test", "--ending_frame=300", "--hybrid_motion_solver=4")
     # run_online_sequence("tech_lab_1_SS", "--ending_frame=300", "--hybrid_motion_solver=1")
     # run_online_sequence("tech_lab_1_FS", "--ending_frame=300", "--hybrid_motion_solver=2")
     # run_online_sequence("tech_lab_1_EIF","--ending_frame=300", "--hybrid_motion_solver=0")
@@ -255,8 +257,8 @@ def run_uts_tech_lab_solver_comparison_test():
 
 if __name__ == '__main__':
     # run_hybrid_solver_comparison_omd()
-    run_hybrid_solver_comparison_kitti()
-    # run_uts_tech_lab_solver_comparison_test()
+    # run_hybrid_solver_comparison_kitti()
+    run_uts_tech_lab_solver_comparison_test()
     # run_tartan_air()
     # run_kitti()
     # run_viodes()

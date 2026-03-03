@@ -417,9 +417,9 @@ bool HybridObjectMotionSolver::solveImpl(
     auto filter = createAndInsertFilter(object_id, frame_km1, inlier_tracklets);
     keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
   } else {
-    const bool new_KF = object_retracked;
+    // const bool new_KF = object_retracked;
     // const bool new_KF = false;
-    // const bool new_KF = frame_k->getFrameId() % 12 == 0;
+    const bool new_KF = object_retracked || frame_k->getFrameId() % 35 == 0;
     if (new_KF) {
       auto filter = solvers_.at(object_id);
       CHECK_NOTNULL(filter);
@@ -1156,17 +1156,21 @@ HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
         frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
   } else if (FLAGS_hybrid_motion_solver == 1) {
     // run as smoother with smart factors
-    constexpr static bool run_as_smart = true;
     solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
-        object_id, 15, keyframe_pose, frame, tracklets, run_as_smart);
+        object_id, 15, keyframe_pose, frame, tracklets,
+        HybridObjectMotionSmoother::Solver::Smart);
   } else if (FLAGS_hybrid_motion_solver == 2) {
     // run as full smoother
-    constexpr static bool run_as_smart = false;
     solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
-        object_id, 15, keyframe_pose, frame, tracklets, run_as_smart);
+        object_id, 15, keyframe_pose, frame, tracklets,
+        HybridObjectMotionSmoother::Solver::Full);
   } else if (FLAGS_hybrid_motion_solver == 3) {
     solver = PnPOnlySolver::CreateWithInitialMotion(object_id, keyframe_pose,
                                                     frame, tracklets);
+  } else if (FLAGS_hybrid_motion_solver == 4) {
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
+        object_id, 6, keyframe_pose, frame, tracklets,
+        HybridObjectMotionSmoother::Solver::MotionOnly);
   }
   CHECK_NOTNULL(solver);
 

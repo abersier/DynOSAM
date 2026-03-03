@@ -269,6 +269,41 @@ class StereoHybridMotionFactor2
 };
 
 /**
+ * @brief Stereo Hybrid Motion factor \sigma(H) with a fixed camera pose X
+ * and a fixed point ^Lm
+ *
+ */
+class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
+                                  public StereoHybridMotionFactorBase {
+ public:
+  using This = StereoHybridMotionFactor3;
+  using Base = gtsam::NoiseModelFactor1<gtsam::Pose3>;
+
+  StereoHybridMotionFactor3(const gtsam::StereoPoint2& measured,
+                            const gtsam::Pose3& L_KF, const gtsam::Pose3& X_W_k,
+                            const gtsam::Point3& m_L,
+                            const gtsam::SharedNoiseModel& model,
+                            gtsam::Cal3_S2Stereo::shared_ptr K,
+                            gtsam::Key H_W_K_k_key,
+                            bool throw_cheirality = false);
+
+  gtsam::NonlinearFactor::shared_ptr clone() const override {
+    return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+        gtsam::NonlinearFactor::shared_ptr(new This(*this)));
+  }
+
+  gtsam::Vector evaluateError(
+      const gtsam::Pose3& H_W_KF_k,
+      boost::optional<gtsam::Matrix&> J1 = boost::none) const override;
+
+ private:
+  //! Fixed camera pose
+  gtsam::Pose3 X_W_k_;
+  //! Fixed observed point
+  gtsam::Point3 m_L_;
+};
+
+/**
  * @brief Implements a 3-way smoothing factor on the (key-framed) object motion.
  * This is analgous to a constant motion prior and minimises the change in
  * object motion in the body frame of the object.
