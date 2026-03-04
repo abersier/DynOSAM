@@ -678,6 +678,49 @@ TEST(FeatureContainer, ClearContainer) {
   EXPECT_EQ(container.size(), 0u);
 }
 
+TEST(FeatureContainer, IterateNonExistantObject) {
+  FeatureContainer container;
+
+  auto f1 = makeFeature(1, 1);
+  container.add(f1);
+  EXPECT_TRUE(container.hasObject(1));
+
+  auto object1_view = container.usableIterator(1);
+  EXPECT_TRUE(object1_view.begin() != object1_view.end());
+
+  for (const auto& f : object1_view) {
+    (void)f;
+  }
+
+  // there is no object 2
+  auto object2_view = container.usableIterator(2);
+  EXPECT_TRUE(object2_view.begin() == object2_view.end());
+  for (const auto& f : object2_view) {
+    (void)f;
+  }
+}
+
+TEST(FeatureContainer, testFailureCaseFromCopy) {
+  FeatureContainer container;
+  // make feature for object 1 - this creates an object view for j=1
+  auto f1 = makeFeature(1, 1);
+  container.add(f1);
+  EXPECT_TRUE(container.hasObject(1));
+
+  // assign container
+  FeatureContainer container1 = container;
+  // make new feature for object 1 which does not exist for the original
+  // container
+  auto f2 = makeFeature(2, 1);
+  // in original implementation the object view for j=1 will will point to
+  // container (not container1) which does not have f2
+  container1.add(f2);
+
+  auto it_obj1 = container1.usableIterator(1);
+  for (const auto& f : it_obj1) {
+  }
+}
+
 // -----------------------------------------------------------
 // Test removing features by tracklet
 TEST(FeatureContainer, RemoveFeatureByTracklet) {

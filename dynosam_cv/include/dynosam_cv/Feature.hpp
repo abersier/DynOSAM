@@ -382,13 +382,18 @@ class FeatureContainer {
   template <typename FeatureT>
   struct _FastObjectFeatureView {
     using This = _FastObjectFeatureView<FeatureT>;
-    const ObjectId object_id;
-    FeatureContainer* container;
+    ObjectId object_id;
+    FeatureContainer* container = nullptr;
     //! Set of tracklet ids for object id j
     TrackletIdSet tracklets{};
 
     _FastObjectFeatureView(const ObjectId j, FeatureContainer* c)
         : object_id(j), container(c) {}
+
+    void rebindContainer(FeatureContainer* new_owner) {
+      CHECK_NOTNULL(new_owner);
+      container = new_owner;
+    }
 
     void insert(const TrackletId& tracklet_id) {
       tracklets.insert(tracklet_id);
@@ -409,16 +414,27 @@ class FeatureContainer {
       //! Somewhat unsafe immutable pointer to the feature container
       FeatureContainer* container_;
       iterator(iterator_type it, FeatureContainer* container)
-          : it_(it), container_(container) {}
+          : it_(it), container_(CHECK_NOTNULL(container)) {}
 
       // NOTE: we return the actual value from the feature map rather than using
       // the more safe container_->getByTrackletId() this is becuase we need to
       // return a reference so that the view can operate like a real iterator
       // and getByTrackletId returns value value
       const_reference operator*() const {
-        return container_->feature_map_.at(*it_);
+        auto t = *it_;
+        CHECK(container_->feature_map_.find(t) !=
+              container_->feature_map_.end())
+            << "Feature not available i= " << t;
+        return container_->feature_map_.at(t);
       }
-      reference operator*() { return container_->feature_map_.at(*it_); }
+
+      reference operator*() {
+        auto t = *it_;
+        CHECK(container_->feature_map_.find(t) !=
+              container_->feature_map_.end())
+            << "Feature not available i= " << t;
+        return container_->feature_map_.at(t);
+      }
 
       bool operator==(const iterator& other) const { return it_ == other.it_; }
       bool operator!=(const iterator& other) const { return it_ != other.it_; }
@@ -439,8 +455,6 @@ class FeatureContainer {
   };
 
   using FastObjectFeatureView = _FastObjectFeatureView<Feature::Ptr>;
-  // using ConstFastObjectFeatureView = _FastObjectFeatureView<const
-  // Feature::Ptr>;
 
   using ObjectToFeatureMap = FastUnorderedMap<ObjectId, FastObjectFeatureView>;
 
@@ -453,6 +467,14 @@ class FeatureContainer {
 
   FeatureContainer();
   FeatureContainer(const FeaturePtrs& feature_vector);
+  // Copy constructor
+  FeatureContainer(const FeatureContainer& other);
+  // Copy assignment
+  FeatureContainer& operator=(const FeatureContainer& other);
+  // Move constructor
+  FeatureContainer(FeatureContainer&& other) noexcept;
+  // Move assignment
+  FeatureContainer& operator=(FeatureContainer&& other) noexcept;
 
   /**
    * @brief Adds a new feature to the container.
@@ -566,8 +588,22 @@ class FeatureContainer {
 
   FeatureContainer& operator+=(const FeatureContainer& other) {
     feature_map_.insert(other.feature_map_.begin(), other.feature_map_.end());
-    object_feature_map_.insert(other.object_feature_map_.begin(),
-                               other.object_feature_map_.end());
+    // cannot insert manually since this will mean that the other object
+    // features will still internally point to the other container! for now
+    // manually overwrite!
+    for (const auto& [object_id, other_feature_view] :
+         other.object_feature_map_) {
+      if (!object_feature_map_.exists(object_id)) {
+        object_feature_map_.insert2(object_id,
+                                    FastObjectFeatureView(object_id, this));
+      }
+      const auto& oth_tracklets = other_feature_view.tracklets;
+      // insert new tracklets per object if necessary
+      object_feature_map_.at(object_id).tracklets.insert(oth_tracklets.begin(),
+                                                         oth_tracklets.end());
+    }
+    // object_feature_map_.insert(other.object_feature_map_.begin(),
+    //                            other.object_feature_map_.end());
     return *this;
   }
 
@@ -620,8 +656,22 @@ class FeatureContainer {
                                     bool only_inliers = false) const;
 
  private:
+  void rebindObjectFeatureViews() {
+    for (auto& [id, view] : object_feature_map_) {
+      view.rebindContainer(this);
+    }
+  }
+
+ private:
   TrackletToFeatureMap feature_map_;
   ObjectToFeatureMap object_feature_map_;
+
+  // Empty object iterators used as dummies
+  // Must be in persistant memory so that the object iterator
+  // can take a reference
+  // cannot be static becuase each view requires a pointer to this
+  // initalised with 0 object id becuase it should not matter
+  FastObjectFeatureView empty_object_feature_view_;
 };
 
 /**

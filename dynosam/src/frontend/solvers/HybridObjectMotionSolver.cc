@@ -419,10 +419,19 @@ bool HybridObjectMotionSolver::solveImpl(
   } else {
     // const bool new_KF = object_retracked;
     // const bool new_KF = false;
-    const bool new_KF = object_retracked || frame_k->getFrameId() % 35 == 0;
+
+    bool new_KF = object_retracked;
+
+    if (previous_tracking_state != ObjectTrackingStatus::New &&
+        frame_k->getFrameId() % 15) {
+      new_KF = true;
+    }
+    // and not new? Dont want to make keyframe immedialte after making a
+    // keyframe! const bool new_KF = object_retracked || frame_k->getFrameId() %
+    // 35 == 0;
     if (new_KF) {
-      auto filter = solvers_.at(object_id);
-      CHECK_NOTNULL(filter);
+      auto solver = solvers_.at(object_id);
+      CHECK_NOTNULL(solver);
       gtsam::Pose3 new_KF_pose;
       if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
         LOG(INFO) << "Object was poorly tracked or LOST previously. "
@@ -435,14 +444,13 @@ bool HybridObjectMotionSolver::solveImpl(
             constructObjectPose(object_id, frame_km1, inlier_tracklets);
         keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
       } else {
-        CHECK_EQ(filter->frameId(), frame_km1->getFrameId())
-            << "j=" << object_id << " k=" << filter->frameId();
+        CHECK_EQ(solver->frameId(), frame_km1->getFrameId())
+            << "j=" << object_id << " k=" << solver->frameId();
         // this is the pose as the last frame (ie k-1) which will serve as
-        new_KF_pose = filter->pose();
+        new_KF_pose = solver->pose();
         keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
       }
-
-      filter->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
+      solver->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
     }
   }
 
@@ -467,6 +475,34 @@ bool HybridObjectMotionSolver::solveImpl(
           << inlier_tracklets.size();
   // always add motion at k not k-1?
   if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
+    /// mmmm if we keyframe at this frame
+    // then the estimated motion is from km-1 to k
+    // which is NOT what we want to estimate
+    // we want KF to k, (where k-1 is the new keyframe?)
+    ObjectPoseChangeInfo info;
+    info.frame_id = solver->frameId();
+    info.H_W_KF_k = solver->keyFrameMotionReference();
+    info.L_W_KF = solver->keyFramePose();
+    info.L_W_k = solver->pose();
+
+    // TODO: shouldnt need this!
+    info.motion_track_status = ObjectTrackingStatus::WellTracked;
+
+    if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
+      info.regular_keyframe = true;
+      info.anchor_keyframe = true;
+    } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
+      info.regular_keyframe = true;
+    }
+
+    LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
+              << "motion KF: " << info.H_W_KF_k.from()
+              << " to: " << info.H_W_KF_k.to() << " with regular kf "
+              << std::boolalpha << info.regular_keyframe << " anchor kf "
+              << info.anchor_keyframe;
+
+    CHECK(getObjectStructureinL(object_id, info.initial_object_points));
+    pose_change_info_.insert2(object_id, info);
   }
 
   motion_estimate = Motion3ReferenceFrame(

@@ -223,9 +223,46 @@ bool Feature::stereoPoint(gtsam::StereoPoint2& stereo) const {
   return true;
 }
 
-FeatureContainer::FeatureContainer() : feature_map_() {}
+FeatureContainer::FeatureContainer()
+    : feature_map_(),
+      object_feature_map_(),
+      empty_object_feature_view_(0, this) {}
 
-FeatureContainer::FeatureContainer(const FeaturePtrs& feature_vector) {
+FeatureContainer::FeatureContainer(const FeatureContainer& other)
+    : feature_map_(other.feature_map_),
+      object_feature_map_(other.object_feature_map_),
+      empty_object_feature_view_(0, this) {
+  rebindObjectFeatureViews();
+}
+
+FeatureContainer& FeatureContainer::operator=(const FeatureContainer& other) {
+  if (this != &other) {
+    feature_map_ = other.feature_map_;
+    object_feature_map_ = other.object_feature_map_;
+    rebindObjectFeatureViews();
+  }
+  return *this;
+}
+
+FeatureContainer::FeatureContainer(FeatureContainer&& other) noexcept
+    : feature_map_(std::move(other.feature_map_)),
+      object_feature_map_(std::move(other.object_feature_map_)),
+      empty_object_feature_view_(0, this) {
+  rebindObjectFeatureViews();
+}
+
+FeatureContainer& FeatureContainer::operator=(
+    FeatureContainer&& other) noexcept {
+  if (this != &other) {
+    feature_map_ = std::move(other.feature_map_);
+    object_feature_map_ = std::move(other.object_feature_map_);
+    rebindObjectFeatureViews();
+  }
+  return *this;
+}
+
+FeatureContainer::FeatureContainer(const FeaturePtrs& feature_vector)
+    : FeatureContainer() {
   for (size_t i = 0; i < feature_vector.size(); i++) {
     add(feature_vector.at(i));
   }
@@ -289,7 +326,9 @@ void FeatureContainer::removeByObjectId(ObjectId object_id) {
     return;
   }
 
-  const auto& tracklets_to_remove = object_feature_map_.at(object_id).tracklets;
+  // this->remove will act on the same tracklet object
+  //  make copy of tracklets to ensure correct iteration
+  const auto tracklets_to_remove = object_feature_map_.at(object_id).tracklets;
   for (const auto tracklet_id : tracklets_to_remove) {
     this->remove(tracklet_id);
   }
@@ -328,12 +367,6 @@ void FeatureContainer::markOutliers(const TrackletIds& outliers) {
 size_t FeatureContainer::size() const { return feature_map_.size(); }
 
 size_t FeatureContainer::size(ObjectId object_id) const {
-  // auto itr =
-  //     ConstFilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool {
-  //       return f->objectId() == object_id;
-  //     });
-
-  // return static_cast<size_t>(std::distance(itr.begin(), itr.end()));
   if (object_feature_map_.exists(object_id)) {
     return object_feature_map_.at(object_id).size();
   }
@@ -353,7 +386,7 @@ bool FeatureContainer::exists(TrackletId tracklet_id) const {
 
 TrackletIds FeatureContainer::getByObject(ObjectId object_id) const {
   if (object_feature_map_.exists(object_id)) {
-    const auto tracklets = object_feature_map_.at(object_id).tracklets;
+    const auto& tracklets = object_feature_map_.at(object_id).tracklets;
     // convert unordered_set to vector
     return TrackletIds(tracklets.begin(), tracklets.end());
   } else {
@@ -381,52 +414,21 @@ FeatureContainer::endObjectIterator() const {
 
 FeatureContainer::FastUsableObjectIterator FeatureContainer::usableIterator(
     ObjectId object_id) {
-  static FastObjectFeatureView empty_object_feature_view(object_id, this);
-
-  FastObjectFeatureView* view = nullptr;
   if (hasObject(object_id)) {
-    view = &object_feature_map_.at(object_id);
+    return FastUsableObjectIterator(object_feature_map_.at(object_id));
   } else {
-    view = &empty_object_feature_view;
+    return FastUsableObjectIterator(empty_object_feature_view_);
   }
-  CHECK_NOTNULL(view);
-  return FastUsableObjectIterator(*view);
 }
 
 FeatureContainer::ConstFastUsableObjectIterator
 FeatureContainer::usableIterator(ObjectId object_id) const {
-  static const FastObjectFeatureView empty_object_feature_view(
-      object_id, const_cast<FeatureContainer*>(this));
-
-  const FastObjectFeatureView* view = nullptr;
   if (hasObject(object_id)) {
-    view = &object_feature_map_.at(object_id);
+    return ConstFastUsableObjectIterator(object_feature_map_.at(object_id));
   } else {
-    view = &empty_object_feature_view;
+    return ConstFastUsableObjectIterator(empty_object_feature_view_);
   }
-  CHECK_NOTNULL(view);
-  return ConstFastUsableObjectIterator(*view);
 }
-
-// FeatureContainer::ObjectFeatureIterator
-// FeatureContainer::beginObjectFeatures(ObjectId object_id) {
-
-// }
-
-// FeatureContainer::ObjectFeatureIterator
-// FeatureContainer::endObjectFeatures(ObjectId object_id) {
-
-// }
-
-// FeatureContainer::ConstObjectFeatureIterator
-// FeatureContainer::beginObjectFeatures(ObjectId object_id) const {
-
-// }
-
-// FeatureContainer::ConstObjectFeatureIterator
-// FeatureContainer::endObjectFeatures(ObjectId object_id) const {
-
-// }
 
 // TODO: else if logic needs test!!
 std::vector<cv::Point2f> FeatureContainer::toOpenCV(TrackletIds* tracklet_ids,

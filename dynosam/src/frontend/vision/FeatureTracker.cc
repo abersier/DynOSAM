@@ -121,13 +121,14 @@ Frame::Ptr FeatureTracker::track(FrameId frame_id, Timestamp timestamp,
         boundary_mask_result.boundary_mask, R_km1_k);
   };
 
-  auto dynamic_track = [&](FeatureContainer& dynamic_features) {
+  auto dynamic_track = [&](FeatureContainer& dynamic_features,
+                           cv::Mat& dynamic_detection_mask) {
     VLOG(30) << "Starting dynamic track";
     if (params_.prefer_provided_optical_flow && input_images.hasOpticalFlow()) {
       VLOG(30) << "Starting dense object feature tracking";
       utils::ChronoTimingStats dynamic_track_timer("dynamic_feature_track");
       trackDynamic(frame_id, input_images, dynamic_features, object_keyframes,
-                   boundary_mask_result);
+                   dynamic_detection_mask, boundary_mask_result);
     } else {
       if (params_.prefer_provided_optical_flow &&
           !input_images.hasOpticalFlow()) {
@@ -137,14 +138,19 @@ Frame::Ptr FeatureTracker::track(FrameId frame_id, Timestamp timestamp,
       VLOG(30) << "Starting KLT object feature tracking";
       utils::ChronoTimingStats dynamic_track_timer("dynamic_feature_track_klt");
       trackDynamicKLT(frame_id, input_images, dynamic_features,
-                      object_keyframes, boundary_mask_result);
+                      object_keyframes, dynamic_detection_mask,
+                      boundary_mask_result);
     }
   };
 
   // start tracking threads since we can do this independantly
   FeatureContainer static_features, dynamic_features;
   std::thread static_track_thread(static_track, std::ref(static_features));
-  std::thread dynamic_track_thread(dynamic_track, std::ref(dynamic_features));
+  // a boolean mask (255 for valid, 0 for invalid) indicating where dynamic
+  // features were detected or tracked
+  cv::Mat dynamic_detection_mask;
+  std::thread dynamic_track_thread(dynamic_track, std::ref(dynamic_features),
+                                   std::ref(dynamic_detection_mask));
 
   static_track_thread.join();
   dynamic_track_thread.join();
@@ -340,6 +346,7 @@ bool FeatureTracker::stereoTrack(FeaturePtrs& stereo_features,
 void FeatureTracker::trackDynamic(
     FrameId frame_id, const ImageContainer& image_container,
     FeatureContainer& dynamic_features, std::set<ObjectId>& object_keyframes,
+    cv::Mat& dynamic_detection_mask,
     const vision_tools::ObjectBoundaryMaskResult& boundary_mask_result) {
   // first dectect dynamic points
   const cv::Mat& rgb = image_container.rgb();
@@ -492,17 +499,18 @@ void FeatureTracker::trackDynamic(
   requiresSampling(object_keyframes, info_, image_container, tracks_per_object,
                    boundary_mask_result, dynamic_tracking_mask);
 
-  LOG(INFO) << "here";
-
   std::set<ObjectId> objects_sampled;
   sampleDynamic(frame_id, image_container,
                 object_keyframes,  // indicates which objects to sample!!
                 dynamic_features, objects_sampled, detection_mask_impl);
+
+  dynamic_detection_mask = detection_mask_impl;
 }
 
 void FeatureTracker::trackDynamicKLT(
     FrameId frame_id, const ImageContainer& image_container,
     FeatureContainer& dynamic_features, std::set<ObjectId>& object_keyframes,
+    cv::Mat& dynamic_detection_mask,
     const vision_tools::ObjectBoundaryMaskResult& boundary_mask_result) {
   const cv::Mat& rgb = image_container.rgb();
   cv::Mat mono = ImageType::RGBMono::toMono(image_container.rgb());
@@ -864,10 +872,18 @@ void FeatureTracker::trackDynamicKLT(
       auto feature = constructNewDynamicFeature(keypoint, object_id, frame_id);
 
       if (feature) {
+        // only fill detection mask not tracking mask
+        cv::circle(
+            detection_mask_impl, utils::gtsamPointToCv(keypoint),
+            params_.min_distance_btw_tracked_and_detected_dynamic_features,
+            cv::Scalar(0), cv::FILLED);
+
         dynamic_features.add(feature);
       }
     }
   }
+
+  dynamic_detection_mask = detection_mask_impl;
 }
 
 void FeatureTracker::sampleDynamic(FrameId frame_id,

@@ -127,6 +127,7 @@ class VIFrontend : public Frontend {
     CHECK(measurements);
 
     for (const Feature::Ptr& f : it) {
+      CHECK_NOTNULL(f);
       const TrackletId tracklet_id = f->trackletId();
       const Keypoint& kp = f->keypoint();
       const ObjectId object_id = f->objectId();

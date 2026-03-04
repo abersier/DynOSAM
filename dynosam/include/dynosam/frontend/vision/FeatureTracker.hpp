@@ -100,17 +100,20 @@ class FeatureTracker : public FeatureTrackerBase {
   }
 
  protected:
-  // detection mask is additional mask It must be a 8-bit integer matrix with
-  // non-zero values in the region of interest, indicating what featues to not
-  // track
+  // dynamic_detection_mask is for tracking and detection? Which one do we need
+  // for re-tracking!? detection mask is additional mask It must be a 8-bit
+  // integer matrix with non-zero values in the region of interest, indicating
+  // what featues to not track
   void trackDynamic(
       FrameId frame_id, const ImageContainer& image_container,
       FeatureContainer& dynamic_features, std::set<ObjectId>& object_keyframes,
+      cv::Mat& dynamic_detection_mask,
       const vision_tools::ObjectBoundaryMaskResult& boundary_mask_result);
 
   void trackDynamicKLT(
       FrameId frame_id, const ImageContainer& image_container,
       FeatureContainer& dynamic_features, std::set<ObjectId>& object_keyframes,
+      cv::Mat& dynamic_detection_mask,
       const vision_tools::ObjectBoundaryMaskResult& boundary_mask_result);
 
   void sampleDynamic(FrameId frame_id, const ImageContainer& image_container,
