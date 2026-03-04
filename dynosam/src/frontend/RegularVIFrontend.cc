@@ -185,8 +185,8 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
   VisionImuPacket::CameraTracks camera_tracks;
   auto* static_measurements = &camera_tracks.measurements;
   fillMeasurementsFromFeatureIterator(
-      static_measurements, frame.usableStaticFeaturesBegin(), frame_id,
-      timestamp, static_pixel_sigmas_, static_point_sigma_);
+      static_measurements, frame.usableStaticIterator(), frame_id, timestamp,
+      static_pixel_sigmas_, static_point_sigma_);
 
   camera_tracks.X_W_k = X_W_k;
   camera_tracks.T_k_1_k = T_k_1_k;
@@ -196,8 +196,8 @@ void RegularVIFrontend::fillOutputPacketWithTracks(
   // This is a bit silly
   CameraMeasurementStatusVector dynamic_measurements;
   fillMeasurementsFromFeatureIterator(
-      &dynamic_measurements, frame.usableDynamicFeaturesBegin(), frame_id,
-      timestamp, dynamic_pixel_sigmas_, dynamic_point_sigma_);
+      &dynamic_measurements, frame.usableDynamicIterator(), frame_id, timestamp,
+      dynamic_pixel_sigmas_, dynamic_point_sigma_);
 
   VisionImuPacket::ObjectTrackMap object_tracks;
 

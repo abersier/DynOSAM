@@ -179,6 +179,7 @@ gtsam::NavState VIOFormulation::predictAndAddFactorsVO(
   const gtsam::Pose3 X_W_k = X_W_km1 * T_k_1_k;
 
   const double dt = timestamp_k - last_propogate_time_;
+  CHECK_GT(dt, 0);
   // discrete derivative
   const gtsam::Vector3 V_C_k = T_k_1_k.translation() / dt;
   const gtsam::Vector3 V_W_k = X_W_k.rotation().rotate(V_C_k);

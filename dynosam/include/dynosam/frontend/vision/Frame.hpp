@@ -381,30 +381,25 @@ class Frame {
 
   // special iterator types
   // TODO: rename to just usableStaticIterator!!
-  decltype(auto) usableStaticFeaturesBegin() {
+  decltype(auto) usableStaticIterator() {
     return static_features_.usableIterator();
   }
-  decltype(auto) usableStaticFeaturesBegin() const {
+  decltype(auto) usableStaticIterator() const {
     return static_features_.usableIterator();
   }
 
-  decltype(auto) usableDynamicFeaturesBegin() {
+  decltype(auto) usableDynamicIterator() {
     return dynamic_features_.usableIterator();
   }
-  decltype(auto) usableDynamicFeaturesBegin() const {
+  decltype(auto) usableDynamicIterator() const {
     return dynamic_features_.usableIterator();
   }
 
-  // TODO: use new functions from featureContainer!
-  auto usableDynamicFeaturesBegin(ObjectId object_id) {
+  decltype(auto) usableDynamicIterator(ObjectId object_id) {
     return dynamic_features_.usableIterator(object_id);
-    //   internal::FilterView view(*this, [object_id](const Feature::Ptr& f) ->
-    //   bool {
-    //     return Feature::IsUsable(f) && f->objectId() == object_id;
-    //   });
-    //   return view;
   }
-  auto usableDynamicFeaturesBegin(ObjectId object_id) const {
+
+  decltype(auto) usableDynamicIterator(ObjectId object_id) const {
     return dynamic_features_.usableIterator(object_id);
   }
 

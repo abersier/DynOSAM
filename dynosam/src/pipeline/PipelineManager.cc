@@ -577,6 +577,11 @@ void DynoPipelineManager::loadPoseChangeModules(
                                            pose_change_backend);
   backend_pipeline->parallelRun(parallel_run);
 
+  // register update function from backend to frontend
+  pose_change_backend->registerFrontendUpdateCallback(std::bind(
+      &PoseChangeVIFrontend::onBackendUpdateComplete, pc_vi_frontend.get(),
+      std::placeholders::_1, std::placeholders::_2));
+
   // register output function from frontend
   pc_vi_frontend->addPoseChangeOutputSink(
       [backend_input_queue](const PoseChangeInput::ConstPtr& pc_packet) {

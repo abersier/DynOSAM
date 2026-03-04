@@ -352,19 +352,7 @@ class IncrementalInterface {
         updateSmoother(result, update_arguments_filler, error_hooks);
 
     if (is_smoother_ok) {
-      // use dummy isam result when running optimize without new values/factors
-      // as we want to use the result to determine which values were
-      // changed/marked
-      // TODO: maybe we actually need to append results together?
-      static ResultType dummy_result;
-      static UpdateArguments empty_arguments;
-      VLOG(30) << "Doing extra iteration nr: " << max_extra_iterations_;
-      // for (size_t n_iter = 1; n_iter < max_extra_iterations_ &&
-      // is_smoother_ok;
-      //      ++n_iter) {
-      //   is_smoother_ok &=
-      //       updateSmoother(&dummy_result, empty_arguments, error_hooks);
-      // }
+      is_smoother_ok &= doExtraUpdateIterations();
     }
 
     auto toc = utils::Timer::toc<std::chrono::nanoseconds>(tic);
@@ -485,6 +473,19 @@ class IncrementalInterface {
     } catch (gtsam::ValuesKeyDoesNotExist& e) {
       LOG(FATAL) << "gtsam::ValuesKeyDoesNotExist with variable "
                  << DynosamKeyFormatter(e.key());
+    }
+    return true;
+  }
+
+ private:
+  bool doExtraUpdateIterations() {
+    for (size_t n_iter = 1; n_iter < max_extra_iterations_; ++n_iter) {
+      try {
+        SmootherTraitsType::update(*smoother_, UpdateArguments{});
+      } catch (const std::runtime_error& e) {
+        LOG(WARNING) << "Smoother failed running extra update steps";
+        return false;
+      }
     }
     return true;
   }

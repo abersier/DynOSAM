@@ -12,6 +12,7 @@ PoseChangeVIBackendModule::PoseChangeVIBackendModule(
     : Base(params, camera), formulation_(CHECK_NOTNULL(formulation)) {
   gtsam::ISAM2Params isam2_params;
   isam2_params.relinearizeThreshold = 0.01;
+  isam2_params.relinearizeSkip = 1;
   // isam2_params.relinearizeSkip = FLAGS_regular_backend_relinearize_skip;
   isam2_params.keyFormatter = DynosamKeyFormatter;
   // isam2_params.enablePartialRelinearizationCheck = true;
@@ -49,7 +50,17 @@ DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
   gtsam::Values optimised_values = smoother_interface.calculateEstimate();
   formulation_->updateTheta(optimised_values);
 
+  // alert frontend
+  if (frontend_update_callback_) {
+    frontend_update_callback_(input->frame_id, input->timestamp);
+  }
+
   return makeOutput();
+}
+
+void PoseChangeVIBackendModule::registerFrontendUpdateCallback(
+    const FrontendUpdateCallback& frontend_update_callback) {
+  frontend_update_callback_ = frontend_update_callback;
 }
 
 }  // namespace dyno

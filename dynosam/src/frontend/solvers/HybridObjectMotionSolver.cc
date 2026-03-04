@@ -482,12 +482,13 @@ bool HybridObjectMotionSolver::solveImpl(
 
     auto solver = solvers_.at(object_id);
 
-    requires_new_keyframe = object_retracked;
+    requires_new_keyframe = object_retracked || is_resampled;
 
     // Must be < min dynamic tracks otherwise there will be no factors
     // connecting the frames!!
+    // The object re-tracking
     if (previous_tracking_state != ObjectTrackingStatus::New &&
-        frame_k->getFrameId() % 15 == 0) {
+        frame_k->getFrameId() % 100 == 0) {
       LOG(INFO) << "New KF due to temporal frame";
       requires_new_keyframe = true;
     }
@@ -856,6 +857,8 @@ bool HybridObjectMotionSolver::getObjectStructureinL(
   auto filter = solvers_.at(object_id);
 
   const auto fixed_points = filter->getObjectPoints();
+
+  object_points.reserve(object_points.size() + fixed_points.size());
   for (const auto& [tracklet_id, m_L] : fixed_points) {
     object_points.push_back(LandmarkStatus::Dynamic(
         // currently no covariance!
@@ -877,6 +880,8 @@ bool HybridObjectMotionSolver::getObjectStructureinW(
   const auto frame_id_k = filter->frameId();
   const auto timestamp = filter->timestamp();
   const auto L_W_k = filter->pose();
+
+  object_points.reserve(object_points.size() + fixed_points.size());
   for (const auto& [tracklet_id, m_L] : fixed_points) {
     const auto m_W_k = L_W_k * m_L;
     object_points.push_back(LandmarkStatus::Dynamic(

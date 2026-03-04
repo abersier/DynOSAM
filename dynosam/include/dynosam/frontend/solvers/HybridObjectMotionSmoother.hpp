@@ -277,6 +277,7 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     params.keyFormatter = DynosamKeyFormatter;
     params.relinearizeThreshold = 0.01;
     // this value is very important for accuracy
+    // and if we want to do multiple update iterations!
     params.relinearizeSkip = 1;
     params.evaluateNonlinearError = true;
     return params;

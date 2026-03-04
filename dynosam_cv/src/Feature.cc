@@ -317,11 +317,6 @@ void FeatureContainer::remove(TrackletId tracklet_id) {
 }
 
 void FeatureContainer::removeByObjectId(ObjectId object_id) {
-  // collect all tracklets
-  // auto itr = FilterIterator(*this, [object_id](const Feature::Ptr& f) -> bool
-  // {
-  //   return f->objectId() == object_id;
-  // });
   if (!object_feature_map_.exists(object_id)) {
     return;
   }

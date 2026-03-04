@@ -111,6 +111,9 @@ using MotionMap =
 /// @brief Map of FrameIds (k) to Timestamps
 using FrameIdTimestampMap = gtsam::FastMap<FrameId, Timestamp>;
 
+using FrontendUpdateCallback =
+    std::function<void(const FrameId, const Timestamp)>;
+
 // T is expected to have (at least) bitwise | (OR) support
 template <typename T>
 class Flags {
@@ -774,6 +777,11 @@ inline std::string container_to_string(const Container& container,
     ss << c << delimiter;
   }
   return ss.str();
+}
+
+inline std::string info_string(FrameId frame_id, const ObjectIds& object_ids) {
+  return "j={" + container_to_string(object_ids) +
+         "}, k=" + std::to_string(frame_id);
 }
 
 inline std::string info_string(FrameId frame_id, ObjectId object_id) {

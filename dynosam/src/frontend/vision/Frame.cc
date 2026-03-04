@@ -90,12 +90,12 @@ bool Frame::exists(TrackletId tracklet_id) const {
 }
 
 size_t Frame::numStaticUsableFeatures() const {
-  auto iter = usableStaticFeaturesBegin();
+  auto iter = usableStaticIterator();
   return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
 }
 
 size_t Frame::numDynamicUsableFeatures() const {
-  auto iter = usableDynamicFeaturesBegin();
+  auto iter = usableDynamicIterator();
   return static_cast<size_t>(std::distance(iter.begin(), iter.end()));
 }
 

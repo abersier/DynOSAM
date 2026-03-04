@@ -389,7 +389,7 @@ void FeatureTracker::trackDynamic(
     utils::ChronoTimingStats tracked_dynamic_features(
         "tracked_dynamic_features");
     for (Feature::Ptr previous_dynamic_feature :
-         previous_frame_->usableDynamicFeaturesBegin()) {
+         previous_frame_->usableDynamicIterator()) {
       const TrackletId tracklet_id = previous_dynamic_feature->trackletId();
       const size_t age = previous_dynamic_feature->age();
 
@@ -1256,7 +1256,7 @@ void FeatureTracker::propogateMask(ImageContainer& image_container) {
 
   ObjectIds instance_labels;
   for (const Feature::Ptr& dynamic_feature :
-       previous_frame_->usableDynamicFeaturesBegin()) {
+       previous_frame_->usableDynamicIterator()) {
     CHECK(dynamic_feature->objectId() != background_label);
     instance_labels.push_back(dynamic_feature->objectId());
   }
@@ -1274,7 +1274,7 @@ void FeatureTracker::propogateMask(ImageContainer& image_container) {
 
   // TODO: inliers?
   for (const Feature::Ptr& dynamic_feature :
-       previous_frame_->usableDynamicFeaturesBegin()) {
+       previous_frame_->usableDynamicIterator()) {
     CHECK(Feature::IsNotNull(dynamic_feature));
     for (size_t j = 0; j < instance_labels.size(); j++) {
       // save object label for object j with feature i

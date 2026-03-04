@@ -23,6 +23,8 @@ class PoseChangeVIFrontend : public VIFrontend {
     pose_change_backend_sink_ = func;
   };
 
+  void onBackendUpdateComplete(FrameId frame_id, Timestamp timestamp);
+
  private:
   SpinReturn boostrapSpin(FrontendInputPacketBase::ConstPtr input) override;
   SpinReturn nominalSpin(FrontendInputPacketBase::ConstPtr input) override;

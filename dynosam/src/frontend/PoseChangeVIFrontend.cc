@@ -26,6 +26,11 @@ PoseChangeVIFrontend::PoseChangeVIFrontend(
   }
 }
 
+void PoseChangeVIFrontend::onBackendUpdateComplete(FrameId frame_id,
+                                                   Timestamp timestamp) {
+  LOG(INFO) << "Recieved backend update at frame " << frame_id;
+}
+
 PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::boostrapSpin(
     FrontendInputPacketBase::ConstPtr input) {
   Frame::Ptr frame_k = featureTrack(input);
@@ -66,14 +71,14 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::boostrapSpin(
 
   CameraMeasurementStatusVector static_measurements;
   fillMeasurementsFromFeatureIterator(
-      &static_measurements, frame_k->usableStaticFeaturesBegin(), frame_id_k,
+      &static_measurements, frame_k->usableStaticIterator(), frame_id_k,
       timestamp_k, static_pixel_sigmas_, static_point_sigma_,
       &realtime_output->state.local_static_map);
 
   // // TODO: hack for now to add measurements at first frame!!!!
   // CameraMeasurementStatusVector dynamic_measurements;
   // fillMeasurementsFromFeatureIterator(
-  //     &dynamic_measurements, frame_k->usableDynamicFeaturesBegin(),
+  //     &dynamic_measurements, frame_k->usableDynamicIterator(),
   //     frame_id_k, timestamp_k, dynamic_pixel_sigmas_, dynamic_point_sigma_,
   //     &realtime_output->state.dynamic_map);
 
@@ -87,6 +92,8 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::boostrapSpin(
                                     Pose3Measurement(X_W_k_initial));
 
   auto pc_input = std::make_shared<PoseChangeInput>();
+  pc_input->frame_id = frame_id_k;
+  pc_input->timestamp = timestamp_k;
 
   formulation_->addStatesInitalise(pc_input->new_values, pc_input->new_factors,
                                    frame_id_k, timestamp_k, X_W_k_initial,
@@ -202,13 +209,13 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
 
   CameraMeasurementStatusVector static_measurements;
   fillMeasurementsFromFeatureIterator(
-      &static_measurements, frame_k->usableStaticFeaturesBegin(), frame_id_k,
+      &static_measurements, frame_k->usableStaticIterator(), frame_id_k,
       timestamp_k, static_pixel_sigmas_, static_point_sigma_,
       &realtime_output->state.local_static_map);
 
   CameraMeasurementStatusVector dynamic_measurements;
   fillMeasurementsFromFeatureIterator(
-      &dynamic_measurements, frame_k->usableDynamicFeaturesBegin(), frame_id_k,
+      &dynamic_measurements, frame_k->usableDynamicIterator(), frame_id_k,
       timestamp_k, dynamic_pixel_sigmas_, dynamic_point_sigma_
       /*&realtime_output->state.dynamic_map*/);
 
@@ -218,8 +225,6 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
     object_motion_solver_->getObjectStructureinW(
         object_id, realtime_output->state.dynamic_map);
   }
-
-  const bool ego_motion_keyframe = shouldFrameBeKeyFrame(frame_k, frame_km1);
 
   // ObjectPoseChangeInfoMap kf_pose_change_infos;
   // const size_t num_object_keyframes =
@@ -232,6 +237,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
     objects_with_keyframes.push_back(object_id);
   }
 
+  const bool ego_motion_keyframe = shouldFrameBeKeyFrame(frame_k, frame_km1);
   const bool is_keyframe = ego_motion_keyframe || num_object_keyframes > 0;
   if (is_keyframe) {
     LOG(INFO) << "KF selected for k=" << frame_id_k
@@ -258,60 +264,58 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
       }
     }
 
-    LOG(INFO) << "here";
-
     auto pc_input = std::make_shared<PoseChangeInput>();
-
-    struct ObjectWithFromFrame {
-      FrameId frame;
-      ObjectId object_id;
-
-      bool operator<(const ObjectWithFromFrame& oth) const {
-        return frame < oth.frame;
-      }
-    };
-
+    pc_input->frame_id = frame_id_k;
+    pc_input->timestamp = timestamp_k;
     // Ordered set of KF objects ordered by their "from" motion
     // to make Keyframes at the from motion we need to propogate the ego-motion
     // states starting with the earliest
     // TODO: what if multiple objects need adding at the same from frame?
-    std::set<ObjectWithFromFrame> objects_by_earliest_kf;
+    // rely on gtsam::FastMap being ordered by std::less<>
+    gtsam::FastMap<FrameId, ObjectIds> objects_by_earliest_kf;
 
     for (const auto& [object_id, info] : kf_pose_change_infos) {
       CHECK(info.isKeyFrame());
 
       const auto& H_W_KF_k = info.H_W_KF_k;
-      const auto lkf_id_j = H_W_KF_k.from();
+      const auto from_motion_frame_j = H_W_KF_k.from();
 
-      objects_by_earliest_kf.insert(ObjectWithFromFrame{lkf_id_j, object_id});
+      if (!objects_by_earliest_kf.exists(from_motion_frame_j)) {
+        objects_by_earliest_kf.insert2(from_motion_frame_j, ObjectIds{});
+      }
 
+      // fill object that has a motion from_motion_frame_j -> k
+      objects_by_earliest_kf.at(from_motion_frame_j).push_back(object_id);
       // if the from frame is smaller than the current last keyframe we
       // (currently) have no way of fixing as all the factors relating to the
       // last kf will be already in the smoother and we have no way of
       // recovering this!! it is allowed as long as the from frame is not
       // already a KF ie. if the from frame is new it must be greater than the
       // last kf
-      if (!keyframes_.exists(lkf_id_j)) {
-        CHECK_GE(lkf_id_j, lkf_id_);
+      if (!keyframes_.exists(from_motion_frame_j)) {
+        CHECK_GE(from_motion_frame_j, lkf_id_);
       }
     }
 
-    for (const auto& object_with_from_frame : objects_by_earliest_kf) {
-      const auto& object_id = object_with_from_frame.object_id;
-      const ObjectPoseChangeInfo& info = kf_pose_change_infos.at(object_id);
-
+    for (const auto& [from_motion_frame_j, object_ids] :
+         objects_by_earliest_kf) {
       // check that the last kf as considered by the frontend
       // is the same as considered by the formulation
       CHECK_EQ(lkf_id_, formulation_->getLastPropogatedFrame());
-
       // from motion
-      const auto lkf_id_j = object_with_from_frame.frame;
-      LOG(INFO) << info_string(frame_id_k, object_id)
+      const auto lkf_id_j = from_motion_frame_j;
+      LOG(INFO) << info_string(frame_id_k, object_ids)
                 << " added with keyframe with from motion " << lkf_id_j;
 
-      const auto& H_W_KF_k = info.H_W_KF_k;
-      CHECK_EQ(lkf_id_j, H_W_KF_k.from());
-      CHECK_EQ(frame_id_k, H_W_KF_k.to());
+      {
+        // sanity check
+        for (const ObjectId& j : object_ids) {
+          const ObjectPoseChangeInfo& info = kf_pose_change_infos.at(j);
+          const auto& H_W_KF_k = info.H_W_KF_k;
+          CHECK_EQ(lkf_id_j, H_W_KF_k.from());
+          CHECK_EQ(frame_id_k, H_W_KF_k.to());
+        }
+      }
 
       const FrameId original_lkf_id = lkf_id_;
       // if from object motion does not already exists as a keyframe
@@ -324,7 +328,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
       CHECK_LE(lkf_id_j, frame_id_k);
 
       if (!keyframes_.exists(lkf_id_j)) {
-        VLOG(20) << info_string(frame_id_k, object_id)
+        VLOG(20) << info_string(frame_id_k, object_ids)
                  << " has a from motion k=" << lkf_id_j
                  << " that does not exist as a keyframe. Adding!";
 
@@ -377,17 +381,18 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
         // collect meaasurements
         fillMeasurementsFromFeatureIterator(
             &static_measurements,
-            intermediate_motion_lkf_j.frame->usableStaticFeaturesBegin(),
+            intermediate_motion_lkf_j.frame->usableStaticIterator(),
             intermediate_motion_lkf_j.to, intermediate_motion_lkf_j.timestamp,
             static_pixel_sigmas_, static_point_sigma_);
 
-        // fill dynamic_measurements_kf
-        fillMeasurementsFromFeatureIterator(
-            &dynamic_measurements_kf,
-            intermediate_motion_lkf_j.frame->usableDynamicFeaturesBegin(
-                object_id),
-            intermediate_motion_lkf_j.to, intermediate_motion_lkf_j.timestamp,
-            dynamic_pixel_sigmas_, dynamic_point_sigma_);
+        // fill dynamic_measurements_kf for all objects present at this frame
+        for (const ObjectId& j : object_ids) {
+          fillMeasurementsFromFeatureIterator(
+              &dynamic_measurements_kf,
+              intermediate_motion_lkf_j.frame->usableDynamicIterator(j),
+              intermediate_motion_lkf_j.to, intermediate_motion_lkf_j.timestamp,
+              dynamic_pixel_sigmas_, dynamic_point_sigma_);
+        }
 
         // NOTE: this is different from the nav state that is mantained in the
         // frontend so the initial states may be slightly different (only if
@@ -427,16 +432,18 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
 
         // object was not initially present in the keyframe so measurements will
         // not exist at this frame
-        if (!keyframe_data.isObjectKeyFrame(object_id)) {
-          LOG(INFO) << "object j= " << object_id
-                    << " was not originally present at k=" << lkf_id_j;
-          fillMeasurementsFromFeatureIterator(
-              &dynamic_measurements_kf,
-              keyframe_data.frame->usableDynamicFeaturesBegin(object_id),
-              keyframe_data.kf_id, keyframe_data.frame->getTimestamp(),
-              dynamic_pixel_sigmas_, dynamic_point_sigma_);
+        for (const ObjectId& j : object_ids) {
+          if (!keyframe_data.isObjectKeyFrame(j)) {
+            LOG(INFO) << "object j= " << j
+                      << " was not originally present at k=" << lkf_id_j;
+            fillMeasurementsFromFeatureIterator(
+                &dynamic_measurements_kf,
+                keyframe_data.frame->usableDynamicIterator(j),
+                keyframe_data.kf_id, keyframe_data.frame->getTimestamp(),
+                dynamic_pixel_sigmas_, dynamic_point_sigma_);
 
-          keyframe_data.object_keyframes.push_back(object_id);
+            keyframe_data.object_keyframes.push_back(j);
+          }
         }
       }
     }
@@ -523,7 +530,7 @@ void PoseChangeVIFrontend::solveObjectMotions(
 
 bool PoseChangeVIFrontend::shouldFrameBeKeyFrame(Frame::Ptr frame_k,
                                                  Frame::Ptr frame_km1) const {
-  return frame_k->getFrameId() % 5 == 0;
+  return frame_k->getFrameId() % 10 == 0;
 }
 
 size_t PoseChangeVIFrontend::extractKeyFramedMotions(

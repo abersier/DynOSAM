@@ -124,7 +124,8 @@ Motion3ReferenceFrame HybridObjectMotionSmoother::frameToFrameMotionReference()
       ObjectMotionSymbol(object_id_, frame_id_km1));
 
   //. TODO: bring back check!
-  CHECK(smoother_state_.exists(prev_motion_symbol));
+  CHECK(smoother_state_.exists(prev_motion_symbol))
+      << DynosamKeyFormatter(prev_motion_symbol);
   // CHECK(isam_.valueExists(prev_motion_symbol))
   //     << DynosamKeyFormatter(prev_motion_symbol);
   // const gtsam::Pose3 H_W_KF_km1 =

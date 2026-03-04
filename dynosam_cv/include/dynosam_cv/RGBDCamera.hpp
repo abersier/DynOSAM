@@ -96,10 +96,15 @@ class RGBDCamera : public Camera {
    * @brief Get gtsam::Cal3_S2Stereo from rgbd camera and virtual baseline
    */
   StereoCalibPtr getFakeStereoCalib() const;
-  gtsam::StereoCamera getFakeStereoCamera() const;
+
+  // Stereo camera with virtual baseline. Identity pose
+  const gtsam::StereoCamera& getFakeStereoCamera() const;
 
  private:
   double fx_b_;
+  //! Cached stereo camera. Assumes calibration will not change
+  StereoCalibPtr stereo_calibration_;
+  gtsam::StereoCamera stereo_camera_;
 };
 
 }  // namespace dyno

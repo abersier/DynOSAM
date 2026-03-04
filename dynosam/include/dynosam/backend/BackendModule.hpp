@@ -44,9 +44,6 @@
 
 namespace dyno {
 
-using FrontendUpdateInterface =
-    std::function<void(const FrameId, const Timestamp)>;
-
 class Backend {
  public:
   DYNO_POINTER_TYPEDEFS(Backend)
@@ -55,7 +52,6 @@ class Backend {
   virtual ~Backend() {}
 };
 
-// TODO: BackendOutput should become State
 template <typename INPUT>
 class BackendModule : public ModuleBase<INPUT, DynoState>, public Backend {
  public:

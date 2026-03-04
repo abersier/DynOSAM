@@ -37,9 +37,17 @@ namespace {
 double tryGetBaseline(const CameraParams& camera_param) {
   if (camera_param.hasDepthParams()) {
     return camera_param.depthParams().virtual_baseline;
-  } else {
-    return 0.0;
   }
+  throw InvalidRGBDCameraParams();
+}
+
+StereoCalibPtr constructCalibrationHelper(const CameraParams& camera_params,
+                                          double baseline) {
+  const auto calibration =
+      camera_params.constructGtsamCalibration<gtsam::Cal3_S2>();
+  return StereoCalibPtr(new gtsam::Cal3_S2Stereo(
+      calibration.fx(), calibration.fy(), calibration.skew(), calibration.px(),
+      calibration.py(), baseline));
 }
 
 }  // namespace
@@ -47,7 +55,8 @@ double tryGetBaseline(const CameraParams& camera_param) {
 RGBDCamera::RGBDCamera(const CameraParams& camera_params)
     : Camera(camera_params),
       fx_b_(camera_params.fx() * tryGetBaseline(camera_params)) {
-  checkAndThrow<InvalidRGBDCameraParams>(camera_params.hasDepthParams());
+  stereo_calibration_ = constructCalibrationHelper(getParams(), baseline());
+  stereo_camera_ = gtsam::StereoCamera(gtsam::Pose3(), stereo_calibration_);
 }
 
 double RGBDCamera::depthFromDisparity(double disparity) const {
@@ -104,14 +113,11 @@ std::pair<bool, gtsam::StereoPoint2> RGBDCamera::getStereo(
 double RGBDCamera::fxb() const { return fx_b_; }
 
 StereoCalibPtr RGBDCamera::getFakeStereoCalib() const {
-  const auto calibration =
-      getParams().constructGtsamCalibration<gtsam::Cal3_S2>();
-  return StereoCalibPtr(new gtsam::Cal3_S2Stereo(
-      calibration.fx(), calibration.fy(), calibration.skew(), calibration.px(),
-      calibration.py(), baseline()));
+  return stereo_calibration_;
 }
-gtsam::StereoCamera RGBDCamera::getFakeStereoCamera() const {
-  return {gtsam::Pose3(), getFakeStereoCalib()};
+
+const gtsam::StereoCamera& RGBDCamera::getFakeStereoCamera() const {
+  return stereo_camera_;
 }
 
 }  // namespace dyno
