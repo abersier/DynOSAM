@@ -413,44 +413,108 @@ bool HybridObjectMotionSolver::solveImpl(
 
   ObjectKeyFrameStatus keyframe_status{ObjectKeyFrameStatus::NonKeyFrame};
 
+  // if (is_new) {
+  //   auto filter = createAndInsertFilter(object_id, frame_km1,
+  //   inlier_tracklets); keyframe_status =
+  //   ObjectKeyFrameStatus::AnchorKeyFrame;
+  // } else {
+  //   // const bool new_KF = object_retracked;
+  //   // const bool new_KF = false;
+
+  //   bool new_KF = object_retracked;
+
+  //   if (previous_tracking_state != ObjectTrackingStatus::New &&
+  //       frame_k->getFrameId() % 15) {
+  //     new_KF = true;
+  //   }
+  //   // and not new? Dont want to make keyframe immedialte after making a
+  //   // keyframe! const bool new_KF = object_retracked ||
+  //   frame_k->getFrameId() %
+  //   // 35 == 0;
+  //   if (new_KF) {
+  //     auto solver = solvers_.at(object_id);
+  //     CHECK_NOTNULL(solver);
+  //     gtsam::Pose3 new_KF_pose;
+  //     if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
+  //       LOG(INFO) << "Object was poorly tracked or LOST previously. "
+  //                 << "Creating new KF from centroid "
+  //                 << info_string(frame_km1->getFrameId(), object_id);
+  //       // must create new initial frame
+  //       // TODO: here would be to check somehow that we dont have features
+  //       // between the last well tracked state
+  //       new_KF_pose =
+  //           constructObjectPose(object_id, frame_km1, inlier_tracklets);
+  //       keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+  //     } else {
+  //       CHECK_EQ(solver->frameId(), frame_km1->getFrameId())
+  //           << "j=" << object_id << " k=" << solver->frameId();
+  //       // this is the pose as the last frame (ie k-1) which will serve as
+  //       new_KF_pose = solver->pose();
+  //       keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
+  //     }
+  //     solver->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
+  //   }
+  // }
+
+  // auto solver = solvers_.at(object_id);
+  // CHECK_NOTNULL(solver);
+  // const bool solver_okay =
+  //     solver->update(H_W_km1_k_pnp, frame_k, inlier_tracklets);
+  // auto update_time_ms = update_timer.stop();
+
+  // if (!solver_okay) {
+  //   LOG(WARNING) << "Solver failed "
+  //                << info_string(frame_k->getFrameId(), object_id);
+  //   const std::lock_guard<std::mutex> lock(object_status_mutex_);
+  //   object_statuses_[object_id] = ObjectTrackingStatus::PoorlyTracked;
+
+  //   return false;
+  // }
+
+  bool requires_new_keyframe = false;
   if (is_new) {
     auto filter = createAndInsertFilter(object_id, frame_km1, inlier_tracklets);
-    keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+    // keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+    // requires_new_keyframe = true;
   } else {
     // const bool new_KF = object_retracked;
     // const bool new_KF = false;
 
-    bool new_KF = object_retracked;
+    auto solver = solvers_.at(object_id);
 
+    requires_new_keyframe = object_retracked;
+
+    // Must be < min dynamic tracks otherwise there will be no factors
+    // connecting the frames!!
     if (previous_tracking_state != ObjectTrackingStatus::New &&
-        frame_k->getFrameId() % 15) {
-      new_KF = true;
+        frame_k->getFrameId() % 15 == 0) {
+      LOG(INFO) << "New KF due to temporal frame";
+      requires_new_keyframe = true;
     }
     // and not new? Dont want to make keyframe immedialte after making a
     // keyframe! const bool new_KF = object_retracked || frame_k->getFrameId() %
     // 35 == 0;
-    if (new_KF) {
-      auto solver = solvers_.at(object_id);
-      CHECK_NOTNULL(solver);
-      gtsam::Pose3 new_KF_pose;
+    if (requires_new_keyframe) {
       if (previous_tracking_state == ObjectTrackingStatus::PoorlyTracked) {
         LOG(INFO) << "Object was poorly tracked or LOST previously. "
                   << "Creating new KF from centroid "
                   << info_string(frame_km1->getFrameId(), object_id);
-        // must create new initial frame
-        // TODO: here would be to check somehow that we dont have features
-        // between the last well tracked state
-        new_KF_pose =
-            constructObjectPose(object_id, frame_km1, inlier_tracklets);
         keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
       } else {
         CHECK_EQ(solver->frameId(), frame_km1->getFrameId())
             << "j=" << object_id << " k=" << solver->frameId();
-        // this is the pose as the last frame (ie k-1) which will serve as
-        new_KF_pose = solver->pose();
         keyframe_status = ObjectKeyFrameStatus::RegularKeyFrame;
+
+        const std::lock_guard<std::mutex> lock(num_kfs_per_object_mutex_);
+        const int num_kf = num_kfs_per_object_.at(object_id);
+        // ie. is first keyframe
+        if (num_kf == 0) {
+          keyframe_status = ObjectKeyFrameStatus::AnchorKeyFrame;
+        }
       }
-      solver->createNewKeyedMotion(new_KF_pose, frame_km1, inlier_tracklets);
+
+      const std::lock_guard<std::mutex> l(num_kfs_per_object_mutex_);
+      num_kfs_per_object_.at(object_id)++;
     }
   }
 
@@ -475,6 +539,7 @@ bool HybridObjectMotionSolver::solveImpl(
           << inlier_tracklets.size();
   // always add motion at k not k-1?
   if (keyframe_status != ObjectKeyFrameStatus::NonKeyFrame) {
+    CHECK(requires_new_keyframe);
     /// mmmm if we keyframe at this frame
     // then the estimated motion is from km-1 to k
     // which is NOT what we want to estimate
@@ -503,6 +568,17 @@ bool HybridObjectMotionSolver::solveImpl(
 
     CHECK(getObjectStructureinL(object_id, info.initial_object_points));
     pose_change_info_.insert2(object_id, info);
+
+    gtsam::Pose3 new_KF_pose;
+    // now reset solver for next frame (ie. make KF at k)
+    if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
+      new_KF_pose = constructObjectPose(object_id, frame_k, inlier_tracklets);
+
+    } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
+      new_KF_pose = solver->pose();
+    }
+
+    solver->createNewKeyedMotion(new_KF_pose, frame_k, inlier_tracklets);
   }
 
   motion_estimate = Motion3ReferenceFrame(
@@ -1210,8 +1286,15 @@ HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
   }
   CHECK_NOTNULL(solver);
 
-  const std::lock_guard<std::mutex> lock(solvers_mutex_);
-  solvers_.insert2(object_id, solver);
+  {
+    const std::lock_guard<std::mutex> lock(solvers_mutex_);
+    solvers_.insert2(object_id, solver);
+  }
+
+  {
+    const std::lock_guard<std::mutex> lock(num_kfs_per_object_mutex_);
+    num_kfs_per_object_.insert2(object_id, 0);
+  }
 
   LOG(INFO) << "Created new filter for object " << object_id << " at frame "
             << frame->getFrameId();
