@@ -380,14 +380,14 @@ class FeatureContainer {
       internal::FilterView<const FeatureContainer, UsableObjectLabelPredicate>;
 
   template <typename FeatureT>
-  struct _FastObjectFeatureView {
-    using This = _FastObjectFeatureView<FeatureT>;
+  struct ObjectFeatureViewT {
+    using This = ObjectFeatureViewT<FeatureT>;
     ObjectId object_id;
     FeatureContainer* container = nullptr;
     //! Set of tracklet ids for object id j
     TrackletIdSet tracklets{};
 
-    _FastObjectFeatureView(const ObjectId j, FeatureContainer* c)
+    ObjectFeatureViewT(const ObjectId j, FeatureContainer* c)
         : object_id(j), container(c) {}
 
     void rebindContainer(FeatureContainer* new_owner) {
@@ -454,16 +454,15 @@ class FeatureContainer {
     iterator end() { return iterator(tracklets.end(), container); }
   };
 
-  using FastObjectFeatureView = _FastObjectFeatureView<Feature::Ptr>;
-
-  using ObjectToFeatureMap = FastUnorderedMap<ObjectId, FastObjectFeatureView>;
+  using ObjectFeatureView = ObjectFeatureViewT<Feature::Ptr>;
+  using ObjectToFeatureMap = FastUnorderedMap<ObjectId, ObjectFeatureView>;
 
   // Fast becuase this iterator iteratores directly over the set of tracklets
   // for a requested object j and therefore has many less features too look at
   using FastUsableObjectIterator =
-      internal::FilterView<FastObjectFeatureView, UsableFeaturePredicate>;
+      internal::FilterView<ObjectFeatureView, UsableFeaturePredicate>;
   using ConstFastUsableObjectIterator =
-      internal::FilterView<const FastObjectFeatureView, UsableFeaturePredicate>;
+      internal::FilterView<const ObjectFeatureView, UsableFeaturePredicate>;
 
   FeatureContainer();
   FeatureContainer(const FeaturePtrs& feature_vector);
@@ -595,7 +594,7 @@ class FeatureContainer {
          other.object_feature_map_) {
       if (!object_feature_map_.exists(object_id)) {
         object_feature_map_.insert2(object_id,
-                                    FastObjectFeatureView(object_id, this));
+                                    ObjectFeatureView(object_id, this));
       }
       const auto& oth_tracklets = other_feature_view.tracklets;
       // insert new tracklets per object if necessary
@@ -671,7 +670,7 @@ class FeatureContainer {
   // can take a reference
   // cannot be static becuase each view requires a pointer to this
   // initalised with 0 object id becuase it should not matter
-  FastObjectFeatureView empty_object_feature_view_;
+  ObjectFeatureView empty_object_feature_view_;
 };
 
 /**

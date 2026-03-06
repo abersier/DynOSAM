@@ -48,7 +48,6 @@ DynoPipelineManager::DynoPipelineManager(
     FrontendDisplay::Ptr frontend_display, BackendDisplay::Ptr backend_display,
     BackendModuleFactory::Ptr factory, const ExternalHooks::Ptr external_hooks)
     : params_(params),
-      use_offline_frontend_(FLAGS_frontend_from_file),
       data_loader_(std::move(data_loader)),
       displayer_(&display_queue_, params.parallelRun())
 
@@ -172,42 +171,20 @@ void DynoPipelineManager::shutdownPipelines() {
 }
 
 bool DynoPipelineManager::spin() {
-  std::function<bool()> spin_func;
-
-  if (use_offline_frontend_) {
-    // if we have an offline frontend only spiun the frontend pipeline
-    // and no need to spin the viz (TODO: right now this is only images and not
-    // the actual pipelines...)
-    spin_func = [=]() -> bool {
-      if (frontend_pipeline_->isWorking()) {
-        if (!params_.parallelRun()) {
-          frontend_pipeline_->spinOnce();
-          if (backend_pipeline_) backend_pipeline_->spinOnce();
-        }
-        return true;
-      }
-      return false;
-    };
-  } else {
-    // regular spinner....
-    spin_func = [=]() -> bool {
-      if (data_loader_->spin() || frontend_pipeline_->isWorking() ||
-          (backend_pipeline_ && backend_pipeline_->isWorking())) {
-        if (!params_.parallelRun()) {
-          frontend_pipeline_->spinOnce();
-          if (backend_pipeline_) backend_pipeline_->spinOnce();
-        }
-        // TODO: this definately takes some time...
-        spinViz();  // for now
-        // a later problem!
-        return true;
-      }
-      return false;
-    };
-  }
-
   utils::ChronoTimingStats timer("pipeline_spin");
-  return spin_func();
+
+  if (data_loader_->spin() || frontend_pipeline_->isWorking() ||
+      (backend_pipeline_ && backend_pipeline_->isWorking())) {
+    if (!params_.parallelRun()) {
+      frontend_pipeline_->spinOnce();
+      if (backend_pipeline_) backend_pipeline_->spinOnce();
+    }
+    // TODO: this definately takes some time...
+    spinViz();  // for now
+    // a later problem!
+    return true;
+  }
+  return false;
 }
 
 bool DynoPipelineManager::spinViz() {
@@ -247,211 +224,6 @@ void DynoPipelineManager::launchSpinners() {
         std::bind(&dyno::BackendVizPipeline::spin, backend_viz_pipeline_.get()),
         "backend-display-spinner");
 }
-
-// void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
-//                                         FrontendDisplay::Ptr
-//                                         frontend_display, BackendDisplay::Ptr
-//                                         backend_display,
-//                                         BackendModuleFactory::Ptr factory) {
-//   FrontendModule::Ptr frontend = nullptr;
-//   BackendModule::Ptr backend = nullptr;
-//   BackendModuleDisplay::Ptr additional_backend_display = nullptr;
-//   // the registra for the frontend pipeline
-//   // this is agnostic to the actual pipeline type so we can add/register
-//   // a new queue to it regardless of the derived type (as long as it is at
-//   least
-//   // a MIMO, which it should be as this is the lowest type of actual pipeline
-//   // with any functionality)
-//   typename FrontendPipeline::OutputRegistra::Ptr frontend_output_registra =
-//       nullptr;
-//   const auto parallel_run = params_.parallelRun();
-
-//   switch (params_.frontend_type_) {
-//     case FrontendType::kRGBD: {
-//       LOG(INFO) << "Making RGBDInstance frontend";
-
-//       CameraParams mutable_camera_params = camera_params;
-//       // TODO: make this conversion to RGBD param based
-//       //  only update camera to rgbd if the data provider has not already set
-//       if (!mutable_camera_params.hasDepthParams()) {
-//         LOG(INFO) << "Updating camera params: converting to Fake Stereo
-//         camera";
-//         // mutable_camera_params.setDepthParams(0.07);
-//         mutable_camera_params.setDepthParams(0.1);
-//       }
-//       Camera::Ptr camera = std::make_shared<Camera>(mutable_camera_params);
-//       CHECK_NOTNULL(camera);
-
-//       if (use_offline_frontend_) {
-//         // TODO: bring back!
-//         LOG(FATAL) << "Not reimplemented";
-//         // LOG(INFO) << "Offline RGBD frontend";
-//         // using OfflineFrontend =
-//         //     FrontendOfflinePipeline<RegularBackendModule::ModuleTraits>;
-//         // const std::string file_path =
-//         //     getOutputFilePath(kRgbdFrontendOutputJsonFile);
-//         // LOG(INFO) << "Loading RGBD frontend output packets from " <<
-//         // file_path;
-
-//         // OfflineFrontend::UniquePtr offline_frontend =
-//         //     std::make_unique<OfflineFrontend>("offline-rgbdfrontend",
-//         //                                       file_path);
-//         // // make registra so we can register queues with this pipeline
-//         // frontend_output_registra = offline_frontend->getOutputRegistra();
-//         // // raw ptr type becuase we cannot copy the unique ptr!! This is
-//         only
-//         // // becuase we need it in the lambda function which is a temporary
-//         // // solution
-//         // OfflineFrontend* offline_frontend_ptr = offline_frontend.get();
-//         // // set get dataset size function (bit of a hack for now, and only
-//         for
-//         // // the batch optimizer so it knows when to optimize!!)
-//         // get_dataset_size_ = [offline_frontend_ptr]() -> FrameId {
-//         //   // get frame id of the final frame saved
-//         //   return CHECK_NOTNULL(offline_frontend_ptr)
-//         //       ->getFrontendOutputPackets()
-//         //       .rbegin()
-//         //       ->first;
-//         // };
-//         // // convert pipeline to base type
-//         // frontend_pipeline_ = std::move(offline_frontend);
-//       } else {
-//         frontend = std::make_shared<RGBDInstanceFrontendModule>(
-//             params_, camera, &display_queue_);
-//         LOG(INFO) << "Made RGBDInstanceFrontendModule";
-//         // need to make the derived pipeline so we can set parallel run etc
-//         // the manager takes a pointer to the base MIMO so we can have
-//         different
-//         // types of pipelines
-//         FrontendPipeline::UniquePtr frontend_pipeline_derived =
-//             std::make_unique<FrontendPipeline>(
-//                 "frontend-pipeline", &frontend_input_queue_, frontend);
-//         // make registra so we can register queues with this pipeline
-//         frontend_output_registra =
-//             frontend_pipeline_derived->getOutputRegistra();
-//         frontend_pipeline_derived->parallelRun(parallel_run);
-//         // conver pipeline to base type
-//         frontend_pipeline_ = std::move(frontend_pipeline_derived);
-
-//         get_dataset_size_ = [=]() -> FrameId {
-//           CHECK(data_loader_) << "Data Loader is null when accessing "
-//                                  "get_last_frame_ in BatchOptimizerParams";
-//           return data_loader_->datasetSize();
-//         };
-//       }
-
-//       // right now depends on the get_dataset_size_ function being det before
-//       // the optimzier is created!!!
-
-//       if (FLAGS_use_backend) {
-//         LOG(INFO) << "Construcing RGBD backend";
-//         params_.backend_params_.full_batch_frame = (int)get_dataset_size_();
-
-//         Sensors sensors;
-//         sensors.camera = camera;
-
-//         ModuleParams module_params;
-//         module_params.backend_params = params_.backend_params_;
-//         module_params.sensors = sensors;
-//         module_params.display_queue = &display_queue_;
-
-//         BackendWrapper backend_wrapper =
-//         factory->createModule(module_params);
-
-//         backend = backend_wrapper.backend;
-//         additional_backend_display = backend_wrapper.backend_viz;
-//         CHECK(backend);
-
-//         if (frontend && backend) {
-//           backend->registerFrontendUpdateInterface(std::bind(
-//               &FrontendModule::onBackendUpdateCallback, frontend.get(),
-//               std::placeholders::_1, std::placeholders::_2));
-//           LOG(INFO) << "Bound update between frontend and backend";
-//         }
-
-//       } else if (use_offline_frontend_) {
-//         LOG(WARNING)
-//             << "FLAGS_use_backend is false but use_offline_frontend "
-//                "(FLAGS_frontend_from_file) us true. "
-//             << " Pipeline will load data from frontend but send it
-//             nowhere!!";
-//       }
-
-//     } break;
-//     case FrontendType::kMono: {
-//       LOG(FATAL) << "MONO Not implemented!";
-//     } break;
-
-//     default: {
-//       LOG(FATAL) << "Not implemented!";
-//     } break;
-//   }
-
-//   CHECK_NOTNULL(frontend_pipeline_);
-//   CHECK_NOTNULL(frontend_output_registra);
-//   // register output queue to send the front-end output to the viz
-//   frontend_output_registra->registerQueue(&frontend_viz_input_queue_);
-//   // auto& frontend_viz_input_queue = frontend_viz_input_queue_;
-//   // frontend->setVizCallback(
-//   //     [&frontend_viz_input_queue](const auto& frontend_output) {
-//   //       frontend_viz_input_queue.push(frontend_output);
-//   //     });
-
-//   if (backend) {
-//     backend_pipeline_ = std::make_unique<BackendPipeline>(
-//         "backend-pipeline", &backend_input_queue_, backend);
-//     backend_pipeline_->parallelRun(parallel_run);
-//     // // also register connection between front and back
-//     // frontend_output_registra->registerQueue(&backend_input_queue_);
-//     FrontendPipeline::OutputQueue& backend_input_queue =
-//     backend_input_queue_; frontend->setBackendUpdateCallback(
-//         [&backend_input_queue](const auto& frontend_output) -> void {
-//           if (frontend_output->isKeyFrame()) {
-//             backend_input_queue.push(frontend_output);
-//           }
-//         });
-//     // frontend_output_registra->registerCallback(
-//     //     [&backend_input_queue](const auto& frontend_output) -> void {
-//     //       if (frontend_output->isKeyFrame()) {
-//     //         backend_input_queue.push(frontend_output);
-//     //       }
-//     //     });
-
-//     backend_pipeline_->registerOutputQueue(&backend_output_queue_);
-
-//     if (frontend) {
-//       LOG(INFO) << "Setting frontend accessor";
-//       // set frontend accessor
-//       frontend->setAccessor(backend->getAccessor());
-//       // frontend->formulation_ = backend->formulation();
-//     }
-
-//     // set backend display (if any!)
-//     if (additional_backend_display) {
-//       VLOG(10) << "Connecting BackendModuleDisplay";
-//       backend_pipeline_->registerOutputCallback(
-//           [additional_backend_display](const auto& output) -> void {
-//             additional_backend_display->spin(output);
-//           });
-//     }
-//   }
-
-//   // right now we cannot use the viz when we load from file as do not load
-//   // certain data values (e.g. camera and debug info) so these will be null -
-//   // the viz's try and access these causing a seg fault. Just need to add
-//   checks if (!use_offline_frontend_) {
-//     // parallel run's are true becuase we launch them in their own spinners
-//     if (backend && backend_display) {
-//       backend_viz_pipeline_ = std::make_unique<BackendVizPipeline>(
-//           "backend-viz-pipeline", &backend_output_queue_, backend_display);
-//       backend_viz_pipeline_->parallelRun(true);
-//     }
-//     frontend_viz_pipeline_ = std::make_unique<FrontendVizPipeline>(
-//         "frontend-viz-pipeline", &frontend_viz_input_queue_,
-//         frontend_display);
-//     frontend_viz_pipeline_->parallelRun(true);
-//   }
-// }
 
 void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
                                         FrontendDisplay::Ptr frontend_display,
@@ -577,17 +349,19 @@ void DynoPipelineManager::loadPoseChangeModules(
                                            pose_change_backend);
   backend_pipeline->parallelRun(parallel_run);
 
-  // register update function from backend to frontend
-  pose_change_backend->registerFrontendUpdateCallback(std::bind(
-      &PoseChangeVIFrontend::onBackendUpdateComplete, pc_vi_frontend.get(),
-      std::placeholders::_1, std::placeholders::_2));
+  if (FLAGS_use_backend) {
+    // register update function from backend to frontend
+    pose_change_backend->registerFrontendUpdateCallback(std::bind(
+        &PoseChangeVIFrontend::onBackendUpdateComplete, pc_vi_frontend.get(),
+        std::placeholders::_1, std::placeholders::_2));
 
-  // register output function from frontend
-  pc_vi_frontend->addPoseChangeOutputSink(
-      [backend_input_queue](const PoseChangeInput::ConstPtr& pc_packet) {
-        CHECK(backend_input_queue);
-        backend_input_queue->push(pc_packet);
-      });
+    // register output function from frontend
+    pc_vi_frontend->addPoseChangeOutputSink(
+        [backend_input_queue](const PoseChangeInput::ConstPtr& pc_packet) {
+          CHECK(backend_input_queue);
+          backend_input_queue->push(pc_packet);
+        });
+  }
 
   output_registra_out = backend_pipeline->getOutputRegistra();
 

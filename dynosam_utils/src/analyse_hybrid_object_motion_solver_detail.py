@@ -164,7 +164,7 @@ def plot_experiments(experiment_folders, title, select_objects = None):
             label=f"{label}"
         )
 
-        ax_main.set_yscale("log")
+        # ax_main.set_yscale("log")
 
         # ax_main.plot(
         #     timestamps,
@@ -213,8 +213,8 @@ def plot_experiments(experiment_folders, title, select_objects = None):
     ax_trans.legend()
     ax_rot.legend()
 
-    ax_rot.set_yscale("log")
-    ax_trans.set_yscale("log")
+    # ax_rot.set_yscale("log")
+    # ax_trans.set_yscale("log")
 
     ax_main.grid(True)
 
@@ -241,10 +241,10 @@ def plot_experiments(experiment_folders, title, select_objects = None):
     trajectory_fig.tight_layout()
 
 
-    file_path = title + "_doo_comparusons"
+    # file_path = title + "_doo_comparusons"
 
-    fig1.savefig(file_path + "_solve_time.jpg")
-    # # trajectory_fig.savefig(file_path + "_trajectories.jpg")
+    # fig1.savefig(file_path + "_solve_time.jpg")
+    # # # trajectory_fig.savefig(file_path + "_trajectories.jpg")
     # fig2.savefig(file_path + "_me_t.jpg")
     # fig3.savefig(file_path + "_me_r.jpg")
 
@@ -252,6 +252,9 @@ def plot_experiments(experiment_folders, title, select_objects = None):
 
 if __name__ == "__main__":
     experiment_folders = [
+        "/root/results/frontend_filtering/omd_MO_noise_added_mL",
+        "/root/results/frontend_filtering/omd_FS_noise_added_mL",
+        "/root/results/frontend_filtering/omd_FS_no_noise_added_mL"
         # "/root/results/frontend_filtering/omd_SS",
         # "/root/results/frontend_filtering/omd_FS",
         # "/root/results/frontend_filtering/omd_EIF",
@@ -266,11 +269,11 @@ if __name__ == "__main__":
         # "/root/results/frontend_filtering/kitti04_EIF",
         # "/root/results/frontend_filtering/kitti04_PnP",
         # "/root/results/frontend_filtering/kitti04_MO",
-        "/root/results/frontend_filtering/tech_lab_1_FS",
-        "/root/results/frontend_filtering/tech_lab_1_SS",
-        "/root/results/frontend_filtering/tech_lab_1_EIF",
-        "/root/results/frontend_filtering/tech_lab_1_MO",
-        "/root/results/frontend_filtering/tech_lab_1_PnP",
+        # "/root/results/frontend_filtering/tech_lab_1_FS",
+        # "/root/results/frontend_filtering/tech_lab_1_SS",
+        # "/root/results/frontend_filtering/tech_lab_1_EIF",
+        # "/root/results/frontend_filtering/tech_lab_1_MO",
+        # "/root/results/frontend_filtering/tech_lab_1_PnP",
     ]
 
-    plot_experiments(experiment_folders, "/root/results/frontend_filtering/tech_lab_1_with_MO", select_objects=[2])
+    plot_experiments(experiment_folders, "/root/results/frontend_filtering/omd_FS_MO_noise_added_Lm", select_objects=None)

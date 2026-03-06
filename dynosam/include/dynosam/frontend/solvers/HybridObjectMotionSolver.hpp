@@ -45,6 +45,12 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
     return pose_change_info_;
   }
 
+  // points in L per object (j)
+  void updateObjectPoints(
+      const gtsam::FastMap<ObjectId,
+                           std::vector<std::pair<TrackletId, gtsam::Point3>>>&
+          points_per_object);
+
  protected:
   bool solveImpl(Frame::Ptr frame_k, Frame::Ptr frame_km1, ObjectId object_id,
                  Motion3ReferenceFrame& motion_estimate) override;
@@ -54,8 +60,6 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
                           Frame::Ptr frame_k, Frame::Ptr frame_km1) override;
 
  private:
-  bool filterNeedsReset(ObjectId object_id);
-
   // may be from centroid or gronud truth depending on availablility
   gtsam::Pose3 constructObjectPose(const ObjectId object_id,
                                    const Frame::Ptr frame,
@@ -70,17 +74,16 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
   HybridObjectMotionSolverImpl::Ptr createAndInsertFilter(
       ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
-  // HybridObjectMotionSmoother::Ptr createAndInsertFilter(
-  //     ObjectId object_id, Frame::Ptr frame, const TrackletIds& tracklets);
 
   void deleteObject(ObjectId object_id);
 
+  bool solverExists(ObjectId object_id) const {
+    const std::lock_guard<std::mutex> lock(solvers_mutex_);
+    return solvers_.exists(object_id);
+  }
+
   HybridObjectMotionSolverImpl::Ptr threadSafeFilterAccess(
       ObjectId object_id) const;
-
-  // std::optional<int> getNumKeyFramesPerObject(ObjectId object_id) const;
-  // void setObjectKeyFrameStatus(ObjectId object_id, ObjectKeyFrameStatus
-  // status);
 
  private:
   HybridObjectMotionSolverParams params_;
@@ -97,15 +100,9 @@ class HybridObjectMotionSolver : public ObjectMotionSolver {
 
  private:
   gtsam::FastMap<ObjectId, ObjectTrackingStatus> object_statuses_;
-  // //! If filter needs resetting from last frame
-  gtsam::FastMap<ObjectId, bool> filter_needs_reset_;
-  gtsam::FastMap<ObjectId, gtsam::Pose3> filter_needs_reset_init_KF_;
-  // Need this only for previous state!
-  gtsam::FastMap<ObjectId, ObjectKeyFrameStatus> object_keyframe_statuses_;
   gtsam::FastMap<ObjectId, int> num_kfs_per_object_;
 
   mutable std::mutex object_status_mutex_;
-  mutable std::mutex keyframe_status_mutex_;
   mutable std::mutex num_kfs_per_object_mutex_;
   mutable std::mutex solvers_mutex_;
 };

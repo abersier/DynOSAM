@@ -203,6 +203,7 @@ class StereoHybridMotionFactorBase {
   // with identity pose, acts as the refenence frame
   gtsam::StereoCamera camera_;
 
+ private:
   bool throw_cheirality_;
 };
 
@@ -247,7 +248,7 @@ class StereoHybridMotionFactor2
   using Base = gtsam::NoiseModelFactor2<gtsam::Pose3, gtsam::Point3>;
 
   StereoHybridMotionFactor2(const gtsam::StereoPoint2& measured,
-                            const gtsam::Pose3& L_e, const gtsam::Pose3& X_k,
+                            const gtsam::Pose3& L_e, const gtsam::Pose3& X_W_k,
                             const gtsam::SharedNoiseModel& model,
                             gtsam::Cal3_S2Stereo::shared_ptr K,
                             gtsam::Key e_H_k_world_key, gtsam::Key m_L_key,
@@ -263,9 +264,11 @@ class StereoHybridMotionFactor2
       boost::optional<gtsam::Matrix&> J1 = boost::none,
       boost::optional<gtsam::Matrix&> J2 = boost::none) const override;
 
+  const gtsam::Pose3& cameraPose() const { return X_W_k_; }
+
  private:
   //! Fixed camera pose
-  gtsam::Pose3 X_k_;
+  gtsam::Pose3 X_W_k_;
 };
 
 /**
@@ -278,6 +281,8 @@ class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
  public:
   using This = StereoHybridMotionFactor3;
   using Base = gtsam::NoiseModelFactor1<gtsam::Pose3>;
+
+  using shared_ptr = std::shared_ptr<This>;
 
   StereoHybridMotionFactor3(const gtsam::StereoPoint2& measured,
                             const gtsam::Pose3& L_KF, const gtsam::Pose3& X_W_k,
@@ -296,11 +301,61 @@ class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
       const gtsam::Pose3& H_W_KF_k,
       boost::optional<gtsam::Matrix&> J1 = boost::none) const override;
 
+  const gtsam::Pose3& cameraPose() const { return X_W_k_; }
+  const gtsam::Point3& objectPoint() const { return m_L_; }
+
  private:
   //! Fixed camera pose
   gtsam::Pose3 X_W_k_;
   //! Fixed observed point
   gtsam::Point3 m_L_;
+};
+
+class BatchStereoHybridMotionFactor3 : public gtsam::NonlinearFactor {
+ public:
+  using shared_ptr = boost::shared_ptr<BatchStereoHybridMotionFactor3>;
+
+ private:
+  using FactorType = StereoHybridMotionFactor3;
+  using Allocator = Eigen::aligned_allocator<FactorType>;
+  std::vector<FactorType, Allocator> factors_;
+  std::vector<gtsam::DenseIndex> indices_;
+  bool useHessianFactor_{false};
+
+  //! Fixed observed point
+  gtsam::Point3 m_L_;
+  gtsam::Pose3 L_KF_;
+
+  gtsam::SharedNoiseModel noise_model_;
+  gtsam::Cal3_S2Stereo::shared_ptr K_;
+
+ public:
+  BatchStereoHybridMotionFactor3(const gtsam::Point3& m_L,
+                                 const gtsam::Pose3& L_KF,
+                                 const gtsam::SharedNoiseModel& model,
+                                 gtsam::Cal3_S2Stereo::shared_ptr K);
+
+  double error(const gtsam::Values& c) const override;
+
+  /// Get the dimension of the factor (number of rows on linearization)
+  size_t dim() const override;
+
+  /**
+   * Linearize to a single JacobianFactor.
+   *
+   * Optimization:
+   * - Pre-calculates the total size required for the JacobianFactor.
+   * - Collects all unique Keys involved across all sub-factors.
+   * - Iterates linearly over factors_ (cache-friendly) to compute Jacobians.
+   * - Fills the pre-allocated JacobianFactor directly.
+   */
+  boost::shared_ptr<gtsam::GaussianFactor> linearize(
+      const gtsam::Values& values) const override;
+
+  void add(const gtsam::StereoPoint2& measured, const gtsam::Pose3& X_W_k,
+           gtsam::Key H_W_K_k_key);
+
+ private:
 };
 
 /**

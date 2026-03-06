@@ -50,6 +50,7 @@ class HybridObjectMotionSolverImpl {
   virtual bool createNewKeyedMotion(const gtsam::Pose3& L_KF, Frame::Ptr frame,
                                     const TrackletIds& tracklets) = 0;
 
+  // points in L
   virtual gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const = 0;
   virtual PoseWithMotionTrajectory trajectory() const = 0;
   /**
@@ -59,6 +60,10 @@ class HybridObjectMotionSolverImpl {
    * @return PoseWithMotionTrajectory
    */
   virtual PoseWithMotionTrajectory localTrajectory() const = 0;
+
+  // points in L
+  virtual void updateObjectPoints(
+      const std::vector<std::pair<TrackletId, gtsam::Point3>>&){};
 
  protected:
   const ObjectId object_id_;

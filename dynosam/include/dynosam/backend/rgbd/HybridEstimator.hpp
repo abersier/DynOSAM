@@ -1594,6 +1594,8 @@ struct ObjectPoseChangeInfo {
   bool isKeyFrame() const { return regular_keyframe || anchor_keyframe; }
 };
 
+// struct ObjectPointInfos
+
 using ObjectPoseChangeInfoMap = gtsam::FastMap<ObjectId, ObjectPoseChangeInfo>;
 
 // additional functionality when solved with the Regular Backend!
@@ -1628,6 +1630,9 @@ class HybridFormulationKeyFrame : public HybridFormulation {
   const KeyFrameData& getAnchorKeyFrames() const { return key_frame_data_; }
 
   ObjectPoseMap getInitialObjectPoses() const;
+  // object points in L
+  gtsam::FastMap<ObjectId, std::vector<std::pair<TrackletId, gtsam::Point3>>>
+  getObjectPoints() const;
 
  private:
   struct Context {

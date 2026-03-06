@@ -202,8 +202,10 @@ def run_aria():
 def run_hybrid_solver_comparison_omd():
     # run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_FS", omd_dataset, "--ending_frame=500", "--hybrid_motion_solver=2")
     # run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_SS", omd_dataset, "--ending_frame=500", "--hybrid_motion_solver=1")
-    run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_EIF", omd_dataset, "--ending_frame=500", "--hybrid_motion_solver=0")
+    # run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_EIF", omd_dataset, "--ending_frame=500", "--hybrid_motion_solver=0")
     # run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_PnP", omd_dataset, "--ending_frame=500", "--hybrid_motion_solver=3")
+    # run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_MO_noise_added_mL", omd_dataset, "--ending_frame=40", "--hybrid_motion_solver=4")
+    run_experiment_sequences("/root/data/vdo_slam/omd/omd/swinging_4_unconstrained_stereo/","omd_FS_no_noise_added_mL", omd_dataset, "--ending_frame=40", "--hybrid_motion_solver=2")
 
     # run_analysis("omd_FS")
     # run_analysis("omd_SS")
@@ -221,7 +223,9 @@ def run_hybrid_solver_comparison_kitti():
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_EIF", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=0")
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0000/","kitti00_PnP", kitti_dataset, "--ending_frame=70", "--hybrid_motion_solver=3")
 
-    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_MO_test", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=4")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_MO_noise_added_mL", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=4")
+    run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_FS_noise_added_mL", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=2")
+
 
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_SS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=1")
     # run_experiment_sequences("/root/data/vdo_slam/kitti/kitti/0004/","kitti04_FS", kitti_dataset, "--ending_frame=100", "--hybrid_motion_solver=2")
@@ -247,9 +251,10 @@ def run_hybrid_solver_comparison_kitti():
     # run_analysis("kitti00_PnP")
 
 def run_uts_tech_lab_solver_comparison_test():
-    run_online_sequence("tech_lab_1_MO_test", "--ending_frame=300", "--hybrid_motion_solver=4")
+    run_online_sequence("tech_lab_1_MO_test1", "--ending_frame=300", "--hybrid_motion_solver=4")
     # run_online_sequence("tech_lab_1_SS", "--ending_frame=300", "--hybrid_motion_solver=1")
     # run_online_sequence("tech_lab_1_FS", "--ending_frame=300", "--hybrid_motion_solver=2")
+    # run_online_sequence("tech_lab_1_FS_test1", "--ending_frame=300", "--hybrid_motion_solver=2")
     # run_online_sequence("tech_lab_1_EIF","--ending_frame=300", "--hybrid_motion_solver=0")
     # run_online_sequence("tech_lab_1_PnP","--ending_frame=300", "--hybrid_motion_solver=3")
 

@@ -298,12 +298,12 @@ gtsam::Vector StereoHybridMotionFactor::evaluateError(
 
 StereoHybridMotionFactor2::StereoHybridMotionFactor2(
     const gtsam::StereoPoint2& measured, const gtsam::Pose3& L_e,
-    const gtsam::Pose3& X_k, const gtsam::SharedNoiseModel& model,
+    const gtsam::Pose3& X_W_k, const gtsam::SharedNoiseModel& model,
     gtsam::Cal3_S2Stereo::shared_ptr K, gtsam::Key e_H_k_world_key,
     gtsam::Key m_L_key, bool throw_cheirality)
     : Base(model, e_H_k_world_key, m_L_key),
       StereoHybridMotionFactorBase(measured, L_e, K, throw_cheirality),
-      X_k_(X_k) {}
+      X_W_k_(X_W_k) {}
 
 gtsam::Vector StereoHybridMotionFactor2::evaluateError(
     const gtsam::Pose3& e_H_k_world, const gtsam::Point3& m_L,
@@ -312,7 +312,7 @@ gtsam::Vector StereoHybridMotionFactor2::evaluateError(
   try {
     // J1 corresponds with second entry in Base (ie. motion)
     // J2 corresponds with third entry in Base (ie. point)
-    return StereoHybridMotionFactorBase::evaluateError(X_k_, e_H_k_world, m_L,
+    return StereoHybridMotionFactorBase::evaluateError(X_W_k_, e_H_k_world, m_L,
                                                        {}, J1, J2);
   } catch (const CheiralityException&) {
     // only derived class knows about the key so throw here not in base
@@ -344,6 +344,85 @@ gtsam::Vector StereoHybridMotionFactor3::evaluateError(
     // CheiralityException is only thrown if throw_cheirality true
     throw gtsam::StereoCheiralityException(this->key1());
   }
+}
+
+BatchStereoHybridMotionFactor3::BatchStereoHybridMotionFactor3(
+    const gtsam::Point3& m_L, const gtsam::Pose3& L_KF,
+    const gtsam::SharedNoiseModel& model, gtsam::Cal3_S2Stereo::shared_ptr K)
+    : m_L_(m_L), L_KF_(L_KF), noise_model_(model), K_(K) {}
+
+double BatchStereoHybridMotionFactor3::error(const gtsam::Values& c) const {
+  double total_error = 0.0;
+  for (const auto& f : factors_) {
+    total_error += f.error(c);
+  }
+  return total_error;
+}
+
+size_t BatchStereoHybridMotionFactor3::dim() const {
+  return factors_.size() * 3;
+}
+
+boost::shared_ptr<gtsam::GaussianFactor>
+BatchStereoHybridMotionFactor3::linearize(const gtsam::Values& values) const {
+  if (factors_.empty()) {
+    return boost::make_shared<gtsam::JacobianFactor>();
+  }
+
+  if (factors_.empty()) return boost::make_shared<gtsam::JacobianFactor>();
+
+  constexpr size_t ErrorDim = 3;
+
+  const size_t total_rows = factors_.size() * ErrorDim;
+
+  std::vector<size_t> dims(keys_.size(), 6);
+  gtsam::VerticalBlockMatrix Ab(dims, total_rows, true);
+  Ab.matrix().setZero();
+
+  std::vector<gtsam::Matrix> H(FactorType::N);
+
+  for (size_t i = 0; i < factors_.size(); ++i) {
+    const auto& factor = factors_[i];
+    const size_t row = i * ErrorDim;
+    const auto index = indices_[i];
+
+    gtsam::Vector raw_error = factor.unwhitenedError(values, H);
+
+    if (factor.noiseModel()) {
+      factor.noiseModel()->WhitenSystem(H, raw_error);
+    }
+
+    Ab(index).block(row, 0, ErrorDim, H[0].cols()) = H[0];
+    Ab(keys_.size()).block(row, 0, ErrorDim, 1) = -raw_error;
+  }
+
+  auto jacobian = boost::make_shared<gtsam::JacobianFactor>(
+      keys_, std::move(Ab), gtsam::noiseModel::Unit::Create(total_rows));
+
+  // if (useHessianFactor_) {
+  //   return boost::make_shared<gtsam::HessianFactor>(*jacobian);
+  // }
+
+  return jacobian;
+}
+
+void BatchStereoHybridMotionFactor3::add(const gtsam::StereoPoint2& measured,
+                                         const gtsam::Pose3& X_W_k,
+                                         gtsam::Key H_W_K_k_key) {
+  // Reject duplicate keys
+  auto it = std::find(keys_.begin(), keys_.end(), H_W_K_k_key);
+  if (it != keys_.end()) {
+    throw std::runtime_error(
+        "BatchStereoHybridMotionFactor3::add(): duplicate key added");
+  }
+
+  // Register key
+  keys_.push_back(H_W_K_k_key);
+  indices_.push_back(keys_.size() - 1);
+
+  // Create and store factor
+  factors_.emplace_back(measured, L_KF_, X_W_k, m_L_, noise_model_, K_,
+                        H_W_K_k_key, true);
 }
 
 gtsam::Vector HybridSmoothingFactor::evaluateError(

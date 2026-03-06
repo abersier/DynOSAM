@@ -587,8 +587,8 @@ TEST(FeatureContainer, AddFeatures) {
 }
 
 // -----------------------------------------------------------
-// Test _FastObjectFeatureView iteration
-TEST(FeatureContainer, FastObjectFeatureViewIteration) {
+// Test ObjectFeatureViewT iteration
+TEST(FeatureContainer, ObjectFeatureViewIteration) {
   FeatureContainer container;
 
   auto f1 = makeFeature(1, 100);
@@ -622,7 +622,7 @@ TEST(FeatureContainer, FastObjectFeatureViewIteration) {
               featuresForObjectAfter.end());  // f2 still present
 }
 
-TEST(FeatureContainer, FastObjectFeatureViewIterationNonExistantObject) {
+TEST(FeatureContainer, ObjectFeatureViewIterationNonExistantObject) {
   FeatureContainer container;
 
   auto f1 = makeFeature(1, 100);

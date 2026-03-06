@@ -1176,6 +1176,35 @@ ErrorHandlingHooks HybridFormulationV1::getCustomErrorHooks() {
   return getDefaultILSErrorHandlingHooks(handle_failed_object);
 }
 
+gtsam::FastMap<ObjectId, std::vector<std::pair<TrackletId, gtsam::Point3>>>
+HybridFormulationKeyFrame::getObjectPoints() const {
+  const auto frame_node = map()->lastFrame();
+  CHECK_NOTNULL(frame_node);
+
+  auto hybrid_accessor = this->derivedAccessor<HybridAccessor>();
+
+  gtsam::FastMap<ObjectId, std::vector<std::pair<TrackletId, gtsam::Point3>>>
+      points_per_object;
+
+  const auto object_seen =
+      frame_node->objects_seen.template collectIds<ObjectId>();
+  for (ObjectId object_id : object_seen) {
+    StatusLandmarkVector estimates =
+        hybrid_accessor->getLocalDynamicLandmarkEstimates(object_id);
+
+    std::vector<std::pair<TrackletId, gtsam::Point3>> tracklet_pairs;
+    tracklet_pairs.reserve(estimates.size());
+
+    for (const auto& lmk_status : estimates) {
+      tracklet_pairs.push_back({lmk_status.trackletId(), lmk_status.value()});
+    }
+
+    points_per_object.insert2(object_id, std::move(tracklet_pairs));
+  }
+
+  return points_per_object;
+}
+
 UpdateObservationResult HybridFormulationKeyFrame::updateDynamicObservations(
     FrameId frame_id_k, gtsam::Values& new_values,
     gtsam::NonlinearFactorGraph& new_factors,
@@ -1288,6 +1317,9 @@ void HybridFormulationKeyFrame::updateObject(
   // frame node for last regular KF
   auto frame_node_lrkf = map->getFrame(lRKF_id);
   CHECK(frame_node_lrkf);
+  // object motion key from the 'from' frame
+  const gtsam::Key object_motion_key_lkf =
+      frame_node_lrkf->makeObjectMotionKey(object_id);
 
   new_values.insert(object_motion_key_kf, H_W_AKF_k.estimate());
   is_other_values_in_map.insert2(object_motion_key_kf, true);
@@ -1400,6 +1432,27 @@ void HybridFormulationKeyFrame::updateObject(
     addHybridMotionFactor(new_factors, pose_key_kf, object_motion_key_kf,
                           point_key, AKF_pose, obj_lmk_node, frame_node_kf);
 
+    // if(!smoothing_factors_added_.exists(object_motion_key_kf)) {
+    //   // check we have the previous keyframed motion
+    //   is_other_values_in_map.exists(object_motion_key_lkf);
+
+    //   auto object_smoothing_noise = noise_models_.object_smoothing_noise;
+    //   CHECK(object_smoothing_noise);
+    //   CHECK_EQ(object_smoothing_noise->dim(), 6u);
+
+    //   new_factors.emplace_shared<gtsam::BetweenFactor<gtsam::Pose3>>(
+    //     object_motion_key_lkf, object_motion_key_kf, H_W_lRKF_KF.estimate(),
+    //     object_smoothing_noise
+    //   );
+
+    //   if (result.debug_info)
+    //     result.debug_info->getObjectInfo(context.getObjectId())
+    //         .smoothing_factor_added = true;
+
+    //     // update internal containers
+    //   smoothing_factors_added_.insert(object_motion_key_kf);
+    // }
+
     if (result.debug_info) {
       result.debug_info->getObjectInfo(context.getObjectId())
           .num_dynamic_factors++;
@@ -1415,20 +1468,32 @@ void HybridFormulationKeyFrame::addHybridMotionFactor(
     gtsam::Key object_motion_key, gtsam::Key point_key,
     const gtsam::Pose3& KF_pose, LandmarkNodePtr lmk_node,
     FrameNodePtr frame_node) {
-  Landmark measured_point_local;
-  gtsam::SharedNoiseModel measurement_covariance;
-  std::tie(measured_point_local, measurement_covariance) =
-      MeasurementTraits::pointWithCovariance(
-          lmk_node->getMeasurement(frame_node));
+  // Landmark measured_point_local;
+  // gtsam::SharedNoiseModel measurement_covariance;
+  // std::tie(measured_point_local, measurement_covariance) =
+  //     MeasurementTraits::pointWithCovariance(
+  //         lmk_node->getMeasurement(frame_node));
+
+  auto stereo_measurement =
+      MeasurementTraits::stereo(lmk_node->getMeasurement(frame_node));
+
+  // FOR NOW
+  CHECK(stereo_measurement);
+  auto [measurement, noise_model] = *stereo_measurement;
 
   if (params_.makeDynamicMeasurementsRobust()) {
-    measurement_covariance = factor_graph_tools::robustifyHuber(
-        params_.k_huber_3d_points_, measurement_covariance);
+    noise_model = factor_graph_tools::robustifyHuber(params_.k_huber_3d_points_,
+                                                     noise_model);
   }
 
-  new_factors.emplace_shared<HybridMotionFactor>(
-      pose_key, object_motion_key, point_key, measured_point_local, KF_pose,
-      measurement_covariance);
+  new_factors.emplace_shared<StereoHybridMotionFactor>(
+      measurement, KF_pose, noise_model, rgbd_camera_->getFakeStereoCalib(),
+      pose_key, object_motion_key, point_key, true /* throw cheirality*/
+  );
+
+  // new_factors.emplace_shared<HybridMotionFactor>(
+  //     pose_key, object_motion_key, point_key, measured_point_local, KF_pose,
+  //     noise_model);
 }
 
 void HybridFormulationKeyFrame::addObjects(

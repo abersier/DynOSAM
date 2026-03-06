@@ -29,6 +29,9 @@ PoseChangeVIFrontend::PoseChangeVIFrontend(
 void PoseChangeVIFrontend::onBackendUpdateComplete(FrameId frame_id,
                                                    Timestamp timestamp) {
   LOG(INFO) << "Recieved backend update at frame " << frame_id;
+
+  // TODO: this is definitely not thread safe
+  object_motion_solver_->updateObjectPoints(formulation_->getObjectPoints());
 }
 
 PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::boostrapSpin(
@@ -293,7 +296,7 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
       // already a KF ie. if the from frame is new it must be greater than the
       // last kf
       if (!keyframes_.exists(from_motion_frame_j)) {
-        CHECK_GE(from_motion_frame_j, lkf_id_);
+        CHECK_GE(from_motion_frame_j, lkf_id_) << " for j=" << object_id;
       }
     }
 
@@ -530,6 +533,10 @@ void PoseChangeVIFrontend::solveObjectMotions(
 
 bool PoseChangeVIFrontend::shouldFrameBeKeyFrame(Frame::Ptr frame_k,
                                                  Frame::Ptr frame_km1) const {
+  CHECK(keyframes_.exists(lkf_id_));
+  const KeyFrameData& lkf_data = keyframes_.at(lkf_id_);
+  const Frame::Ptr lkf_frame = lkf_data.frame;
+
   return frame_k->getFrameId() % 10 == 0;
 }
 

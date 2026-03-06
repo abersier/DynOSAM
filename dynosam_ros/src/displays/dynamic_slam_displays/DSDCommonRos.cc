@@ -73,7 +73,8 @@ void DynoStatePublisher::publishObjects(
   ObjectOdometryMap object_odometries;
 
   MultiObjectOdometryPath multi_object_odom_paths;
-  multi_object_odom_paths.header.stamp = utils::toRosTime(frame_id);
+  multi_object_odom_paths.header.stamp =
+      utils::toRosTime(object_trajectories.lastTimestamp());
   multi_object_odom_paths.header.frame_id = params_.world_frame_id;
 
   for (const auto& [object_id, object_trajectory] : object_trajectories_k) {

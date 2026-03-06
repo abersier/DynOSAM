@@ -283,8 +283,7 @@ void FeatureContainer::add(Feature::Ptr feature) {
   const ObjectId object_id = feature->objectId();
   // TODO: what if object id is not valid!
   if (!object_feature_map_.exists(object_id)) {
-    object_feature_map_.insert2(object_id,
-                                FastObjectFeatureView(object_id, this));
+    object_feature_map_.insert2(object_id, ObjectFeatureView(object_id, this));
   }
   object_feature_map_.at(object_id).insert(tracklet_id);
 }

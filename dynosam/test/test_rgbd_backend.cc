@@ -46,7 +46,6 @@
 #include "dynosam/backend/ParallelHybridBackendModule.hpp"
 #include "dynosam/backend/RegularBackendModule.hpp"
 #include "dynosam/factors/LandmarkMotionTernaryFactor.hpp"
-#include "dynosam/frontend/FrontendPipeline.hpp"
 #include "dynosam_opt/FactorGraphTools.hpp"
 #include "dynosam_opt/Map.hpp"
 #include "internal/backend_runners.hpp"

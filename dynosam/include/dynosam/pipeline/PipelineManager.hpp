@@ -34,16 +34,13 @@
 // TODO : try and delete
 #include "dynosam/dataprovider/DataInterfacePipeline.hpp"
 #include "dynosam/dataprovider/DataProvider.hpp"
-// TODO: probably can delete
-#include "dynosam/frontend/FrontendPipeline.hpp"
+#include "dynosam/frontend/VIFrontend.hpp"
 #include "dynosam/pipeline/PipelineHooks.hpp"
+#include "dynosam/pipeline/PipelineModuleProcessor.hpp"
 #include "dynosam/pipeline/PipelineParams.hpp"
 #include "dynosam/visualizer/VisualizerPipelines.hpp"
 #include "dynosam_common/Types.hpp"
 #include "dynosam_common/utils/Spinner.hpp"
-
-// NEW
-#include "dynosam/frontend/VIFrontend.hpp"
 
 namespace dyno {
 
@@ -105,8 +102,6 @@ class DynoPipelineManager {
 
  private:
   DynoParams params_;
-  const bool use_offline_frontend_;
-
   Frontend::Ptr frontend_;
   Backend::Ptr backend_;
 

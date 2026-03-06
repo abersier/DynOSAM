@@ -542,7 +542,7 @@ class AccessorT : public DerivedAccessor {
       const gtsam::Key key) const override;
 
  protected:
-  auto map() const { return map_; }
+  typename Map::Ptr map() const { return map_; }
 
   gtsam::Values values() const {
     const std::lock_guard<std::mutex> lock(shared_data_->theta);

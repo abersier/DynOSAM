@@ -53,6 +53,8 @@ class InvalidRGBDCameraParams : public DynosamException {
 
 class RGBDCamera : public Camera {
  public:
+  DYNO_POINTER_TYPEDEFS(RGBDCamera)
+
   RGBDCamera(const CameraParams& camera_params);
 
   double depthFromDisparity(double disparity) const;

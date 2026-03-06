@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include "dynosam/backend/BackendDefinitions.hpp"
+#include "dynosam/factors/HybridFormulationFactors.hpp"
 #include "dynosam/frontend/solvers/HybridObjectMotionSolver-Impl.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/Trajectories.hpp"
@@ -86,6 +87,9 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   gtsam::Pose3 keyFramePose() const override;
 
   gtsam::FastMap<TrackletId, gtsam::Point3> getObjectPoints() const override;
+
+  void updateObjectPoints(
+      const std::vector<std::pair<TrackletId, gtsam::Point3>>&) override;
 
   /** Compute an estimate from the incomplete linear delta computed during the
    * last update. This delta is incomplete because it was not updated below
@@ -197,18 +201,6 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
                              double smootherLag, const Solver& solver);
   const std::string logger_prefix_;
 
-  // virtual Result updateFromInitialMotionImpl(
-  //   const gtsam::Pose3& H_W_KF_k_initial,
-  //   Frame::Ptr frame,
-  //   const TrackletIds& tracklets,
-  //   gtsam::Pose3& H_W_KF_k,
-  //   std::map<gtsam::Key, gtsam::Point3>& m_L_points
-  // ) = 0;
-
-  // virtual gtsam::Pose3 getKeyframeMotionImpl(
-  //   FrameId frame_id,
-  //   const gtsam::Values& values) const = 0;
-
   Result updateFromInitialMotionFullState(const gtsam::Pose3& H_W_KF_k_initial,
                                           Frame::Ptr frame,
                                           const TrackletIds& tracklets);
@@ -283,6 +275,11 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     return params;
   }
 
+  std::mutex update_point_mutex_;
+  std::atomic_bool has_point_update_{false};
+  // this is a really hack way to do this point update - just do for now!
+  std::vector<std::pair<TrackletId, gtsam::Point3>> updated_points_;
+
   //! Updated every update and includes only values in the smoother
   gtsam::Values smoother_state_;
   //! Best estimate of all values since the last KF
@@ -307,6 +304,11 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
       factor_to_tracklet_id_;
 
+  // motion only fractor tracking stuff
+  FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
+  gtsam::FastMap<BatchStereoHybridMotionFactor3::shared_ptr, TrackletId>
+      mo_factor_to_tracklet_id_;
+
   // For motion only
   gtsam::FastMap<TrackletId, gtsam::Point3> m_L_points_;
 
@@ -321,7 +323,7 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
    * eliminated before all others */
   void createOrderingConstraints(
       const gtsam::KeyVector& marginalizableKeys,
-      boost::optional<gtsam::FastMap<gtsam::Key, int> >& constrainedKeys) const;
+      boost::optional<gtsam::FastMap<gtsam::Key, int>>& constrainedKeys) const;
 
  private:
   inline gtsam::FixedLagSmootherResult update(
