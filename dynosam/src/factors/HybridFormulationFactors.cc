@@ -249,6 +249,30 @@ gtsam::Vector StereoHybridMotionFactorBase::evaluateError(
   return gtsam::Vector3::Constant(2.0 * K_->fx());
 }
 
+void StereoHybridMotionFactorBase::print(const std::string& s,
+                                         const gtsam::KeyFormatter&) const {
+  std::cout << s << "StereoHybridMotionFactorBase z = " << measured_ << "\n";
+  std::cout << "L_KF= " << L_KF_ << "\n";
+}
+
+bool StereoHybridMotionFactorBase::equals(const StereoHybridMotionFactorBase& f,
+                                          double tol) const {
+  if (!gtsam::traits<gtsam::Pose3>::Equals(f.L_KF_, this->L_KF_, tol)) {
+    return false;
+  }
+
+  if (!gtsam::traits<gtsam::StereoPoint2>::Equals(f.measured_, this->measured_,
+                                                  tol)) {
+    return false;
+  }
+
+  if (!gtsam::traits<gtsam::Cal3_S2Stereo>::Equals(*f.K_, *this->K_, tol)) {
+    return false;
+  }
+
+  return true;
+}
+
 const gtsam::StereoPoint2& StereoHybridMotionFactorBase::measured() const {
   return measured_;
 }
@@ -332,6 +356,33 @@ StereoHybridMotionFactor3::StereoHybridMotionFactor3(
       X_W_k_(X_W_k),
       m_L_(m_L) {}
 
+void StereoHybridMotionFactor3::print(
+    const std::string& s, const gtsam::KeyFormatter& keyFormatter) const {
+  std::cout << s << "StereoHybridMotionFactor3 ";
+  StereoHybridMotionFactorBase::print(s);
+  std::cout << "X=" << X_W_k_ << "\n";
+  std::cout << "point=" << m_L_ << "\n";
+  Base::print(s, keyFormatter);
+}
+
+bool StereoHybridMotionFactor3::equals(const gtsam::NonlinearFactor& f,
+                                       double tol) const {
+  if (const This* e = dynamic_cast<const This*>(&f)) {
+    if (!gtsam::traits<gtsam::Point3>::Equals(e->m_L_, this->m_L_, tol)) {
+      return false;
+    }
+
+    if (!gtsam::traits<gtsam::Pose3>::Equals(e->X_W_k_, this->X_W_k_, tol)) {
+      return false;
+    }
+
+    return StereoHybridMotionFactorBase::equals(*e, tol);
+
+  } else {
+    return false;
+  }
+}
+
 gtsam::Vector StereoHybridMotionFactor3::evaluateError(
     const gtsam::Pose3& H_W_KF_k, boost::optional<gtsam::Matrix&> J1) const {
   try {
@@ -359,6 +410,26 @@ double BatchStereoHybridMotionFactor3::error(const gtsam::Values& c) const {
   return total_error;
 }
 
+void BatchStereoHybridMotionFactor3::print(
+    const std::string& s, const gtsam::KeyFormatter& keyFormatter) const {
+  gtsam::NonlinearFactor::print(s, keyFormatter);
+  std::cout << "BatchStereoHybridMotionFactor3 with " << factors_.size()
+            << " factors:" << std::endl;
+  for (const auto& f : factors_) {
+    f.print("", keyFormatter);
+  }
+}
+
+bool BatchStereoHybridMotionFactor3::equals(const gtsam::NonlinearFactor& f,
+                                            double tol) const {
+  const This* p = dynamic_cast<const This*>(&f);
+  if (!p || factors_.size() != p->factors_.size()) return false;
+  for (size_t i = 0; i < factors_.size(); ++i) {
+    if (!factors_[i].equals(p->factors_[i], tol)) return false;
+  }
+  return true;
+}
+
 size_t BatchStereoHybridMotionFactor3::dim() const {
   return factors_.size() * 3;
 }
@@ -369,8 +440,6 @@ BatchStereoHybridMotionFactor3::linearize(const gtsam::Values& values) const {
     return boost::make_shared<gtsam::JacobianFactor>();
   }
 
-  if (factors_.empty()) return boost::make_shared<gtsam::JacobianFactor>();
-
   constexpr size_t ErrorDim = 3;
 
   const size_t total_rows = factors_.size() * ErrorDim;
@@ -379,7 +448,8 @@ BatchStereoHybridMotionFactor3::linearize(const gtsam::Values& values) const {
   gtsam::VerticalBlockMatrix Ab(dims, total_rows, true);
   Ab.matrix().setZero();
 
-  std::vector<gtsam::Matrix> H(FactorType::N);
+  // std::vector<gtsam::Matrix> H(BatchStereoHybridMotionFactor3::N);
+  std::vector<gtsam::Matrix> H(1);
 
   for (size_t i = 0; i < factors_.size(); ++i) {
     const auto& factor = factors_[i];
@@ -399,9 +469,9 @@ BatchStereoHybridMotionFactor3::linearize(const gtsam::Values& values) const {
   auto jacobian = boost::make_shared<gtsam::JacobianFactor>(
       keys_, std::move(Ab), gtsam::noiseModel::Unit::Create(total_rows));
 
-  // if (useHessianFactor_) {
-  //   return boost::make_shared<gtsam::HessianFactor>(*jacobian);
-  // }
+  if (useHessianFactor_) {
+    return boost::make_shared<gtsam::HessianFactor>(*jacobian);
+  }
 
   return jacobian;
 }

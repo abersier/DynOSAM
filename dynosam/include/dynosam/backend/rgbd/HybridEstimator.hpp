@@ -1704,6 +1704,9 @@ class HybridFormulationKeyFrame : public HybridFormulation {
 
   //! Initial estimate of points in object frame from frontend
   GenericObjectCentricMap<gtsam::Point3, TrackletId> m_L_initial_;
+
+  //! Bookkeeping of landmarks to frames which have factors added
+  gtsam::FastMap<TrackletId, std::set<FrameId>> factors_added_;
 };
 
 // additional functionality when solved with the Regular Backend!

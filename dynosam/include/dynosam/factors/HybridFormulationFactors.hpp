@@ -188,6 +188,12 @@ class StereoHybridMotionFactorBase {
   const gtsam::Cal3_S2Stereo::shared_ptr calibration() const;
   const gtsam::Pose3& referencePose() const;
 
+  void print(
+      const std::string& s = "",
+      const gtsam::KeyFormatter& keyFormatter = DynosamKeyFormatter) const;
+
+  bool equals(const StereoHybridMotionFactorBase& f, double tol = 1e-9) const;
+
   gtsam::Vector evaluateError(
       const gtsam::Pose3& X_k, const gtsam::Pose3& e_H_k_world,
       const gtsam::Point3& m_L,
@@ -282,7 +288,7 @@ class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
   using This = StereoHybridMotionFactor3;
   using Base = gtsam::NoiseModelFactor1<gtsam::Pose3>;
 
-  using shared_ptr = std::shared_ptr<This>;
+  using shared_ptr = boost::shared_ptr<This>;
 
   StereoHybridMotionFactor3(const gtsam::StereoPoint2& measured,
                             const gtsam::Pose3& L_KF, const gtsam::Pose3& X_W_k,
@@ -297,12 +303,24 @@ class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
         gtsam::NonlinearFactor::shared_ptr(new This(*this)));
   }
 
+  void print(const std::string& s = "",
+             const gtsam::KeyFormatter& keyFormatter =
+                 DynosamKeyFormatter) const override;
+
+  bool equals(const gtsam::NonlinearFactor& f,
+              double tol = 1e-9) const override;
+
   gtsam::Vector evaluateError(
       const gtsam::Pose3& H_W_KF_k,
       boost::optional<gtsam::Matrix&> J1 = boost::none) const override;
 
   const gtsam::Pose3& cameraPose() const { return X_W_k_; }
   const gtsam::Point3& objectPoint() const { return m_L_; }
+
+  // allows external updating of the internal point
+  // it is the users responsability to ensure the factor
+  // is correctly relinearized with the new point after update!
+  void objectPoint(const gtsam::Point3& m_L) { m_L_ = m_L; }
 
  private:
   //! Fixed camera pose
@@ -311,14 +329,29 @@ class StereoHybridMotionFactor3 : public gtsam::NoiseModelFactor1<gtsam::Pose3>,
   gtsam::Point3 m_L_;
 };
 
+/**
+ * @brief Variant of the StereoHybridMotionFactor3 which captures multiple
+ * measurements of a single object point (m_L) and estimates for the motion
+ * H_W_KF_K.
+ *
+ * Like the StereoHybridMotionFactor3 this assumes the point (m_L) and the
+ * observing camera pose (X_W_k) are known.
+ *
+ * A single noise model is used for all measurements.
+ *
+ * Like a smart factor, if used with iSAM2, the smoother must be alernted that
+ * the factor needs to be rellinearized once the factor is added to the smoother
+ * and new measurements added.
+ *
+ */
 class BatchStereoHybridMotionFactor3 : public gtsam::NonlinearFactor {
  public:
   using shared_ptr = boost::shared_ptr<BatchStereoHybridMotionFactor3>;
+  using This = BatchStereoHybridMotionFactor3;
 
  private:
-  using FactorType = StereoHybridMotionFactor3;
-  using Allocator = Eigen::aligned_allocator<FactorType>;
-  std::vector<FactorType, Allocator> factors_;
+  using Allocator = Eigen::aligned_allocator<StereoHybridMotionFactor3>;
+  std::vector<StereoHybridMotionFactor3, Allocator> factors_;
   std::vector<gtsam::DenseIndex> indices_;
   bool useHessianFactor_{false};
 
@@ -334,6 +367,19 @@ class BatchStereoHybridMotionFactor3 : public gtsam::NonlinearFactor {
                                  const gtsam::Pose3& L_KF,
                                  const gtsam::SharedNoiseModel& model,
                                  gtsam::Cal3_S2Stereo::shared_ptr K);
+
+  void print(const std::string& s = "",
+             const gtsam::KeyFormatter& keyFormatter =
+                 DynosamKeyFormatter) const override;
+
+  /// Check equality with another factor.
+  bool equals(const gtsam::NonlinearFactor& f,
+              double tol = 1e-9) const override;
+
+  gtsam::NonlinearFactor::shared_ptr clone() const override {
+    return boost::static_pointer_cast<gtsam::NonlinearFactor>(
+        gtsam::NonlinearFactor::shared_ptr(new This(*this)));
+  }
 
   double error(const gtsam::Values& c) const override;
 

@@ -266,7 +266,7 @@ bool HybridObjectMotionSolver::solveImpl(
     // connecting the frames!!
     // The object re-tracking
     if (previous_tracking_state != ObjectTrackingStatus::New &&
-        frame_k->getFrameId() % 40 == 0) {
+        frame_k->getFrameId() % 1 == 0) {
       LOG(INFO) << "New KF due to temporal frame";
       requires_new_keyframe = true;
     }

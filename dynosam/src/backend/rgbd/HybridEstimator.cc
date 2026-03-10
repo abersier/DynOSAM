@@ -347,6 +347,9 @@ StatusLandmarkVector HybridAccessor::getLocalDynamicLandmarkEstimates(
     StateQuery<gtsam::Point3> query_m_L;
     lmk_query.query_m_L = &query_m_L;
 
+    // TODO: lots of querties with same frame id
+    //  make vector version of this function
+    //  so motion/pose does not need to be querier each time
     if (getDynamicLandmarkImpl(kf_with_max_tracks, tracklet_id, lmk_query)) {
       CHECK(query_m_L);
       estimates.push_back(LandmarkStatus::DynamicInLocal(
@@ -1378,6 +1381,8 @@ void HybridFormulationKeyFrame::updateObject(
       is_dynamic_tracklet_in_map_.insert2(tracklet_id, AKF_id);
       all_dynamic_landmarks_.insert2(tracklet_id, AKF_id);
 
+      factors_added_.insert2(tracklet_id, std::set<FrameId>{});
+
       CHECK(isDynamicTrackletInMap(obj_lmk_node));
 
       gtsam::Point3 m_L_initial = m_L_initial_.at(object_id, tracklet_id);
@@ -1406,20 +1411,20 @@ void HybridFormulationKeyFrame::updateObject(
 
       // add measurements at both Keyframes a point is seen at
       // only needed if a point is new (I think!)
-      if (obj_lmk_node->seenAtFrame(lRKF_id)) {
-        const gtsam::Key object_motion_key_lrkf =
-            frame_node_lrkf->makeObjectMotionKey(object_id);
-        const gtsam::Key pose_key_lrkf = frame_node_lrkf->makePoseKey();
+      // if (obj_lmk_node->seenAtFrame(lRKF_id)) {
+      //   const gtsam::Key object_motion_key_lrkf =
+      //       frame_node_lrkf->makeObjectMotionKey(object_id);
+      //   const gtsam::Key pose_key_lrkf = frame_node_lrkf->makePoseKey();
 
-        addHybridMotionFactor(new_factors, pose_key_lrkf,
-                              object_motion_key_lrkf, point_key, AKF_pose,
-                              obj_lmk_node, frame_node_lrkf);
-        if (result.debug_info) {
-          result.debug_info->getObjectInfo(context.getObjectId())
-              .num_dynamic_factors++;
-        }
-        num_points_seen_akf++;
-      }
+      //   addHybridMotionFactor(new_factors, pose_key_lrkf,
+      //                         object_motion_key_lrkf, point_key, AKF_pose,
+      //                         obj_lmk_node, frame_node_lrkf);
+      //   if (result.debug_info) {
+      //     result.debug_info->getObjectInfo(context.getObjectId())
+      //         .num_dynamic_factors++;
+      //   }
+      //   num_points_seen_akf++;
+      // }
 
       // add at from frame if point is new
       //  assume that once we have seen it we only need to add measurements
@@ -1429,8 +1434,34 @@ void HybridFormulationKeyFrame::updateObject(
       // point_key,
       //                       AKF_pose, obj_lmk_node, frame_node_akf);
     }
+
+    // check if we've added a factor at the regular from frame
+    // actually could just sanity check we've added factors at any/every frame
+    // that we have a motion for
+
+    std::set<FrameId>& frames_with_factors_added =
+        factors_added_.at(tracklet_id);
+    const bool factor_not_added_for_lRKF =
+        frames_with_factors_added.find(lRKF_id) ==
+        frames_with_factors_added.end();
+    if (factor_not_added_for_lRKF && obj_lmk_node->seenAtFrame(lRKF_id)) {
+      const gtsam::Key object_motion_key_lrkf =
+          frame_node_lrkf->makeObjectMotionKey(object_id);
+      const gtsam::Key pose_key_lrkf = frame_node_lrkf->makePoseKey();
+
+      addHybridMotionFactor(new_factors, pose_key_lrkf, object_motion_key_lrkf,
+                            point_key, AKF_pose, obj_lmk_node, frame_node_lrkf);
+      if (result.debug_info) {
+        result.debug_info->getObjectInfo(context.getObjectId())
+            .num_dynamic_factors++;
+      }
+      num_points_seen_akf++;
+      frames_with_factors_added.insert(frame_node_lrkf->frame_id);
+    }
+
     addHybridMotionFactor(new_factors, pose_key_kf, object_motion_key_kf,
                           point_key, AKF_pose, obj_lmk_node, frame_node_kf);
+    frames_with_factors_added.insert(frame_id_kf);
 
     // if(!smoothing_factors_added_.exists(object_motion_key_kf)) {
     //   // check we have the previous keyframed motion

@@ -11,11 +11,12 @@ PoseChangeVIBackendModule::PoseChangeVIBackendModule(
     HybridFormulationKeyFrame::Ptr formulation)
     : Base(params, camera), formulation_(CHECK_NOTNULL(formulation)) {
   gtsam::ISAM2Params isam2_params;
-  isam2_params.relinearizeThreshold = 0.01;
+  isam2_params.relinearizeThreshold = 0.001;
   isam2_params.relinearizeSkip = 1;
   // isam2_params.relinearizeSkip = FLAGS_regular_backend_relinearize_skip;
   isam2_params.keyFormatter = DynosamKeyFormatter;
   // isam2_params.enablePartialRelinearizationCheck = true;
+  isam2_params.enablePartialRelinearizationCheck = false;
   isam2_params.evaluateNonlinearError = true;
   smoother_ = std::make_unique<gtsam::ISAM2>(isam2_params);
 
@@ -30,6 +31,7 @@ DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
                                  ".update_incremental");
   using SmootherInterface = IncrementalInterface<gtsam::ISAM2>;
   SmootherInterface smoother_interface(smoother_.get());
+  smoother_interface.setMaxExtraIterations(6);
 
   gtsam::ISAM2Result result;
   bool is_smoother_ok = smoother_interface.optimize(
@@ -38,6 +40,10 @@ DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
           SmootherInterface::UpdateArguments& update_arguments) {
         update_arguments.new_values = input->new_values;
         update_arguments.new_factors = input->new_factors;
+
+        // make like batch for testing
+        update_arguments.update_params.forceFullSolve = true;
+        update_arguments.update_params.force_relinearize = true;
       },
       error_hooks_);
 

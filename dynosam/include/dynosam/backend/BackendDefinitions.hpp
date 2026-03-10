@@ -154,8 +154,11 @@ using GenericStereoFactor = gtsam::GenericStereoFactor<gtsam::Pose3, Landmark>;
 
 using SmartProjectionFactorParams = gtsam::SmartProjectionParams;
 
-template <typename T>
-using FactorMap = gtsam::FastMap<TrackletId, std::pair<T, Slot>>;
+template <typename Key, typename Factor>
+using GenericFactorMap = gtsam::FastMap<Key, std::pair<Factor, Slot>>;
+
+template <typename Factor>
+using FactorMap = GenericFactorMap<TrackletId, Factor>;
 
 class DebugInfo {
  public:

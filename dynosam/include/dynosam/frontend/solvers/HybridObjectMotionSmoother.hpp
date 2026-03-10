@@ -22,6 +22,21 @@
 
 namespace dyno {
 
+// see bottom of file for std::hash
+struct TrackletFramePair {
+  TrackletId tracklet_id;
+  FrameId frame_id;
+
+  bool operator==(const TrackletFramePair& other) const {
+    return tracklet_id == other.tracklet_id && frame_id == other.frame_id;
+  }
+
+  bool operator<(const TrackletFramePair& other) const {
+    return std::tie(tracklet_id, frame_id) <
+           std::tie(other.tracklet_id, other.frame_id);
+  }
+};
+
 class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
                                    public gtsam::FixedLagSmoother {
  public:
@@ -270,6 +285,8 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
     params.relinearizeThreshold = 0.01;
     // this value is very important for accuracy
     // and if we want to do multiple update iterations!
+    // also if this is not 1 then maybe factors that have a value update may not
+    // get relinearized
     params.relinearizeSkip = 1;
     params.evaluateNonlinearError = true;
     return params;
@@ -304,10 +321,19 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
       factor_to_tracklet_id_;
 
-  // motion only fractor tracking stuff
-  FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
-  gtsam::FastMap<BatchStereoHybridMotionFactor3::shared_ptr, TrackletId>
+  // // motion only fractor tracking stuff
+  // FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
+  // gtsam::FastMap<BatchStereoHybridMotionFactor3::shared_ptr, TrackletId>
+  //     mo_factor_to_tracklet_id_
+  GenericFactorMap<TrackletFramePair, StereoHybridMotionFactor3::shared_ptr>
+      mo_factor_map_;
+  // FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
+  gtsam::FastMap<StereoHybridMotionFactor3::shared_ptr, TrackletFramePair>
       mo_factor_to_tracklet_id_;
+
+  gtsam::FastMap<TrackletId, FrameIds> trackletid_to_frame_ids_;
+  // Object Motion Symbol to observing tracklets
+  gtsam::FastMap<gtsam::Key, TrackletIds> object_motion_to_tracklets_;
 
   // For motion only
   gtsam::FastMap<TrackletId, gtsam::Point3> m_L_points_;
@@ -341,3 +367,15 @@ void to_json(json& j, const HybridObjectMotionSmoother::Result& result);
 void to_json(json& j, const HybridObjectMotionSmoother::DebugResult& result);
 
 }  // namespace dyno
+
+// #include "dynosam_common/utils/Numerical.hpp"
+
+// // Custom specialization of std::hash can be injected in namespace std.
+// template<>
+// struct std::hash<dyno::TrackletFramePair>
+// {
+//     std::size_t operator()(const dyno::TrackletFramePair& s) const noexcept
+//     {
+//         return dyno::hashPair(std::make_pair(s.tracklet_id, s.frame_id));
+//     }
+// };
