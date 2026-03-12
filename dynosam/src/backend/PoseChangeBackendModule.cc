@@ -40,10 +40,6 @@ DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
           SmootherInterface::UpdateArguments& update_arguments) {
         update_arguments.new_values = input->new_values;
         update_arguments.new_factors = input->new_factors;
-
-        // make like batch for testing
-        update_arguments.update_params.forceFullSolve = true;
-        update_arguments.update_params.force_relinearize = true;
       },
       error_hooks_);
 
@@ -55,6 +51,7 @@ DynoState::Ptr PoseChangeVIBackendModule::spinOnce(
             << " error after " << result.getErrorAfter();
   gtsam::Values optimised_values = smoother_interface.calculateEstimate();
   formulation_->updateTheta(optimised_values);
+  // formulation_->updateTheta(input->new_values);
 
   // alert frontend
   if (frontend_update_callback_) {

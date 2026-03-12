@@ -35,6 +35,13 @@ struct TrackletFramePair {
     return std::tie(tracklet_id, frame_id) <
            std::tie(other.tracklet_id, other.frame_id);
   }
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const TrackletFramePair& t) {
+    os << "[frame id: " << t.frame_id << " ";
+    os << "tracklet id: " << t.tracklet_id << "]";
+    return os;
+  }
 };
 
 class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
@@ -54,10 +61,17 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
   enum Solver { Full, Smart, MotionOnly };
 
+  template <typename DERIVED>
   static HybridObjectMotionSmoother::Ptr CreateWithInitialMotion(
       const ObjectId object_id, double smoother_lag,
       const gtsam::Pose3& L_KF_km1, Frame::Ptr frame_km1,
-      const TrackletIds& tracklets, const Solver& solver);
+      const TrackletIds& tracklets) {
+    auto smoother = std::shared_ptr<DERIVED>(
+        new DERIVED(object_id, frame_km1->getCamera(), smoother_lag));
+
+    smoother->createNewKeyedMotion(L_KF_km1, frame_km1, tracklets);
+    return smoother;
+  }
 
   ~HybridObjectMotionSmoother();
 
@@ -213,33 +227,36 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
  protected:
   HybridObjectMotionSmoother(ObjectId object_id, Camera::Ptr camera,
-                             double smootherLag, const Solver& solver);
+                             double smootherLag);
   const std::string logger_prefix_;
 
-  Result updateFromInitialMotionFullState(const gtsam::Pose3& H_W_KF_k_initial,
-                                          Frame::Ptr frame,
-                                          const TrackletIds& tracklets);
+  virtual Result updateFromInitialMotionImpl(
+      gtsam::Values& smoother_state, const gtsam::Pose3& H_W_KF_k_initial,
+      Frame::Ptr frame, const TrackletIds& tracklets) = 0;
 
-  Result updateFromInitialMotionSmart(const gtsam::Pose3& H_W_KF_k_initial,
-                                      Frame::Ptr frame,
-                                      const TrackletIds& tracklets);
+  virtual gtsam::Pose3 keyFrameMotionImpl(
+      FrameId frame_id, const gtsam::Values& values) const = 0;
 
-  Result updateFromInitialMotionOnly(const gtsam::Pose3& H_W_KF_k_initial,
-                                     Frame::Ptr frame,
-                                     const TrackletIds& tracklets);
+  virtual void onNewKeyFrameMotion(
+      const dyno::ISAM2& smoother_before_reset) = 0;
 
-  gtsam::Pose3 keyFrameMotionFullState(FrameId frame_id,
-                                       const gtsam::Values& values) const;
-  gtsam::Pose3 keyFrameMotionSmart(FrameId frame_id,
-                                   const gtsam::Values& values) const;
+  // Result updateFromInitialMotionFullState(const gtsam::Pose3&
+  // H_W_KF_k_initial,
+  //                                         Frame::Ptr frame,
+  //                                         const TrackletIds& tracklets);
 
-  using GetKeyFrameMotionImpl =
-      std::function<gtsam::Pose3(FrameId, const gtsam::Values&)>;
-  using UpdateMotionFromInitialImpl = std::function<Result(
-      const gtsam::Pose3&, Frame::Ptr, const TrackletIds&)>;
+  // Result updateFromInitialMotionSmart(const gtsam::Pose3& H_W_KF_k_initial,
+  //                                     Frame::Ptr frame,
+  //                                     const TrackletIds& tracklets);
 
-  GetKeyFrameMotionImpl get_keyframe_motion_impl;
-  UpdateMotionFromInitialImpl update_motion_from_initial_impl;
+  // Result updateFromInitialMotionOnly(const gtsam::Pose3& H_W_KF_k_initial,
+  //                                    Frame::Ptr frame,
+  //                                    const TrackletIds& tracklets);
+
+  // gtsam::Pose3 keyFrameMotionFullState(FrameId frame_id,
+  //                                      const gtsam::Values& values) const;
+  // gtsam::Pose3 keyFrameMotionSmart(FrameId frame_id,
+  //                                  const gtsam::Values& values) const;
 
   // Trajectory since last KF?
   // Updated when new KF made since past variables will not be updated
@@ -296,9 +313,6 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   std::atomic_bool has_point_update_{false};
   // this is a really hack way to do this point update - just do for now!
   std::vector<std::pair<TrackletId, gtsam::Point3>> updated_points_;
-
-  //! Updated every update and includes only values in the smoother
-  gtsam::Values smoother_state_;
   //! Best estimate of all values since the last KF
   //! May include more values that what is currently in the smoother window
   gtsam::Values state_since_lKF_;
@@ -314,17 +328,58 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
   std::vector<DebugResult> debug_results_;
 
-  gtsam::FastMap<FrameId, gtsam::Pose3> camera_poses_;
-
-  /// SmartFactor stuff
-  FactorMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr> factor_map_;
-  gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
-      factor_to_tracklet_id_;
-
   // // motion only fractor tracking stuff
   // FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
   // gtsam::FastMap<BatchStereoHybridMotionFactor3::shared_ptr, TrackletId>
   //     mo_factor_to_tracklet_id_
+
+  gtsam::Values all_m_L_points_;
+
+  // // Keyframe LM solve stuff
+  // gtsam::NonlinearFactorGraph KF_factors_;
+  // gtsam::Values KF_values_;
+
+  /** Erase any keys associated with timestamps before the provided time */
+  void eraseKeysBefore(double timestamp);
+
+  /** Fill in an iSAM2 ConstrainedKeys structure such that the provided keys are
+   * eliminated before all others */
+  void createOrderingConstraints(
+      const gtsam::KeyVector& marginalizableKeys,
+      boost::optional<gtsam::FastMap<gtsam::Key, int>>& constrainedKeys) const;
+
+ private:
+  //! Updated every update and includes only values in the smoother
+  gtsam::Values smoother_state_;
+
+ private:
+  inline gtsam::FixedLagSmootherResult update(
+      const gtsam::NonlinearFactorGraph&,
+      const gtsam::Values&,  //
+      const KeyTimestampMap&, const gtsam::FactorIndices&) override {
+    throw DynosamException("Not implemented!");
+  }
+};
+
+class HybridObjectMotionOnlySmoother : public HybridObjectMotionSmoother {
+ public:
+  using HybridObjectMotionSmoother::Result;
+
+  HybridObjectMotionOnlySmoother(ObjectId object_id, Camera::Ptr camera,
+                                 double smootherLag)
+      : HybridObjectMotionSmoother(object_id, camera, smootherLag) {}
+
+  Result updateFromInitialMotionImpl(gtsam::Values& smoother_state,
+                                     const gtsam::Pose3& H_W_KF_k_initial,
+                                     Frame::Ptr frame,
+                                     const TrackletIds& tracklets) override;
+
+  gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
+                                  const gtsam::Values& values) const override;
+
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
+
+ private:
   GenericFactorMap<TrackletFramePair, StereoHybridMotionFactor3::shared_ptr>
       mo_factor_map_;
   // FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
@@ -337,29 +392,52 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
 
   // For motion only
   gtsam::FastMap<TrackletId, gtsam::Point3> m_L_points_;
+};
 
-  // Keyframe LM solve stuff
-  gtsam::NonlinearFactorGraph KF_factors_;
-  gtsam::Values KF_values_;
+class HybridObjectMotionSmartSmoother : public HybridObjectMotionSmoother {
+ public:
+  using HybridObjectMotionSmoother::Result;
 
-  /** Erase any keys associated with timestamps before the provided time */
-  void eraseKeysBefore(double timestamp);
+  HybridObjectMotionSmartSmoother(ObjectId object_id, Camera::Ptr camera,
+                                  double smootherLag)
+      : HybridObjectMotionSmoother(object_id, camera, smootherLag) {}
 
-  /** Fill in an iSAM2 ConstrainedKeys structure such that the provided keys are
-   * eliminated before all others */
-  void createOrderingConstraints(
-      const gtsam::KeyVector& marginalizableKeys,
-      boost::optional<gtsam::FastMap<gtsam::Key, int>>& constrainedKeys) const;
+  Result updateFromInitialMotionImpl(gtsam::Values& smoother_state,
+                                     const gtsam::Pose3& H_W_KF_k_initial,
+                                     Frame::Ptr frame,
+                                     const TrackletIds& tracklets) override;
 
- private:
-  inline gtsam::FixedLagSmootherResult update(
-      const gtsam::NonlinearFactorGraph&,
-      const gtsam::Values&,  //
-      const KeyTimestampMap&, const gtsam::FactorIndices&) override {
-    throw DynosamException("Not implemented!");
-  }
+  gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
+                                  const gtsam::Values& values) const override;
+
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
 
  private:
+  gtsam::FastMap<FrameId, gtsam::Pose3> camera_poses_;
+
+  /// SmartFactor stuff
+  FactorMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr> factor_map_;
+  gtsam::FastMap<gtsam::SmartStereoProjectionPoseFactor::shared_ptr, TrackletId>
+      factor_to_tracklet_id_;
+};
+
+class HybridObjectMotionFullSmoother : public HybridObjectMotionSmoother {
+ public:
+  using HybridObjectMotionSmoother::Result;
+
+  HybridObjectMotionFullSmoother(ObjectId object_id, Camera::Ptr camera,
+                                 double smootherLag)
+      : HybridObjectMotionSmoother(object_id, camera, smootherLag) {}
+
+  Result updateFromInitialMotionImpl(gtsam::Values& smoother_state,
+                                     const gtsam::Pose3& H_W_KF_k_initial,
+                                     Frame::Ptr frame,
+                                     const TrackletIds& tracklets) override;
+
+  gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
+                                  const gtsam::Values& values) const override;
+
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
 };
 
 using json = nlohmann::json;
@@ -367,15 +445,3 @@ void to_json(json& j, const HybridObjectMotionSmoother::Result& result);
 void to_json(json& j, const HybridObjectMotionSmoother::DebugResult& result);
 
 }  // namespace dyno
-
-// #include "dynosam_common/utils/Numerical.hpp"
-
-// // Custom specialization of std::hash can be injected in namespace std.
-// template<>
-// struct std::hash<dyno::TrackletFramePair>
-// {
-//     std::size_t operator()(const dyno::TrackletFramePair& s) const noexcept
-//     {
-//         return dyno::hashPair(std::make_pair(s.tracklet_id, s.frame_id));
-//     }
-// };

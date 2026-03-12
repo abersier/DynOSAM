@@ -312,7 +312,10 @@ bool HybridObjectMotionSolver::solveImpl(
     return false;
   }
 
-  const auto H_W_km1_k = solver->frameToFrameMotion();
+  const auto H_W_km1_k = solver->frameToFrameMotionReference();
+  motion_estimate = H_W_km1_k;
+
+  frame_k->dynamic_features_.markOutliers(outlier_tracklets);
 
   logger_ << frame_k->getTimestamp() << frame_k->getFrameId() << update_time_ms
           << inlier_tracklets.size();
@@ -328,24 +331,18 @@ bool HybridObjectMotionSolver::solveImpl(
     info.H_W_KF_k = solver->keyFrameMotionReference();
     info.L_W_KF = solver->keyFramePose();
     info.L_W_k = solver->pose();
-
-    // TODO: shouldnt need this!
-    info.motion_track_status = ObjectTrackingStatus::WellTracked;
-
-    if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
-      info.regular_keyframe = true;
-      info.anchor_keyframe = true;
-    } else if (keyframe_status == ObjectKeyFrameStatus::RegularKeyFrame) {
-      info.regular_keyframe = true;
-    }
+    info.keyframe_status = keyframe_status;
+    CHECK_EQ(info.H_W_KF_k.to(), info.frame_id);
+    CHECK_EQ(info.H_W_KF_k.to(), frame_k->getFrameId());
+    CHECK(info.isKeyFrame());
 
     LOG(INFO) << "Making hybrid info for j=" << object_id << " with "
               << "motion KF: " << info.H_W_KF_k.from()
-              << " to: " << info.H_W_KF_k.to() << " with regular kf "
-              << std::boolalpha << info.regular_keyframe << " anchor kf "
-              << info.anchor_keyframe;
+              << " to: " << info.H_W_KF_k.to()
+              << " with kf status: " << info.keyframe_status;
 
     CHECK(getObjectStructureinL(object_id, info.initial_object_points));
+    // TODO: mutex lock
     pose_change_info_.insert2(object_id, info);
 
     gtsam::Pose3 new_KF_pose;
@@ -357,14 +354,13 @@ bool HybridObjectMotionSolver::solveImpl(
       new_KF_pose = solver->pose();
     }
 
+    // it actually does not make fully logical sense to keyframe for k+1 here
+    // for several reasons We have already added the same set of measurements
+    // for frame k during the update we should really want till thr next frame
+    // where we have new measurements (seen in k and k+1) as this will be
+    // different to the current set of inlier tracks.
     solver->createNewKeyedMotion(new_KF_pose, frame_k, inlier_tracklets);
   }
-
-  motion_estimate = Motion3ReferenceFrame(
-      H_W_km1_k, Motion3ReferenceFrame::Style::F2F, ReferenceFrame::GLOBAL,
-      frame_km1->getFrameId(), frame_k->getFrameId());
-
-  frame_k->dynamic_features_.markOutliers(outlier_tracklets);
 
   return true;
 }
@@ -535,21 +531,21 @@ HybridObjectMotionSolver::createAndInsertFilter(ObjectId object_id,
         frame->getTimestamp(), P, Q, R, frame->getCamera(), kHuberKFilter);
   } else if (FLAGS_hybrid_motion_solver == 1) {
     // run as smoother with smart factors
-    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
-        object_id, 15, keyframe_pose, frame, tracklets,
-        HybridObjectMotionSmoother::Solver::Smart);
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion<
+        HybridObjectMotionSmartSmoother>(object_id, 15, keyframe_pose, frame,
+                                         tracklets);
   } else if (FLAGS_hybrid_motion_solver == 2) {
     // run as full smoother
-    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
-        object_id, 15, keyframe_pose, frame, tracklets,
-        HybridObjectMotionSmoother::Solver::Full);
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion<
+        HybridObjectMotionFullSmoother>(object_id, 15, keyframe_pose, frame,
+                                        tracklets);
   } else if (FLAGS_hybrid_motion_solver == 3) {
     solver = PnPOnlySolver::CreateWithInitialMotion(object_id, keyframe_pose,
                                                     frame, tracklets);
   } else if (FLAGS_hybrid_motion_solver == 4) {
-    solver = HybridObjectMotionSmoother::CreateWithInitialMotion(
-        object_id, 6, keyframe_pose, frame, tracklets,
-        HybridObjectMotionSmoother::Solver::MotionOnly);
+    solver = HybridObjectMotionSmoother::CreateWithInitialMotion<
+        HybridObjectMotionOnlySmoother>(object_id, 6, keyframe_pose, frame,
+                                        tracklets);
   }
   CHECK_NOTNULL(solver);
 

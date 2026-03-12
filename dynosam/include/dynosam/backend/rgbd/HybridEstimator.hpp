@@ -39,6 +39,7 @@
 #include "dynosam/backend/Formulation.hpp"
 #include "dynosam/backend/rgbd/VIOFormulation.hpp"
 #include "dynosam/factors/HybridFormulationFactors.hpp"
+#include "dynosam_common/MotionKeyFrame.hpp"
 #include "dynosam_common/StructuredContainers.hpp"  //for FrameRange
 #include "dynosam_common/Types.hpp"                 //only needed for factors
 #include "dynosam_opt/Map.hpp"
@@ -1567,37 +1568,6 @@ class HybridFormulationV1 : public HybridFormulation {
   ErrorHandlingHooks getCustomErrorHooks() override;
 };
 
-struct ObjectPoseChangeInfo {
-  FrameId frame_id;
-
-  ObjectTrackingStatus motion_track_status;
-
-  StatusLandmarkVector initial_object_points;
-  //! Associated keyframe
-  //! if keyframe then this value is NEW (ie changed from the previous one)
-  //! and the initial motion should be identity
-  gtsam::Pose3 L_W_KF;
-  //! This is the preintegrated motion immediately before the current
-  //! keyframe at k
-  Motion3ReferenceFrame H_W_KF_k;
-  gtsam::Pose3 L_W_k;
-
-  // make intermediate keyframe to optimise w.r.t to the same anchor point
-  // ie. indicates if a motion variable should be added this frame
-  bool regular_keyframe{false};
-  // make a new anchor point for the object
-  // this happens when the object is new or has re-appeared (and therefore
-  // has no contuous tracks) in this case a regular keyframe MUST also be
-  // made a motion will added this frame AND the anchor pose will be updated
-  bool anchor_keyframe{false};
-
-  bool isKeyFrame() const { return regular_keyframe || anchor_keyframe; }
-};
-
-// struct ObjectPointInfos
-
-using ObjectPoseChangeInfoMap = gtsam::FastMap<ObjectId, ObjectPoseChangeInfo>;
-
 // additional functionality when solved with the Regular Backend!
 class HybridFormulationKeyFrame : public HybridFormulation {
  public:
@@ -1649,8 +1619,7 @@ class HybridFormulationKeyFrame : public HybridFormulation {
   };
 
   struct KeyFrameMetaData {
-    bool is_regular{true};
-    bool is_anchor{false};
+    ObjectKeyFrameStatus keyframe_status;
 
     //! Measured object motion from the frontend
     //! Taking us from last RKF to most recent KF (ie. k)

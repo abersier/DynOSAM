@@ -247,19 +247,11 @@ class GroundTruthInputPacket {
  private:
 };
 
-/**
- * @brief FastMap from frame id to GroundTruthInputPacket
- *
- */
-class GroundTruthPacketMap
-    : public gtsam::FastMap<FrameId, GroundTruthInputPacket> {
- public:
-  using Base = gtsam::FastMap<FrameId, GroundTruthInputPacket>;
-  using Base::Base;
+/// @brief FastMap from frame id to GroundTruthInputPacket
+using GroundTruthPacketMap = gtsam::FastMap<FrameId, GroundTruthInputPacket>;
 
-  GroundTruthPacketMap() {}
-};
-
+/// @brief Alias to function that returns a GroundTruthPacketMap if available
+/// (via optionsal)
 using GroundTruthPacketsRequest =
     std::function<std::optional<GroundTruthPacketMap>()>;
 

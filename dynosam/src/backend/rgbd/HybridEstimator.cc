@@ -1439,6 +1439,7 @@ void HybridFormulationKeyFrame::updateObject(
     // actually could just sanity check we've added factors at any/every frame
     // that we have a motion for
 
+    CHECK(obj_lmk_node->seenAtFrame(lRKF_id));
     std::set<FrameId>& frames_with_factors_added =
         factors_added_.at(tracklet_id);
     const bool factor_not_added_for_lRKF =
@@ -1462,6 +1463,16 @@ void HybridFormulationKeyFrame::updateObject(
     addHybridMotionFactor(new_factors, pose_key_kf, object_motion_key_kf,
                           point_key, AKF_pose, obj_lmk_node, frame_node_kf);
     frames_with_factors_added.insert(frame_id_kf);
+
+    {
+      // do a sanity check that we've added all meaasurement factors for this
+      // point
+      const FrameIds frames_with_measurements = obj_lmk_node->getSeenFrameIds();
+      FrameIds frames_with_factors_added_vec(frames_with_factors_added.begin(),
+                                             frames_with_factors_added.end());
+      CHECK(equals_with_abs_tol(frames_with_measurements,
+                                frames_with_factors_added_vec));
+    }
 
     // if(!smoothing_factors_added_.exists(object_motion_key_kf)) {
     //   // check we have the previous keyframed motion
@@ -1534,33 +1545,19 @@ void HybridFormulationKeyFrame::addObjects(
 
   for (const auto& [object_id, object_info] : object_motion_info) {
     CHECK(object_info.isKeyFrame());
-    // intermediate keyframe?
-    const bool regular_keyframe = object_info.regular_keyframe;
-    const bool anchor_keyframe = object_info.anchor_keyframe;
-    const ObjectTrackingStatus& object_motion_tracking_status =
-        object_info.motion_track_status;
-
     // estimated keyframe motioa from the frontend
     // in this case k is the current but will now also be the latest KF
     const Motion3ReferenceFrame& H_W_RKF_k = object_info.H_W_KF_k;
+    const ObjectKeyFrameStatus keyframe_status = object_info.keyframe_status;
 
     KeyFrameMetaData kf_data;
-    kf_data.is_regular = regular_keyframe;
-    kf_data.is_anchor = anchor_keyframe;
+    kf_data.keyframe_status = keyframe_status;
     kf_data.H_W_lRKF_KF = H_W_RKF_k;
 
     key_frames_per_object_.insert22(object_id, frame_id, kf_data);
 
-    if (anchor_keyframe) CHECK(regular_keyframe);
-
     LOG(INFO) << "Processing object track: " << info_string(frame_id, object_id)
-              << " keyframe status: anchor_keyframe=" << anchor_keyframe
-              << " regular_keyframe=" << regular_keyframe << " tracking_status="
-              << to_string(object_motion_tracking_status);
-
-    const bool is_only_regular_keyframe = regular_keyframe && !anchor_keyframe;
-
-    CHECK(object_motion_tracking_status != ObjectTrackingStatus::PoorlyTracked);
+              << " keyframe status: " << keyframe_status;
 
     // TODO: we initalie the new KF with the pose provided from the frontend
     // for consistency. This is fine when the object observations are
@@ -1596,13 +1593,7 @@ void HybridFormulationKeyFrame::addObjects(
     // sanity check
     // if (object_motion_tracking_status == ObjectTrackingStatus::New ||
     //     object_motion_tracking_status == ObjectTrackingStatus::ReTracked)
-    if (!is_only_regular_keyframe) {
-      // no previous keyframes should exist
-      // CHECK(!front_end_keyframes_.exists(object_id));
-      // if(object_motion_tracking_status == ObjectTrackingStatus::New)
-      CHECK(anchor_keyframe);
-      CHECK(regular_keyframe);
-
+    if (keyframe_status == ObjectKeyFrameStatus::AnchorKeyFrame) {
       key_frame_data_.startNewActiveRange(object_id, H_W_RKF_k.from(),
                                           object_info.L_W_k);
       LOG(INFO) << "Making Anchor KF for NEW object "
@@ -1620,10 +1611,7 @@ void HybridFormulationKeyFrame::addObjects(
       // } else if (object_motion_tracking_status ==
       //            ObjectTrackingStatus::WellTracked) {
     } else {
-      CHECK(regular_keyframe);
-      CHECK(object_motion_tracking_status == ObjectTrackingStatus::WellTracked);
-      //
-      CHECK(!anchor_keyframe);
+      CHECK_EQ(keyframe_status, ObjectKeyFrameStatus::RegularKeyFrame);
 
       const KeyFrameRange::ConstPtr last_frontend_range =
           front_end_keyframes_.find(object_id, frame_id);
@@ -1681,12 +1669,17 @@ void HybridFormulationKeyFrame::addObjects(
         // TODO: eventually should come from optimizer
         CHECK(initial_H_W_AKF_k_.exists(object_id, lRKF_id));
         // from current anchor keyframe to last regular kf
-        const auto H_W_AKF_lKF = initial_H_W_AKF_k_.at(object_id, lRKF_id);
-        // check the last keyframed motion does indeed take us from the
-        // anchor
-        // kf
-        //  to the lastest regular keyframe
-        // which is also the start of the new motion H_W_lRKF_RKF
+        const auto H_W_AKF_lKF_initial =
+            initial_H_W_AKF_k_.at(object_id, lRKF_id);
+
+        const StateQuery<Motion3ReferenceFrame> H_W_AKF_lKF_refined =
+            accessor->getEstimatedMotion(object_id, lRKF_id);
+
+        Motion3ReferenceFrame H_W_AKF_lKF;
+        // use refined motion estimate if available, otherwise fall back to
+        // initial NOTE: I think the refined query should ALways be available
+        getSafeQuery(H_W_AKF_lKF, H_W_AKF_lKF_refined, H_W_AKF_lKF_initial);
+
         CHECK_EQ(H_W_AKF_lKF.from(), backend_kf_id);
         CHECK_EQ(H_W_AKF_lKF.to(), lRKF_id);
 

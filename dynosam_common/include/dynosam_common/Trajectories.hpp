@@ -173,7 +173,6 @@ class TrajectoryBase {
 
     if (!start && !end) {
       return derived();
-      ;
     }
 
     auto begin_it =

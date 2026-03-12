@@ -306,23 +306,6 @@ using FeaturePair =
               Feature::Ptr>;  //! Pair of feature (shared) pointers
 using FeaturePairs = std::vector<FeaturePair>;  //! Vector of feature pairs
 
-// some typedefs and trait types
-namespace internal {
-
-/// @brief Alias for checking if the parsed iterator has a value_type equivalent
-/// to Feature::Ptr, in other words, that the template iterates over Feature
-/// Ptr's.
-/// @tparam Iter
-template <typename Iter>
-using is_feature_ptr_iterator =
-    std::is_same<Feature::Ptr, typename Iter::value_type>;
-
-template <typename Iter>
-using enable_if_feature_ptr_iterator =
-    typename std::enable_if<is_feature_ptr_iterator<Iter>::value, void>::type;
-
-}  // namespace internal
-
 struct UsableFeaturePredicate {
   bool operator()(const Feature::Ptr& f) const { return Feature::IsUsable(f); }
 };
@@ -692,45 +675,3 @@ using ConstFeatureIterator =
     internal::FilterView<const FeatureContainer, Predicate>;
 
 }  // namespace dyno
-
-// add iterator traits so we can use smart thigns on the FeatureFilterIterator
-// like std::count, std::distance...
-// template <>
-// struct std::iterator_traits<dyno::FeatureFilterIterator>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureFilterIterator::pointer> {};
-
-// template <>
-// struct std::iterator_traits<dyno::ConstFeatureFilterIterator>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureFilterIterator::pointer> {};
-
-// template <>
-// struct std::iterator_traits<dyno::FeatureContainer::vector_iterator>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureContainer::vector_iterator::pointer> {};
-
-// template <>
-// struct std::iterator_traits<dyno::FeatureContainer::const_vector_iterator>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureContainer::const_vector_iterator::pointer> {};
-
-// template <>
-// struct std::iterator_traits<dyno::FeatureContainer>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureContainer::pointer> {};
-
-// template <>
-// struct std::iterator_traits<const dyno::FeatureContainer>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeatureContainer::const_pointer> {};
-
-// template <>
-// struct std::iterator_traits<dyno::FeaturePtrs>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeaturePtrs::pointer> {};
-
-// template <>
-// struct std::iterator_traits<const dyno::FeaturePtrs>
-//     : public dyno::internal::filter_iterator_detail<
-//           dyno::FeaturePtrs::const_pointer> {};

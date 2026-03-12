@@ -473,6 +473,9 @@ class IncrementalInterface {
     } catch (gtsam::ValuesKeyDoesNotExist& e) {
       LOG(FATAL) << "gtsam::ValuesKeyDoesNotExist with variable "
                  << DynosamKeyFormatter(e.key());
+    } catch (gtsam::ValuesKeyAlreadyExists& e) {
+      LOG(FATAL) << "gtsam::ValuesKeyAlreadyExists with variable "
+                 << DynosamKeyFormatter(e.key());
     }
     return true;
   }

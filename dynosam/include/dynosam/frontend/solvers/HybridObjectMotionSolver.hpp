@@ -1,6 +1,5 @@
 #pragma once
 
-#include "dynosam/backend/rgbd/HybridEstimator.hpp"  //for pose change info
 #include "dynosam/frontend/Frontend-Definitions.hpp"
 #include "dynosam/frontend/solvers/HybridObjectMotionSRIF.hpp"
 #include "dynosam/frontend/solvers/HybridObjectMotionSmoother.hpp"
@@ -10,6 +9,7 @@
 #include "dynosam/frontend/solvers/PnPRansac.hpp"
 #include "dynosam/frontend/vision/Frame.hpp"
 #include "dynosam_common/GroundTruthPacket.hpp"
+#include "dynosam_common/MotionKeyFrame.hpp"
 #include "dynosam_cv/Camera.hpp"
 
 namespace dyno {
