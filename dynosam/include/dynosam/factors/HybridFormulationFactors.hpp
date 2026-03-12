@@ -119,6 +119,14 @@ struct HybridObjectMotion {
                                  const gtsam::Point3& m_L,
                                  const gtsam::Point3& Z_k,
                                  const gtsam::Pose3& L_e);
+
+  static gtsam::Vector6 constantMotionResidual(
+      const gtsam::Pose3& H_W_KF_km2, const gtsam::Pose3& L_W_KFkm2,
+      const gtsam::Pose3& H_W_KF_km1, const gtsam::Pose3& L_W_KFkm1,
+      const gtsam::Pose3& H_W_KF_k, const gtsam::Pose3& L_W_KFk,
+      boost::optional<gtsam::Matrix&> J1 = boost::none,
+      boost::optional<gtsam::Matrix&> J2 = boost::none,
+      boost::optional<gtsam::Matrix&> J3 = boost::none);
 };
 
 /**
@@ -410,35 +418,94 @@ class BatchStereoHybridMotionFactor3 : public gtsam::NonlinearFactor {
  * object motion in the body frame of the object.
  *
  */
-class HybridSmoothingFactor
+class HybridSmoothingFactorBase
     : public gtsam::NoiseModelFactor3<gtsam::Pose3, gtsam::Pose3,
                                       gtsam::Pose3> {
  public:
-  typedef boost::shared_ptr<HybridSmoothingFactor> shared_ptr;
-  typedef HybridSmoothingFactor This;
+  typedef boost::shared_ptr<HybridSmoothingFactorBase> shared_ptr;
+  typedef HybridSmoothingFactorBase This;
   typedef gtsam::NoiseModelFactor3<gtsam::Pose3, gtsam::Pose3, gtsam::Pose3>
       Base;
 
-  gtsam::Pose3 L_e_;
+  HybridSmoothingFactorBase(gtsam::Key H_W_KF_km2_key,
+                            gtsam::Key H_W_KF_km1_key, gtsam::Key H_W_KF_k_key,
+                            gtsam::SharedNoiseModel model)
+      : Base(model, H_W_KF_km2_key, H_W_KF_km1_key, H_W_KF_k_key) {}
+
+  gtsam::Vector evaluateError(
+      const gtsam::Pose3& H_W_KF_km2, const gtsam::Pose3& H_W_KF_km1,
+      const gtsam::Pose3& H_W_KF_k,
+      boost::optional<gtsam::Matrix&> J1 = boost::none,
+      boost::optional<gtsam::Matrix&> J2 = boost::none,
+      boost::optional<gtsam::Matrix&> J3 = boost::none) const override;
+
+  virtual const gtsam::Pose3& keyframePosekm2() const = 0;
+  virtual const gtsam::Pose3& keyframePosekm1() const = 0;
+  virtual const gtsam::Pose3& keyframePosek() const = 0;
+};
+
+/**
+ * @brief Implements a 3-way smoothing factor on the (key-framed) object motion.
+ * This is analgous to a constant motion prior and minimises the change in
+ * object motion in the body frame of the object.
+ *
+ * Assumes all motions refer to the same keyframe pose
+ *
+ */
+class HybridSmoothingFactor : public HybridSmoothingFactorBase {
+ public:
+  typedef boost::shared_ptr<HybridSmoothingFactor> shared_ptr;
+  typedef HybridSmoothingFactor This;
 
   HybridSmoothingFactor(gtsam::Key e_H_km2_world_key,
                         gtsam::Key e_H_km1_world_key,
                         gtsam::Key e_H_k_world_key, const gtsam::Pose3& L_e,
                         gtsam::SharedNoiseModel model)
-      : Base(model, e_H_km2_world_key, e_H_km1_world_key, e_H_k_world_key),
+      : HybridSmoothingFactorBase(e_H_km2_world_key, e_H_km1_world_key,
+                                  e_H_k_world_key, model),
         L_e_(L_e) {}
 
-  gtsam::Vector evaluateError(
-      const gtsam::Pose3& e_H_km2_world, const gtsam::Pose3& e_H_km1_world,
-      const gtsam::Pose3& e_H_k_world,
-      boost::optional<gtsam::Matrix&> J1 = boost::none,
-      boost::optional<gtsam::Matrix&> J2 = boost::none,
-      boost::optional<gtsam::Matrix&> J3 = boost::none) const override;
+  const gtsam::Pose3& keyframePosekm2() const override { return L_e_; }
+  const gtsam::Pose3& keyframePosekm1() const override { return L_e_; }
+  const gtsam::Pose3& keyframePosek() const override { return L_e_; }
 
-  static gtsam::Vector residual(const gtsam::Pose3& e_H_km2_world,
-                                const gtsam::Pose3& e_H_km1_world,
-                                const gtsam::Pose3& e_H_k_world,
-                                const gtsam::Pose3& L_e);
+ private:
+  gtsam::Pose3 L_e_;
+};
+
+/**
+ * @brief Implements a 3-way smoothing factor on the (key-framed) object motion.
+ * This is analgous to a constant motion prior and minimises the change in
+ * object motion in the body frame of the object.
+ *
+ * Same as HybridSmoothingFactor except each motion can be associated with a
+ * different pose
+ *
+ */
+class HybridSmoothingFactor2 : public HybridSmoothingFactorBase {
+ public:
+  typedef boost::shared_ptr<HybridSmoothingFactor2> shared_ptr;
+  typedef HybridSmoothingFactor2 This;
+
+  HybridSmoothingFactor2(gtsam::Key H_W_KF_km2_key, gtsam::Key H_W_KF_km1_key,
+                         gtsam::Key H_W_KF_k_key, const gtsam::Pose3& L_W_KFkm2,
+                         const gtsam::Pose3& L_W_KFkm1,
+                         const gtsam::Pose3& L_W_KFk,
+                         gtsam::SharedNoiseModel model)
+      : HybridSmoothingFactorBase(H_W_KF_km2_key, H_W_KF_km1_key, H_W_KF_k_key,
+                                  model),
+        L_W_KFkm2_(L_W_KFkm2),
+        L_W_KFkm1_(L_W_KFkm1),
+        L_W_KFk_(L_W_KFk) {}
+
+  const gtsam::Pose3& keyframePosekm2() const override { return L_W_KFkm2_; }
+  const gtsam::Pose3& keyframePosekm1() const override { return L_W_KFkm1_; }
+  const gtsam::Pose3& keyframePosek() const override { return L_W_KFk_; }
+
+ private:
+  gtsam::Pose3 L_W_KFkm2_;
+  gtsam::Pose3 L_W_KFkm1_;
+  gtsam::Pose3 L_W_KFk_;
 };
 
 }  // namespace dyno

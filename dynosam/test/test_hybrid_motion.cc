@@ -41,6 +41,23 @@ gtsam::Point3 projectToCamera3(const gtsam::Pose3& X_k,
   return m_camera_k;
 }
 
+gtsam::Vector6 hybridSmoothingResidual(const gtsam::Pose3& e_H_km2_world,
+                                       const gtsam::Pose3& e_H_km1_world,
+                                       const gtsam::Pose3& e_H_k_world,
+                                       const gtsam::Pose3& L_e) {
+  const gtsam::Pose3 L_k_2 = e_H_km2_world * L_e;
+  const gtsam::Pose3 L_k_1 = e_H_km1_world * L_e;
+  const gtsam::Pose3 L_k = e_H_k_world * L_e;
+
+  gtsam::Pose3 k_2_H_k_1 = L_k_2.inverse() * L_k_1;
+  gtsam::Pose3 k_1_H_k = L_k_1.inverse() * L_k;
+
+  gtsam::Pose3 relative_motion = k_2_H_k_1.inverse() * k_1_H_k;
+
+  return gtsam::traits<gtsam::Pose3>::Local(gtsam::Pose3::Identity(),
+                                            relative_motion);
+}
+
 }  // namespace Original
 
 TEST(HybridObjectMotion, testProjections) {
@@ -256,6 +273,70 @@ TEST_F(HybridMotionTest, ProjectToCamera3_Jacobians) {
   EXPECT_TRUE(assert_equal(num_H_L, H_L, 1e-5));
   EXPECT_TRUE(assert_equal(num_H_m, H_m, 1e-5));
 }
+
+// TEST(HybridSmoothingFactor, JacobiansMatchNumerical)
+// {
+//     gtsam::Pose3 H_km2 = utils::createRandomAroundIdentity<gtsam::Pose3>(2.0,
+//     12); gtsam::Pose3 H_km1 =
+//     utils::createRandomAroundIdentity<gtsam::Pose3>(1.0, 45); gtsam::Pose3
+//     H_k   = utils::createRandomAroundIdentity<gtsam::Pose3>(4, 69);
+//     gtsam::Pose3 L_k   = utils::createRandomAroundIdentity<gtsam::Pose3>(2,
+//     14);
+
+//     HybridSmoothingFactor factor(1, 2, 3, L_k, nullptr);
+
+//     gtsam::Matrix H1,H2,H3;
+
+//     gtsam::Vector6 r = factor.evaluateError(
+//         H_km2,H_km1,H_k,
+//         H1,H2,H3);
+
+//     gtsam::Matrix H1_num = numericalDerivative31<Vector6,Pose3,Pose3,Pose3>(
+//         [&](const Pose3& a,const Pose3& b,const Pose3& c){
+//             return factor.evaluateError(a,b,c);
+//         }, H_km2,H_km1,H_k);
+
+//     gtsam::Matrix H2_num = numericalDerivative32<Vector6,Pose3,Pose3,Pose3>(
+//         [&](const Pose3& a,const Pose3& b,const Pose3& c){
+//             return factor.evaluateError(a,b,c);
+//         }, H_km2,H_km1,H_k);
+
+//     gtsam::Matrix H3_num = numericalDerivative33<Vector6,Pose3,Pose3,Pose3>(
+//         [&](const Pose3& a,const Pose3& b,const Pose3& c){
+//             return factor.evaluateError(a,b,c);
+//         }, H_km2,H_km1,H_k);
+
+//     EXPECT_TRUE(assert_equal(H1,H1_num,1e-6));
+//     EXPECT_TRUE(assert_equal(H2,H2_num,1e-6));
+//     EXPECT_TRUE(assert_equal(H3,H3_num,1e-6));
+// }
+
+// TEST(HybridSmoothingFactor, testMatchesOriginal)
+// {
+//     gtsam::Pose3 H_km2 = utils::createRandomAroundIdentity<gtsam::Pose3>(2.0,
+//     12); gtsam::Pose3 H_km1 =
+//     utils::createRandomAroundIdentity<gtsam::Pose3>(1.0, 45); gtsam::Pose3
+//     H_k   = utils::createRandomAroundIdentity<gtsam::Pose3>(4, 69);
+//     gtsam::Pose3 L_k   = utils::createRandomAroundIdentity<gtsam::Pose3>(2,
+//     14);
+
+//     HybridSmoothingFactor factor(1, 2, 3, L_k, nullptr);
+
+//     gtsam::Matrix H1,H2,H3;
+
+//     gtsam::Vector6 result_new = factor.evaluateError(
+//         H_km2,H_km1,H_k,
+//         H1,H2,H3);
+
+//     gtsam::Vector6 result_orig = Original::hybridSmoothingResidual(
+//       H_km2,
+//       H_km1,
+//       H_k,
+//       L_k
+//     );
+
+//     EXPECT_TRUE(assert_equal(result_orig, result_new, 1e-9));
+// }
 
 class StereoHybridFactorTest : public ::testing::Test {
  protected:

@@ -237,8 +237,8 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   virtual gtsam::Pose3 keyFrameMotionImpl(
       FrameId frame_id, const gtsam::Values& values) const = 0;
 
-  virtual void onNewKeyFrameMotion(
-      const dyno::ISAM2& smoother_before_reset) = 0;
+  virtual void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset,
+                                   const gtsam::Pose3 new_L_KF) = 0;
 
   // Result updateFromInitialMotionFullState(const gtsam::Pose3&
   // H_W_KF_k_initial,
@@ -313,10 +313,6 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   std::atomic_bool has_point_update_{false};
   // this is a really hack way to do this point update - just do for now!
   std::vector<std::pair<TrackletId, gtsam::Point3>> updated_points_;
-  //! Best estimate of all values since the last KF
-  //! May include more values that what is currently in the smoother window
-  gtsam::Values state_since_lKF_;
-
   /** An iSAM2 object used to perform inference. The smoother lag is controlled
    * by what factors are removed each iteration */
   // gtsam::ISAM2 isam_;
@@ -333,8 +329,6 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
   // gtsam::FastMap<BatchStereoHybridMotionFactor3::shared_ptr, TrackletId>
   //     mo_factor_to_tracklet_id_
 
-  gtsam::Values all_m_L_points_;
-
   // // Keyframe LM solve stuff
   // gtsam::NonlinearFactorGraph KF_factors_;
   // gtsam::Values KF_values_;
@@ -348,9 +342,17 @@ class HybridObjectMotionSmoother : public HybridObjectMotionSolverImpl,
       const gtsam::KeyVector& marginalizableKeys,
       boost::optional<gtsam::FastMap<gtsam::Key, int>>& constrainedKeys) const;
 
+  // for now
+  gtsam::Values all_states_;
+
  private:
   //! Updated every update and includes only values in the smoother
   gtsam::Values smoother_state_;
+  //! Best estimate of all values since the last KF
+  //! May include more values that what is currently in the smoother window
+  gtsam::Values state_since_lKF_;
+
+  gtsam::Values all_m_L_points_;
 
  private:
   inline gtsam::FixedLagSmootherResult update(
@@ -377,17 +379,25 @@ class HybridObjectMotionOnlySmoother : public HybridObjectMotionSmoother {
   gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
                                   const gtsam::Values& values) const override;
 
-  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset,
+                           const gtsam::Pose3 new_L_KF) override;
 
+ private:
  private:
   GenericFactorMap<TrackletFramePair, StereoHybridMotionFactor3::shared_ptr>
       mo_factor_map_;
+
+  // actually dont think we need this...
+  // By last frame, so expected frame-2 and frame-1 to be present
+  gtsam::FastMap<FrameId, HybridSmoothingFactor::shared_ptr> smoothing_factors_;
+
   // FactorMap<BatchStereoHybridMotionFactor3::shared_ptr> mo_factor_map_;
   gtsam::FastMap<StereoHybridMotionFactor3::shared_ptr, TrackletFramePair>
       mo_factor_to_tracklet_id_;
 
   gtsam::FastMap<TrackletId, FrameIds> trackletid_to_frame_ids_;
   // Object Motion Symbol to observing tracklets
+  // Allows implicit lookup by frame id since ObjectMotionSymbol uses frame id
   gtsam::FastMap<gtsam::Key, TrackletIds> object_motion_to_tracklets_;
 
   // For motion only
@@ -410,7 +420,8 @@ class HybridObjectMotionSmartSmoother : public HybridObjectMotionSmoother {
   gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
                                   const gtsam::Values& values) const override;
 
-  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset,
+                           const gtsam::Pose3 new_L_KF) override;
 
  private:
   gtsam::FastMap<FrameId, gtsam::Pose3> camera_poses_;
@@ -437,7 +448,8 @@ class HybridObjectMotionFullSmoother : public HybridObjectMotionSmoother {
   gtsam::Pose3 keyFrameMotionImpl(FrameId frame_id,
                                   const gtsam::Values& values) const override;
 
-  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset) override;
+  void onNewKeyFrameMotion(const dyno::ISAM2& smoother_before_reset,
+                           const gtsam::Pose3 new_L_KF) override;
 };
 
 using json = nlohmann::json;

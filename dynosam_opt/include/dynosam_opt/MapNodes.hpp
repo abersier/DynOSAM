@@ -330,24 +330,6 @@ class StateQuery : public std::optional<ValueType> {
   }
 
  private:
-  // template<typename ValueType, typename OtherValueType, typename...Args>
-  //   struct TemplateHelper {
-  //     using ValueQuery = StateQuery<ValueType>;
-  //     using OtherValueQuery = StateQuery<OtherValueType>;
-
-  //       static OtherValueQuery create(const Args&&... args) {
-  //         ValueQuery& query_input =
-  //         std::get<ValueQuery>(std::forward_as_tuple(std::forward<T>(args)...));
-
-  //         if(!query_input) {
-  //           return OtherValueQuery(query_input.key_, query_input.status_);
-  //         }
-  //         else {
-  //           return
-  //         }
-  //       }
-
-  //   }
 };
 
 /**

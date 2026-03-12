@@ -172,6 +172,59 @@ gtsam::Vector3 HybridObjectMotion::residual(const gtsam::Pose3& X_k,
   return projectToCamera3(X_k, e_H_k_world, L_e, m_L) - Z_k;
 }
 
+gtsam::Vector6 HybridObjectMotion::constantMotionResidual(
+    const gtsam::Pose3& H_W_KF_km2, const gtsam::Pose3& L_W_KFkm2,
+    const gtsam::Pose3& H_W_KF_km1, const gtsam::Pose3& L_W_KFkm1,
+    const gtsam::Pose3& H_W_KF_k, const gtsam::Pose3& L_W_KFk,
+    boost::optional<gtsam::Matrix&> J1, boost::optional<gtsam::Matrix&> J2,
+    boost::optional<gtsam::Matrix&> J3) {
+  // note argument ordering is different!!
+  auto residual =
+      [](const gtsam::Pose3& H_W_KF_km2, const gtsam::Pose3& H_W_KF_km1,
+         const gtsam::Pose3& H_W_KF_k, const gtsam::Pose3& L_W_KFkm2,
+         const gtsam::Pose3& L_W_KFkm1,
+         const gtsam::Pose3& L_W_KFk) -> gtsam::Vector6 {
+    const gtsam::Pose3 L_k_2 = H_W_KF_km2 * L_W_KFkm2;
+    const gtsam::Pose3 L_k_1 = H_W_KF_km1 * L_W_KFkm1;
+    const gtsam::Pose3 L_k = H_W_KF_k * L_W_KFk;
+
+    gtsam::Pose3 k_2_H_k_1 = L_k_2.inverse() * L_k_1;
+    gtsam::Pose3 k_1_H_k = L_k_1.inverse() * L_k;
+
+    gtsam::Pose3 relative_motion = k_2_H_k_1.inverse() * k_1_H_k;
+
+    return gtsam::traits<gtsam::Pose3>::Local(gtsam::Pose3::Identity(),
+                                              relative_motion);
+  };
+
+  if (J1) {
+    *J1 = gtsam::numericalDerivative31<gtsam::Vector6, gtsam::Pose3,
+                                       gtsam::Pose3, gtsam::Pose3>(
+        std::bind(residual, std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3, L_W_KFkm2, L_W_KFkm1, L_W_KFk),
+        H_W_KF_km2, H_W_KF_km1, H_W_KF_k);
+  }
+
+  if (J2) {
+    *J2 = gtsam::numericalDerivative32<gtsam::Vector6, gtsam::Pose3,
+                                       gtsam::Pose3, gtsam::Pose3>(
+        std::bind(residual, std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3, L_W_KFkm2, L_W_KFkm1, L_W_KFk),
+        H_W_KF_km2, H_W_KF_km1, H_W_KF_k);
+  }
+
+  if (J3) {
+    *J3 = gtsam::numericalDerivative33<gtsam::Vector6, gtsam::Pose3,
+                                       gtsam::Pose3, gtsam::Pose3>(
+        std::bind(residual, std::placeholders::_1, std::placeholders::_2,
+                  std::placeholders::_3, L_W_KFkm2, L_W_KFkm1, L_W_KFk),
+        H_W_KF_km2, H_W_KF_km1, H_W_KF_k);
+  }
+
+  return residual(H_W_KF_km2, H_W_KF_km1, H_W_KF_k, L_W_KFkm2, L_W_KFkm1,
+                  L_W_KFk);
+}
+
 gtsam::Vector HybridMotionFactor::evaluateError(
     const gtsam::Pose3& X_k, const gtsam::Pose3& e_H_k_world,
     const gtsam::Point3& m_L, boost::optional<gtsam::Matrix&> J1,
@@ -495,52 +548,14 @@ void BatchStereoHybridMotionFactor3::add(const gtsam::StereoPoint2& measured,
                         H_W_K_k_key, true);
 }
 
-gtsam::Vector HybridSmoothingFactor::evaluateError(
-    const gtsam::Pose3& e_H_km2_world, const gtsam::Pose3& e_H_km1_world,
-    const gtsam::Pose3& e_H_k_world, boost::optional<gtsam::Matrix&> J1,
+gtsam::Vector HybridSmoothingFactorBase::evaluateError(
+    const gtsam::Pose3& H_W_KF_km2, const gtsam::Pose3& H_W_KF_km1,
+    const gtsam::Pose3& H_W_KF_k, boost::optional<gtsam::Matrix&> J1,
     boost::optional<gtsam::Matrix&> J2,
     boost::optional<gtsam::Matrix&> J3) const {
-  if (J1) {
-    *J1 = gtsam::numericalDerivative31<gtsam::Vector6, gtsam::Pose3,
-                                       gtsam::Pose3, gtsam::Pose3>(
-        std::bind(&HybridSmoothingFactor::residual, std::placeholders::_1,
-                  std::placeholders::_2, std::placeholders::_3, L_e_),
-        e_H_km2_world, e_H_km1_world, e_H_k_world);
-  }
-
-  if (J2) {
-    *J2 = gtsam::numericalDerivative32<gtsam::Vector6, gtsam::Pose3,
-                                       gtsam::Pose3, gtsam::Pose3>(
-        std::bind(&HybridSmoothingFactor::residual, std::placeholders::_1,
-                  std::placeholders::_2, std::placeholders::_3, L_e_),
-        e_H_km2_world, e_H_km1_world, e_H_k_world);
-  }
-
-  if (J3) {
-    *J3 = gtsam::numericalDerivative33<gtsam::Vector6, gtsam::Pose3,
-                                       gtsam::Pose3, gtsam::Pose3>(
-        std::bind(&HybridSmoothingFactor::residual, std::placeholders::_1,
-                  std::placeholders::_2, std::placeholders::_3, L_e_),
-        e_H_km2_world, e_H_km1_world, e_H_k_world);
-  }
-
-  return residual(e_H_km2_world, e_H_km1_world, e_H_k_world, L_e_);
-}
-gtsam::Vector HybridSmoothingFactor::residual(const gtsam::Pose3& e_H_km2_world,
-                                              const gtsam::Pose3& e_H_km1_world,
-                                              const gtsam::Pose3& e_H_k_world,
-                                              const gtsam::Pose3& L_e) {
-  const gtsam::Pose3 L_k_2 = e_H_km2_world * L_e;
-  const gtsam::Pose3 L_k_1 = e_H_km1_world * L_e;
-  const gtsam::Pose3 L_k = e_H_k_world * L_e;
-
-  gtsam::Pose3 k_2_H_k_1 = L_k_2.inverse() * L_k_1;
-  gtsam::Pose3 k_1_H_k = L_k_1.inverse() * L_k;
-
-  gtsam::Pose3 relative_motion = k_2_H_k_1.inverse() * k_1_H_k;
-
-  return gtsam::traits<gtsam::Pose3>::Local(gtsam::Pose3::Identity(),
-                                            relative_motion);
+  return HybridObjectMotion::constantMotionResidual(
+      H_W_KF_km2, this->keyframePosekm2(), H_W_KF_km1, this->keyframePosekm1(),
+      H_W_KF_k, this->keyframePosek(), J1, J2, J3);
 }
 
 }  // namespace dyno
