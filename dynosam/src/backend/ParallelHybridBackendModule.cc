@@ -380,7 +380,7 @@ Pose3Measurement ParallelHybridBackendModule::bootstrapUpdateStaticEstimator(
     if (sym.chr() == kImuBiasSymbolChar || sym.chr() == kVelocitySymbolChar) {
       continue;
     }
-    timestamps[key_value.key] = curr_id;
+    // timestamps[key_value.key] = curr_id;
   }
 
   {
@@ -443,7 +443,7 @@ Pose3Measurement ParallelHybridBackendModule::nominalUpdateStaticEstimator(
     if (sym.chr() == kImuBiasSymbolChar || sym.chr() == kVelocitySymbolChar) {
       continue;
     }
-    timestamps[key_value.key] = curr_id;
+    // timestamps[key_value.key] = curr_id;
   }
 
   utils::StatsCollector stats("parallel_object_sam.static_estimator.update");

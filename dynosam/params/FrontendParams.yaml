@@ -14,7 +14,7 @@ max_object_depth: 30.0
 use_ego_motion_pnp: True
 # When using rgbd-pipeline, camera-motion will be solved using 3d-2d pnp, not stereo (3d-3d) pnp
 use_object_motion_pnp: True
-refine_camera_pose_with_joint_of: True
+refine_camera_pose_with_joint_of: False
 
 object_motion_solver:
   ransac_threshold_pnp: 1.0
