@@ -40,7 +40,6 @@
 #include "dynosam_common/utils/SafeCast.hpp"
 #include "dynosam_opt/Map.hpp"
 
-// DECLARE_string(updater_suffix);
 
 namespace dyno {
 
@@ -61,11 +60,25 @@ class BackendModule : public ModuleBase<INPUT, DynoState>, public Backend {
   using This = BackendModule<INPUT>;
   DYNO_POINTER_TYPEDEFS(This)
 
-  BackendModule(const BackendParams& params, Camera::Ptr camera)
+  BackendModule(const BackendParams& params, Camera::Ptr camera, const SharedGroundTruth& shared_ground_truth)
       : Base("backend"),
         backend_params_(params),
         camera_(CHECK_NOTNULL(camera)),
-        noise_models_(NoiseModels::fromBackendParams(params)) {}
+        noise_models_(NoiseModels::fromBackendParams(params)),
+        shared_ground_truth_(shared_ground_truth) 
+      {
+
+        if(VLOG_IS_ON(10)) {
+
+          if(shared_ground_truth_.valid()) {
+            LOG(INFO) << "Backend initalised with valid ground truth";
+          }
+          else {
+            LOG(INFO) << "Backend initalised without ground truth";
+          }
+        }
+      }
+
   virtual ~BackendModule() = default;
 
   // something about callback here too?
@@ -106,6 +119,8 @@ class BackendModule : public ModuleBase<INPUT, DynoState>, public Backend {
     DynoState::Ptr state = std::make_shared<DynoState>();
 
     const auto camera_trajectory = accessor->getCameraTrajectory();
+    LOG(INFO) << camera_trajectory;
+
     // expect frame and timestamp to be from the last entry
     const auto last_camera_entry = camera_trajectory.last();
     state->frame_id = last_camera_entry.frame_id;
@@ -131,6 +146,7 @@ class BackendModule : public ModuleBase<INPUT, DynoState>, public Backend {
   const BackendParams backend_params_;
   Camera::Ptr camera_;
   const NoiseModels noise_models_;
+  const SharedGroundTruth shared_ground_truth_;
 };
 
 // For modules that have a single internal map
@@ -146,8 +162,8 @@ class BackendModuleT : public BackendModule<INPUT> {
       const typename FormulationT::Ptr&, FrameId, const gtsam::Values&,
       const gtsam::NonlinearFactorGraph&)>;
 
-  BackendModuleT(const BackendParams& params, Camera::Ptr camera)
-      : Base(params, camera), map_(MapT::create()) {}
+  BackendModuleT(const BackendParams& params, Camera::Ptr camera, const SharedGroundTruth& shared_ground_truth)
+      : Base(params, camera, shared_ground_truth), map_(MapT::create()) {}
   virtual ~BackendModuleT() = default;
 
   const typename MapT::Ptr map() { return map_; }

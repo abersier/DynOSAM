@@ -291,7 +291,6 @@ class StateQuery : public std::optional<ValueType> {
  public:
   //! Base type representing the existance of the query value
   using Base = std::optional<ValueType>;
-  using Base::value_or;
 
   //! Status of the state query
   using Status = StateQueryStatus;
@@ -307,14 +306,16 @@ class StateQuery : public std::optional<ValueType> {
   }
   StateQuery(gtsam::Key key, Status status) : key_(key), status_(status) {}
 
-  // template<typename OtherValueType, typename...Args>
-
   const ValueType& get() const {
     if (!Base::has_value())
       throw DynosamException("StateQuery has no value for query type " +
                              type_name<ValueType>() + " with key " +
                              DynosamKeyFormatter(key_));
     return Base::value();
+  }
+
+  ValueType getOr(const ValueType& default_value) const {
+    return Base::value_or(default_value);
   }
 
   bool isValid() const { return status_ == VALID; }
@@ -330,8 +331,9 @@ class StateQuery : public std::optional<ValueType> {
   }
 
  private:
+  using Base::value;
+  using Base::value_or;
 };
-
 /**
  * @brief Safe getter to a StateQuery object.
  * If the StateQuery is successful, result is set to the value of the query and
@@ -837,10 +839,10 @@ class LandmarkNode : public MapNodeBase<MEASUREMENT> {
 namespace internal {
 
 template <typename T>
-T getStateQueryDebugHelper(const StateQuery<T> query, const char* file,
+T getStateQueryDebugHelper(const StateQuery<T>& query, const char* file,
                            int line) {
   try {
-    return query.value();
+    return query.get();
   } catch (const DynosamException& e) {
     throw DynosamExceptionDebug(e.what(), file, line);
   }

@@ -32,19 +32,27 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::boostrapSpin(
   const auto frame_id_k = input->getFrameId();
   const auto timestamp_k = input->getTimestamp();
 
+  gtsam::Pose3 X_W_k_initial = gtsam::Pose3::Identity();
+  dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
+                                       X_W_k_initial);
+
+
   VisionImuPacket::Ptr vision_imu_packet = std::make_shared<VisionImuPacket>();
   vision_imu_packet->frameId(frame_id_k);
   vision_imu_packet->timestamp(timestamp_k);
   vision_imu_packet->groundTruthPacket(input->optional_gt_);
-  // TODO: fill measurements
-  // TODO: send to backend
+  
+  // no motion as first frame!
+  const gtsam::Pose3 T_km1_k = gtsam::Pose3::Identity();
+  T_km1_k_ = T_km1_k;
+  fillOutputPacketWithTracks(vision_imu_packet, *frame_k, X_W_k_initial,
+                             T_km1_k_, dyno_state_.object_trajectories);
+
 
   if (regular_backend_output_sink_) {
     regular_backend_output_sink_(vision_imu_packet);
   }
 
-  dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
-                                       gtsam::Pose3::Identity());
 
   RealtimeOutput::Ptr realtime_output = std::make_shared<RealtimeOutput>();
   realtime_output->state.frame_id = frame_id_k;
@@ -116,8 +124,10 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
   dyno_state_.camera_trajectory.insert(frame_id_k, timestamp_k,
                                        nav_state_k.pose());
 
+  constexpr static bool kParallelSolve = true;
   object_motion_solver_->solve(frame_k, frame_km1,
-                               dyno_state_.object_trajectories);
+                               dyno_state_.object_trajectories,
+                               kParallelSolve);
 
   // construct output packet for backend
   VisionImuPacket::Ptr vision_imu_packet = std::make_shared<VisionImuPacket>();

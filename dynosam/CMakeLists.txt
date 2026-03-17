@@ -98,9 +98,8 @@ add_library(${PROJECT_NAME} SHARED
   src/frontend/anms/anms.cc
 
   src/backend/Accessor.cc
+  src/backend/Formulation.cc
   src/backend/BackendDefinitions.cc
-  # src/backend/BackendPipeline.cc
-  # src/backend/BackendModule.cc
   src/backend/BackendParams.cc
   src/backend/RegularBackendModule.cc
   src/backend/rgbd/WorldMotionEstimator.cc
@@ -111,9 +110,6 @@ add_library(${PROJECT_NAME} SHARED
   src/backend/ParallelObjectISAM.cc
   src/backend/ParallelHybridBackendModule.cc
   src/backend/PoseChangeBackendModule.cc
-
-  # src/backend/ISAM2Agent.cc
-  #src/backend/rgbd/impl/ObjectTrackingIsamAgent.cc
 
   src/factors/LandmarkMotionTernaryFactor.cc
   src/factors/Pose3FlowProjectionFactor.cc

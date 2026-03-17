@@ -53,7 +53,8 @@ class RegularVIBackendModule
   DYNO_POINTER_TYPEDEFS(RegularVIBackendModule)
 
   RegularVIBackendModule(const BackendParams& backend_params,
-                         Camera::Ptr camera, std::shared_ptr<Factory> factory);
+                         Camera::Ptr camera, std::shared_ptr<Factory> factory,
+                        const SharedGroundTruth& shared_ground_truth = {});
 
   /**
    * @brief Construct a new Regular V I Backend Module object A secondary
@@ -68,7 +69,8 @@ class RegularVIBackendModule
    * @param backend_type const BackendType&
    */
   RegularVIBackendModule(const BackendParams& backend_params,
-                         Camera::Ptr camera, const BackendType& backend_type);
+                         Camera::Ptr camera, const BackendType& backend_type,
+                         const SharedGroundTruth& shared_ground_truth = {});
 
   ~RegularVIBackendModule();
 

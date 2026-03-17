@@ -34,6 +34,7 @@
 #include <ostream>
 #include <sstream>
 #include <stdexcept>
+#include <filesystem>
 #include <string>
 
 namespace dyno {
@@ -44,8 +45,8 @@ struct DynosamException : public std::runtime_error {
 
 struct DynosamExceptionDebug : public DynosamException {
   DynosamExceptionDebug(const std::string& what, const char* file, int line)
-      : DynosamException("Exception:" + what + "thrown at + [" +
-                         std::string(file) + ":" + std::to_string(line) + "]") {
+      : DynosamException("Exception:" + what + " thrown at [" +
+                         std::string(std::filesystem::path(file).filename()) + ":" + std::to_string(line) + "]") {
   }
 };
 

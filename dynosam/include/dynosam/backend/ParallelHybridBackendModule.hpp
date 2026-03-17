@@ -88,6 +88,7 @@ class ParallelHybridAccessor : public HybridAccessorCommon {
 
   ObjectIds getObjectIds() const override;
   FrameIds getFrameIds() const override;
+  Timestamp getTimestamp(FrameId frame_id) const override;
 
   StatusLandmarkVector getDynamicLandmarkEstimates(
       FrameId frame_id) const override;
@@ -148,7 +149,8 @@ class ParallelHybridBackendModule : public BackendModule<VisionImuPacket> {
   using Base = BackendModule<VisionImuPacket>;
 
   ParallelHybridBackendModule(const BackendParams& backend_params,
-                              Camera::Ptr camera);
+                              Camera::Ptr camera,
+                             const SharedGroundTruth& shared_ground_truth = {});
   ~ParallelHybridBackendModule();
 
   void logGraphs();

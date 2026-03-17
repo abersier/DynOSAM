@@ -11,6 +11,8 @@ struct DynoStateTrajectories {
 
 struct DynoState : public DynoStateTrajectories {
   DYNO_POINTER_TYPEDEFS(DynoState)
+
+  //! Must be filled or we get weird behaviour in visualisation
   FrameId frame_id;
   Timestamp timestamp;
 

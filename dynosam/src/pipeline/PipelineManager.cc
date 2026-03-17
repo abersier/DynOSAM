@@ -245,9 +245,10 @@ void DynoPipelineManager::loadPipelines(const CameraParams& camera_params,
   std::shared_ptr<BackendOutputRegistra> output_registra = nullptr;
   // load frontend
   if (backend_type == BackendType::KF_HYBRID) {
+    throw DynosamException("KF-Hybrid is currently under development. Use Hybrid or Parallel-Hybrid for best results!");
     // PoseChangeVIFrontend
-    loadPoseChangeModules(camera, factory, frontend_, backend_,
-                          external_backend_display_, output_registra);
+    // loadPoseChangeModules(camera, factory, frontend_, backend_,
+    //                       external_backend_display_, output_registra);
   } else {
     loadRegularOrParallelHybridModules(camera, factory, frontend_, backend_,
                                        external_backend_display_,
@@ -313,7 +314,7 @@ void DynoPipelineManager::loadPoseChangeModules(
   ModuleParams module_params;
   module_params.backend_params = params_.backend_params_;
   module_params.sensors = sensors;
-  module_params.display_queue = &display_queue_;
+  module_params.shared_ground_truth = data_interface_->getSharedGroundTruth();
   BackendWrapper backend_wrapper = factory->createModule(module_params);
 
   auto pose_change_backend =
@@ -403,7 +404,7 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
     ModuleParams module_params;
     module_params.backend_params = params_.backend_params_;
     module_params.sensors = sensors;
-    module_params.display_queue = &display_queue_;
+    module_params.shared_ground_truth = data_interface_->getSharedGroundTruth();
 
     // // this should be Backend::Ptr not backend module
     BackendWrapper backend_wrapper = factory->createModule(module_params);
@@ -449,14 +450,6 @@ void DynoPipelineManager::loadRegularOrParallelHybridModules(
       // TODO: make exception!!
       LOG(FATAL) << "IS BAD";
     }
-
-    // LOG(FATAL) << "Testing";
-
-    // try cast to regular (it should be regular!!!)
-
-    // backend_out = backend_wrapper.backend;
-    // external_backend_display_out = backend_wrapper.backend_viz;
-    // CHECK(backend_out);
   }
 }
 

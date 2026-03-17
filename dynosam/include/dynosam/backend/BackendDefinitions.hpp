@@ -93,6 +93,8 @@ struct NoiseModels {
  */
 struct FormulationHooks {
   GroundTruthPacketsRequest ground_truth_packets_request;
+
+  void setGroundTruthPacketRequest(const SharedGroundTruth shared_ground_truth);
 };
 
 /**
@@ -126,16 +128,6 @@ struct SharedFormulationData {
   }
 };
 
-struct BackendMetaData {
-  // TODO: should streamline this to only include what we actually need from the
-  // params
-  const BackendParams* backend_params = nullptr;
-  //! Suffix that is used when logging data from a formulation
-  //! This is additional to the suffix specified in formulation params in case
-  //! further nameing specificity is needed; this is mostly helpful during
-  //! testing
-  std::string logging_suffix;
-};
 
 using CalibrationType =
     Camera::CalibrationType;  // TODO: really need to check that this one
@@ -215,18 +207,9 @@ class BackendLogger : public EstimationModuleLogger {
  public:
   DYNO_POINTER_TYPEDEFS(BackendLogger)
   BackendLogger(const std::string& name_prefix);
-  ~BackendLogger();
-
-  void logTrackletIdToObjectId(
-      const gtsam::FastMap<TrackletId, ObjectId>& mapping);
-  void logEllipsoids(const gtsam::FastMap<ObjectId, gtsam::Vector3>& mapping);
-
+  ~BackendLogger() = default;
  private:
-  std::string tracklet_to_object_id_file_name_;
-  std::string ellipsoid_radii_file_name_;
 
-  CsvWriter::UniquePtr tracklet_to_object_id_csv_;
-  CsvWriter::UniquePtr ellipsoid_radii_csv_;
 };
 
 }  // namespace dyno

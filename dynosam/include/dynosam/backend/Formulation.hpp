@@ -219,6 +219,14 @@ struct FormulationParams : public BackendParams {
   }
 };
 
+struct FormulationLoggingParams {
+  //! Suffix that is used when logging data from a formulation
+  //! This is additional to the suffix specified in formulation params in case
+  //! further nameing specificity is needed; this is mostly helpful during
+  //! testing
+  std::string logging_suffix;
+};
+
 class Camera;
 
 /**
@@ -236,6 +244,22 @@ namespace internal {
 template <typename MAP>
 class StaticFormulationUpdaterImpl;
 }
+
+/**
+ * @brief Helper function to log the full estimated state to file
+ * using the provided logger and ground truth.
+ * 
+ * Logs full object and camera trajectories for all 0...K as well as the full
+ * temporal dynamic map and full static map.
+ * 
+ * @param accessor Accessor::Ptr
+ * @param logger BackendLogger&
+ * @param ground_truth const std::optional<GroundTruthPacketMap>&
+ */
+void logFromAccessor(
+  Accessor::Ptr accessor, 
+  BackendLogger& logger, 
+  const std::optional<GroundTruthPacketMap>& ground_truth = {});
 
 /**
  * @brief Base class for a formulation that defines the structure and
@@ -570,12 +594,12 @@ class Formulation {
 
   /**
    * @brief Logs all frames and values to file using Accessor and BackendLogger.
-   * The BackendMetaData provides meta-data and ground truth information for
+   * The FormulationLoggingParams provides meta-data and ground truth information for
    * logging.
    *
-   * @param backend_info const BackendMetaData&
+   * @param backend_info const FormulationLoggingParams&
    */
-  void logBackendFromMap(const BackendMetaData& backend_info);
+  void logBackendFromMap(const FormulationLoggingParams& backend_info);
 
   /**
    * @brief Pre update hook called in the RegularBackend after the map is

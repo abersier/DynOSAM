@@ -98,45 +98,6 @@ AccessorT<MAP, DerivedAccessor>::getObjectPoses(FrameId frame_id) const {
   return pose_estimates;
 }
 
-// template <class MAP, class DerivedAccessor>
-// ObjectPoseMap AccessorT<MAP, DerivedAccessor>::getObjectPoses() const {
-//   ObjectPoseMap object_poses;
-//   for (FrameId frame_id : map()->getFrameIds()) {
-//     EstimateMap<ObjectId, gtsam::Pose3> per_object_pose =
-//         this->getObjectPoses(frame_id);
-
-//     for (const auto& [object_id, pose] : per_object_pose) {
-//       object_poses.insert22(object_id, frame_id, pose);
-//       // if (!object_poses.exists(object_id)) {
-//       //   object_poses.insert2(object_id,
-//       //                        gtsam::FastMap<FrameId, gtsam::Pose3>{});
-//       // }
-
-//       // auto& per_frame_pose = object_poses.at(object_id);
-//       // per_frame_pose.insert2(frame_id, pose);
-//     }
-//   }
-//   return object_poses;
-// }
-
-// template <class MAP, class DerivedAccessor>
-// ObjectMotionMap AccessorT<MAP, DerivedAccessor>::getObjectMotions() const {
-//   ObjectMotionMap object_motions;
-//   for (FrameId frame_id : map()->getFrameIds()) {
-//     MotionEstimateMap per_object_motions = this->getObjectMotions(frame_id);
-
-//     for (const auto& [object_id, motion] : per_object_motions) {
-//       object_motions.insert22(object_id, frame_id, motion);
-//       // if (!object_motions.exists(object_id)) {
-//       //   object_motions.insert2(object_id, ObjectMotionMap::NestedBase{});
-//       // }
-
-//       // auto& per_frame_motion = object_motions.at(object_id);
-//       // per_frame_motion.insert2(frame_id, motion);
-//     }
-//   }
-//   return object_motions;
-// }
 
 template <class MAP, class DerivedAccessor>
 StatusLandmarkVector
@@ -199,6 +160,19 @@ FrameIds AccessorT<MAP, DerivedAccessor>::getFrameIds() const {
 }
 
 template <class MAP, class DerivedAccessor>
+Timestamp AccessorT<MAP, DerivedAccessor>::getTimestamp(FrameId frame_id) const {
+  auto frame_node = map()->getFrame(frame_id);
+
+  if(!frame_node) {
+    DYNO_THROW_MSG(DynosamException) 
+      << "Cannot query timestamp for k=" << frame_id << ": frame node is null";
+    throw;
+  }
+
+  return frame_node->timestamp;
+}
+
+template <class MAP, class DerivedAccessor>
 PoseTrajectory AccessorT<MAP, DerivedAccessor>::getCameraTrajectory() const {
   PoseTrajectory pose_trajectory;
 
@@ -231,7 +205,7 @@ PoseTrajectory AccessorT<MAP, DerivedAccessor>::getObjectPoseTrajectory(
         this->getObjectPose(frame_id, object_id);
 
     if (object_pose) {
-      pose_trajectory.insert(frame_id, timestamp, object_pose.value());
+      pose_trajectory.insert(frame_id, timestamp, object_pose.get());
     }
   }
 
@@ -256,7 +230,7 @@ MotionTrajetory AccessorT<MAP, DerivedAccessor>::getObjectMotionTrajectory(
         this->getObjectMotionReferenceFrame(frame_id, object_id);
 
     if (object_motion) {
-      motion_trajectory.insert(frame_id, timestamp, object_motion.value());
+      motion_trajectory.insert(frame_id, timestamp, object_motion.get());
     }
   }
 

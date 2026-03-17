@@ -415,7 +415,7 @@ void printSymbolTree(const gtsam::ISAM2& isam, const std::string& label) {
 //       dyno::DynosamKeyFormatter);
 
 //   // log results of LM optimisation with different suffix
-//   dyno::BackendMetaData backend_info;
+//   dyno::FormulationLoggingParams backend_info;
 //   backend.formulation()->accessorFromTheta()->postUpdateCallback(backend_info);
 //   backend.formulation()->logBackendFromMap(backend_info);
 
@@ -1126,7 +1126,7 @@ TEST(RegularBackendModule, testObjectCentric) {
       dyno::DynosamKeyFormatter);
 
   // log results of LM optimisation with different suffix
-  dyno::BackendMetaData backend_info;
+  dyno::FormulationLoggingParams backend_info;
   dyno::PostUpdateData post_update(backend.latestFrameId());
   backend.formulation()->postUpdate(post_update);
   backend.formulation()->logBackendFromMap(backend_info);

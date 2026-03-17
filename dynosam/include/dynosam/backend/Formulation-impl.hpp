@@ -861,7 +861,7 @@ UpdateObservationResult Formulation<MAP>::updateDynamicObservations(
 }
 
 template <typename MAP>
-void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
+void Formulation<MAP>::logBackendFromMap(const FormulationLoggingParams& backend_info) {
   // TODO:
   std::string logger_prefix = this->getFullyQualifiedName();
   const std::string suffix = backend_info.logging_suffix;
@@ -876,26 +876,14 @@ void Formulation<MAP>::logBackendFromMap(const BackendMetaData& backend_info) {
   auto accessor = this->accessorFromTheta();
 
   CHECK(hooks().ground_truth_packets_request);
-  const auto ground_truth_packets = hooks().ground_truth_packets_request();
 
-  const PoseTrajectory& camera_trajectory = accessor->getCameraTrajectory();
-  logger->logCameraPose(camera_trajectory, ground_truth_packets);
-
-  const MultiObjectTrajectories& object_trajectories =
-      accessor->getMultiObjectTrajectories();
-  logger->logObjectTrajectory(object_trajectories, ground_truth_packets);
-
-  auto static_map = accessor->getFullStaticMap();
-  auto dynamic_map = accessor->getFullTemporalDynamicMap();
-
-  logger->logMapPoints(static_map);
-  logger->logMapPoints(dynamic_map);
+  logFromAccessor(accessor, *logger, hooks().ground_truth_packets_request());
 
   // TODO: do we still need the full batch hack? Hardly ever use FB anymore but
   //  maybe fore backwards compatability!?
 
   // TODO: formulation params are now backend params so no longer need to
-  //  pass backend params into Formulation with BackendMetaData
+  //  pass backend params into Formulation with FormulationLoggingParams
   //  CHECK_NOTNULL(backend_info.backend_params);
   //  const auto& backend_params = *backend_info.backend_params;
 

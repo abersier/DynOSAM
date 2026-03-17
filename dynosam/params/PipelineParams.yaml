@@ -1,12 +1,4 @@
-parallel_run: False
-
-
-#RGBD instance = 0, MONO instance = 1 (same as FrontendType)
-frontend_type: 0
-
-# Incremental = 0, Batch = 1 (same as OptimizerType, defined in BackendDefinitions.hpp)
-optimizer_type: 1
-
+parallel_run: True
 
 # Use the camera params provided by the dataprovider (if available),
 # instead of the camera params specified by the CameraParams.yaml.

@@ -26,7 +26,8 @@ class PoseChangeVIBackendModule : public BackendModule<PoseChangeInput> {
   DYNO_POINTER_TYPEDEFS(PoseChangeVIBackendModule)
 
   PoseChangeVIBackendModule(const BackendParams& params, Camera::Ptr camera,
-                            HybridFormulationKeyFrame::Ptr formulation);
+                            HybridFormulationKeyFrame::Ptr formulation,
+                            const SharedGroundTruth& shared_ground_truth = {});
 
   std::pair<gtsam::Values, gtsam::NonlinearFactorGraph> getActiveOptimisation()
       const override {

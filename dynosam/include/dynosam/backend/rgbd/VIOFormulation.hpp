@@ -6,6 +6,8 @@
 
 namespace dyno {
 
+class VIOFormulation;
+
 class VIOAccessor : public Accessor {
  public:
   DYNO_POINTER_TYPEDEFS(VIOAccessor)
@@ -18,6 +20,9 @@ class VIOAccessor : public Accessor {
   // query with the key
   StateQuery<gtsam::NavState> getNavState(FrameId frame_id) const;
   StateQuery<gtsam::imuBias::ConstantBias> getImuBias(FrameId frame_id) const;
+
+private:
+
 };
 
 // if derive - also ensure that the DerivedAccessor derives from VIOAccessor
@@ -36,8 +41,7 @@ class VIOFormulation : public Formulation<MapVision> {
                  const FormulationHooks& hooks);
   virtual ~VIOFormulation() = default;
 
-  // NOTE: V_C_k should actually be V_W_k as nav state and imu-pim operates in
-  // W!!
+
   gtsam::NavState addStatesInitalise(
       gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors,
       FrameId frame_id_k, Timestamp timestamp_k, const gtsam::Pose3& X_W_k,
@@ -76,9 +80,18 @@ class VIOFormulation : public Formulation<MapVision> {
       FrameId frame_id_k, Timestamp timestamp_k,
       const ImuFrontend::PimPtr& pim);
 
+  void addImuStatesFromInitialNavState(
+    gtsam::Values& new_values, gtsam::NonlinearFactorGraph& new_factors);
+
  private:
   bool imu_states_initalise_{false};
+
   FrameId first_frame_{0};
+  //! First nav state
+  gtsam::NavState initial_nav_state_;
+  //! First imu bias
+  gtsam::imuBias::ConstantBias initial_imu_bias_;
+
   FrameId last_propogate_frame_{0};
   Timestamp last_propogate_time_{0.0};
 
@@ -86,6 +99,8 @@ class VIOFormulation : public Formulation<MapVision> {
   gtsam::SharedNoiseModel init_vel_prior_noise_;
   //! Initial imu bias prior noise model
   gtsam::SharedNoiseModel init_imu_bias_prior_noise_;
+
+
 };
 
 }  // namespace dyno

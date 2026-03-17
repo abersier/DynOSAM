@@ -194,6 +194,8 @@ class Accessor {
 
   virtual StatusLandmarkVector getFullTemporalDynamicMap() const;
 
+  virtual Timestamp getTimestamp(FrameId frame_id) const = 0;
+
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)
    * for object id (j). If result is true and a motion is provided, return true
@@ -241,7 +243,7 @@ class Accessor {
 
   MultiObjectTrajectories getMultiObjectTrajectories() const;
 
-  // PoseEstimateMap getObjectPoses()
+  
 
   /**
    * @brief Get all landmarks (static and dynamic) at time-step k.
@@ -425,31 +427,6 @@ class AccessorT : public DerivedAccessor {
    */
   MotionEstimateMap getObjectMotions(FrameId frame_id) const override;
 
-  //   // TODO: depricate
-  //   /**
-  //    * @brief Collects all object poses for frame 0 to K.
-  //    * (Non-pure )Virtual function that may be overwritten - default
-  //    * implementation uses the pure-virtual getObjectPoses to collect all
-  //    poses.
-  //    *
-  //    * @return ObjectPoseMap
-  //    */
-  //   virtual ObjectPoseMap getObjectPoses() const override;
-
-  //   // TODO: depricate
-  //   /**
-  //    * @brief Collects all object motions from 1 to K (with the first motion
-  //    being
-  //    * from k-1 to k).
-  //    *
-  //    * Default implementation uses the pure-virtual getObjectPoses to collect
-  //    all
-  //    * motions.
-  //    *
-  //    * @return ObjectMotionMap
-  //    */
-  //   virtual ObjectMotionMap getObjectMotions() const override;
-
   /**
    * @brief Get all dynamic landmarks for all objects (\mathcal{J}_k) at
    * time-step k.
@@ -489,6 +466,8 @@ class AccessorT : public DerivedAccessor {
   ObjectIds getObjectIds() const override;
 
   FrameIds getFrameIds() const override;
+
+  Timestamp getTimestamp(FrameId frame_id) const override;
 
   /**
    * @brief Check if there exists an estimate for object motion at time-step (k)

@@ -459,7 +459,8 @@ class HybridSmoothingFactor : public HybridSmoothingFactorBase {
 
   HybridSmoothingFactor(gtsam::Key e_H_km2_world_key,
                         gtsam::Key e_H_km1_world_key,
-                        gtsam::Key e_H_k_world_key, const gtsam::Pose3& L_e,
+                        gtsam::Key e_H_k_world_key, 
+                        const gtsam::Pose3& L_e,
                         gtsam::SharedNoiseModel model)
       : HybridSmoothingFactorBase(e_H_km2_world_key, e_H_km1_world_key,
                                   e_H_k_world_key, model),

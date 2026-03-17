@@ -129,8 +129,7 @@ struct IncrementalTester : public RegularBackendTester {
 
   void onFinish() override {
     auto backend = data->backend;
-    dyno::BackendMetaData backend_info;
-    backend_info.backend_params = &backend->getParams();
+    dyno::FormulationLoggingParams backend_info;
 
     dyno::PostUpdateData post_update(backend->latestFrameId());
     backend->formulation()->postUpdate(post_update);
@@ -177,8 +176,7 @@ struct BatchTester : public RegularBackendTester {
   void onFinish() override {
     auto backend = data->backend;
 
-    dyno::BackendMetaData backend_info;
-    backend_info.backend_params = &backend->getParams();
+    dyno::FormulationLoggingParams backend_info;
 
     dyno::PostUpdateData post_update(backend->latestFrameId());
     backend->formulation()->postUpdate(post_update);

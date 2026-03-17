@@ -444,7 +444,7 @@ std::optional<Motion3ReferenceFrame> HybridAccessor::getRelativeLocalMotion(
   auto L_W_k = this->getObjectPose(to, object_id);
 
   if (L_W_k_1 && L_W_k) {
-    const gtsam::Pose3 L_k_1_k = L_W_k_1->inverse() * L_W_k.value();
+    const gtsam::Pose3 L_k_1_k = L_W_k_1->inverse() * L_W_k.get();
     return Motion3ReferenceFrame(L_k_1_k, MotionRepresentationStyle::F2F,
                                  ReferenceFrame::OBJECT, from, to);
   } else {
@@ -814,58 +814,6 @@ void HybridFormulation::objectUpdateContext(
     }
   }
 }
-
-// bool HybridFormulation::addHybridMotionFactor3(
-//     typename MapTraitsType::FrameNodePtr frame_node,
-//     typename MapTraitsType::LandmarkNodePtr landmark_node,
-//     const gtsam::Pose3& L_e,
-//     const gtsam::Key& camera_pose_key,
-//     const gtsam::Key& object_motion_key,
-//     const gtsam::Key& m_key,
-//     gtsam::NonlinearFactorGraph& graph) const
-// {
-//   const TrackletId& tracklet_id = landmark_node.tracklet_id;
-//   const ObjectId& object_id = landmark_node.object_id;
-//   CHECK_EQ(camera_pose_key, frame_node->makePoseKey());
-//   CHECK_EQ(object_motion_key, frame_node->makeObjectMotionKey(object_id));
-//   CHECK_EQ(m_key, this->makeDynamicKey(tracklet_id));
-
-//   auto [measured_point_camera, measurement_covariance] =
-//     MeasurementTraits::pointWithCovariance(
-//             lmk_node->getMeasurement(frame_node));
-
-//   if (params_.makeDynamicMeasurementsRobust()) {
-//       measurement_covariance = factor_graph_tools::robustifyHuber(
-//           params_.k_huber_3d_points_, measurement_covariance);
-//     }
-
-//   graph.emplace_shared<HybridMotionFactor>(
-//       camera_pose_key,
-//       object_motion_key,
-//       m_key,
-//       measured_point_camera,
-//       L_e,
-//       measurement_covariance);
-
-//   return true;
-
-// }
-
-// bool HybridFormulation::addStereoHybridMotionFactor(
-//   typename MapTraitsType::FrameNodePtr frame_node,
-//   typename MapTraitsType::LandmarkNodePtr landmark_node,
-//   const gtsam::Pose3& L_e,
-//   const gtsam::Key& camera_pose_key,
-//   const gtsam::Key& object_motion_key,
-//   const gtsam::Key& m_key,
-//   gtsam::NonlinearFactorGraph& graph) const
-// {
-//   const TrackletId& tracklet_id = landmark_node.tracklet_id;
-//   const ObjectId& object_id = landmark_node.object_id;
-//   CHECK_EQ(camera_pose_key, frame_node->makePoseKey());
-//   CHECK_EQ(object_motion_key, frame_node->makeObjectMotionKey(object_id));
-//   CHECK_EQ(m_key, this->makeDynamicKey(tracklet_id));
-// }
 
 // this needs to happen (mostly) before factor graph construction to take
 // effect!!

@@ -8,8 +8,9 @@ namespace dyno {
 
 PoseChangeVIBackendModule::PoseChangeVIBackendModule(
     const BackendParams& params, Camera::Ptr camera,
-    HybridFormulationKeyFrame::Ptr formulation)
-    : Base(params, camera), formulation_(CHECK_NOTNULL(formulation)) {
+    HybridFormulationKeyFrame::Ptr formulation,
+    const SharedGroundTruth& shared_ground_truth)
+    : Base(params, camera, shared_ground_truth), formulation_(CHECK_NOTNULL(formulation)) {
   gtsam::ISAM2Params isam2_params;
   isam2_params.relinearizeThreshold = 0.001;
   isam2_params.relinearizeSkip = 1;

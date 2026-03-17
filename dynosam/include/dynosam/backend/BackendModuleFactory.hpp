@@ -25,7 +25,7 @@ struct BackendWrapper {
 struct ModuleParams {
   BackendParams backend_params;
   Sensors sensors;
-  ImageDisplayQueue* display_queue;
+  SharedGroundTruth shared_ground_truth{};
 };
 
 class BackendModuleFactory {

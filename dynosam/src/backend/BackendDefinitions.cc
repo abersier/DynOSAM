@@ -121,6 +121,12 @@ ApplyFunctionalSymbol& ApplyFunctionalSymbol::dynamicLandmark(
   return *this;
 }
 
+void FormulationHooks::setGroundTruthPacketRequest(const SharedGroundTruth shared_ground_truth) {
+  this->ground_truth_packets_request = [shared_ground_truth]() {
+    return shared_ground_truth.access();
+  };
+}
+
 NoiseModels NoiseModels::fromBackendParams(
     const BackendParams& backend_params) {
   NoiseModels noise_models;
@@ -236,36 +242,6 @@ const DebugInfo::ObjectInfo& DebugInfo::getObjectInfo(
 }
 
 BackendLogger::BackendLogger(const std::string& name_prefix)
-    : EstimationModuleLogger(name_prefix + "_backend"),
-      tracklet_to_object_id_file_name_("tracklet_to_object_id.csv") {
-  ellipsoid_radii_file_name_ = module_name_ + "_ellipsoid_radii.csv";
-
-  tracklet_to_object_id_csv_ =
-      std::make_unique<CsvWriter>(CsvHeader("tracklet_id", "object_id"));
-
-  ellipsoid_radii_csv_ =
-      std::make_unique<CsvWriter>(CsvHeader("object_id", "a", "b", "c"));
-}
-
-void BackendLogger::logTrackletIdToObjectId(
-    const gtsam::FastMap<TrackletId, ObjectId>& mapping) {
-  for (const auto& [tracklet_id, object_id] : mapping) {
-    *tracklet_to_object_id_csv_ << tracklet_id << object_id;
-  }
-}
-
-void BackendLogger::logEllipsoids(
-    const gtsam::FastMap<ObjectId, gtsam::Vector3>& mapping) {
-  for (const auto& [object_id, radii] : mapping) {
-    *ellipsoid_radii_csv_ << object_id << radii(0) << radii(1) << radii(2);
-  }
-}
-
-BackendLogger::~BackendLogger() {
-  OfstreamWrapper::WriteOutCsvWriter(*ellipsoid_radii_csv_,
-                                     ellipsoid_radii_file_name_);
-  OfstreamWrapper::WriteOutCsvWriter(*tracklet_to_object_id_csv_,
-                                     tracklet_to_object_id_file_name_);
-}
+    : EstimationModuleLogger(name_prefix + "_backend") {}
 
 }  // namespace dyno

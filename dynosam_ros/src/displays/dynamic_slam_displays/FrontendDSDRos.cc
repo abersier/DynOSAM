@@ -60,7 +60,6 @@ FrontendDSDRos::GroundTruthPublishers::GroundTruthPublishers(
 
 void FrontendDSDRos::spinOnce(const RealtimeOutput::ConstPtr& frontend_output) {
   VLOG(20) << "Spinning FrontendDSDRos k=" << frontend_output->state.frame_id;
-  // updateAccumulatedDataStructured(frontend_output);
   dyno_state_publisher_.publish(frontend_output->state);
 
   // publish debug imagery

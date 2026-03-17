@@ -123,7 +123,8 @@ class BackendFactory
     if (this->backend_type_ == BackendType::PARALLEL_HYBRID) {
       std::shared_ptr<ParallelHybridBackendModule> backend =
           std::make_shared<ParallelHybridBackendModule>(params.backend_params,
-                                                        params.sensors.camera);
+                                                        params.sensors.camera,
+                                                        params.shared_ground_truth);
 
       wrapper.backend = backend;
       // Parallel Hybrid is a special case where we have a vizualiser over
@@ -134,11 +135,6 @@ class BackendFactory
                                        : " without additional display");
 
     } else if (this->backend_type_ == BackendType::KF_HYBRID) {
-      // Need to do this inside the factory so we get access to the policy!
-      //  I guess the pipeline could call createDisplay directly?
-
-      // TODO: is this the best way of making the KF_hybrid? many things need
-      // the estimator?
       FormulationParams formulation_params = params.backend_params;
       NoiseModels noise_models =
           NoiseModels::fromBackendParams(params.backend_params);
@@ -149,7 +145,7 @@ class BackendFactory
 
       std::shared_ptr<PoseChangeVIBackendModule> pose_change_backend =
           std::make_shared<PoseChangeVIBackendModule>(
-              params.backend_params, params.sensors.camera, formulation);
+              params.backend_params, params.sensors.camera, formulation, params.shared_ground_truth);
 
       wrapper.backend = pose_change_backend;
       wrapper.backend_viz = this->createDisplay(pose_change_backend);
@@ -166,7 +162,8 @@ class BackendFactory
       std::shared_ptr<RegularVIBackendModule> backend =
           std::make_shared<RegularVIBackendModule>(params.backend_params,
                                                    params.sensors.camera,
-                                                   formulation_factory);
+                                                   formulation_factory,
+                                                   params.shared_ground_truth);
 
       wrapper.backend = backend;
 
@@ -223,12 +220,7 @@ class BackendFactory
           std::make_shared<RegularHybridFormulation>(formulation_params, map,
                                                      noise_models, sensors,
                                                      formulation_hooks);
-      // std::shared_ptr<HybridFormulationKeyFrame> formulation =
-      //     std::make_shared<HybridFormulationKeyFrame>(formulation_params,
-      //     map,
-      //                                                 noise_models, sensors,
-      //                                                 formulation_hooks);
-
+    
       // call polciy function
       wrapper.display = this->createDisplay(formulation);
       wrapper.formulation = formulation;

@@ -217,7 +217,7 @@ size_t EstimationModuleLogger::logCameraPose(
   size_t number_logged = 0;
   for (const auto& entry : camera_poses) {
     if (logCameraPoseEntry(entry, gt_packets)) {
-      return number_logged++;
+      number_logged++;
     }
   }
   return number_logged;

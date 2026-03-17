@@ -80,21 +80,30 @@ namespace dyno {
 
 RegularVIBackendModule::RegularVIBackendModule(
     const BackendParams& backend_params, Camera::Ptr camera,
-    std::shared_ptr<RegularVIBackendModule::Factory> factory)
-    : Base(backend_params, camera) {
+    std::shared_ptr<RegularVIBackendModule::Factory> factory, 
+    const SharedGroundTruth& shared_ground_truth)
+    : Base(backend_params, camera, shared_ground_truth) {
   setupOptimizers();
   setupFormulation(factory);
 }
 
 RegularVIBackendModule::RegularVIBackendModule(
     const BackendParams& backend_params, Camera::Ptr camera,
-    const BackendType& backend_type)
+    const BackendType& backend_type,
+    const SharedGroundTruth& shared_ground_truth)
     : RegularVIBackendModule(
           backend_params, camera,
-          DefaultBackendFactory<MapVision>::Create(backend_type)) {}
+          DefaultBackendFactory<MapVision>::Create(backend_type),
+          shared_ground_truth) {}
 
 RegularVIBackendModule::~RegularVIBackendModule() {
-  LOG(ERROR) << "TODO: logging!!!!!";
+  if(backend_params_.use_logger_) {
+    formulation_->postUpdate(PostUpdateData(this->latestFrameId()));
+
+    FormulationLoggingParams logging_params;
+    logging_params.logging_suffix = FLAGS_updater_suffix;
+    formulation_->logBackendFromMap(logging_params);
+  }
 }
 
 std::pair<gtsam::Values, gtsam::NonlinearFactorGraph>
@@ -211,7 +220,7 @@ void RegularVIBackendModule::setupFormulation(
   sensors.camera = camera_;
 
   FormulationHooks hooks;
-  // TODO: ground truth
+  hooks.setGroundTruthPacketRequest(this->shared_ground_truth_);
 
   FormulationVizWrapper<MapVision> wrapper = factory->createFormulation(
       formulation_params, map(), noise_models_, sensors, hooks);
