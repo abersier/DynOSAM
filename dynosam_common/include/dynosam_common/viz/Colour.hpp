@@ -140,12 +140,26 @@ struct Color : RGBA<uint8_t> {
   inline cv::Scalar bgra() const { return cv::Scalar(b, g, r, a); }
 
   /**
+   * @brief Cast the colour to any (value) data-type.
+   *
+   * The RGBA constructor will ensure proper clamping depending
+   * on if T is a floating point or integral type.
+   *
+   * @tparam T
+   * @return RGBA<T>
+   */
+  template <typename T>
+  inline RGBA<T> cast() const {
+    return RGBA<T>(*this);
+  }
+
+  /**
    * @brief Return the RGBA values as a double. Note this will change the range
    * from 0-255 to 0-1.
    *
    * @return RGBA<double>
    */
-  inline RGBA<double> toDouble() const { return RGBA<double>(*this); }
+  inline RGBA<double> toDouble() const { return this->cast<double>(); }
 
   // Tools.
   /**
