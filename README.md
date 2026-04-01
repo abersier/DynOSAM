@@ -236,7 +236,7 @@ To run a specific dataset only two GFLAGS are required:
 where `--dataset_path` points to the location of the dataset and `--data_provider_type` should be set to Dataset ID.
 
 
-> NOTE: when using ground truth for evaluation it is important to ensure that `prefer_provided_object_detection: false` so that the pre-processing object masks are used. This ensures that tracking label $j$ used within the pipeline aligns with the ground truth label.
+> NOTE: when using ground truth for evaluation it is important to ensure that `prefer_provided_object_detection: true` so that the pre-processing object masks are used. This ensures that tracking label $j$ used within the pipeline aligns with the ground truth label.
 ## 3.3 Online Data
 DynoSAM can also run from data provided by ROS.
 
@@ -293,12 +293,12 @@ DynoSAM uses YOLOv8 for object detection. The model is integrated into the front
 
 To run the pipeline with online segmentation and object tracking set
 ```
-prefer_provided_object_detection: true
+prefer_provided_object_detection: false
 ```
 
 See the [dynosam_nn README.md](./dynosam_nn//README.md) for more detail on the models used and how to export the weights.
 
-> NOTE: the provided datasets contain pre-computed object masks with tracking labels $j$ that align with the ground truth. Use `prefer_provided_object_detection: false`.
+> NOTE: the provided datasets contain pre-computed object masks with tracking labels $j$ that align with the ground truth. Use `prefer_provided_object_detection: true`.
 
 ## 4.3 IMU integration
 We additionally support IMU integration using the `PreintegrationFactor` from GTSAM in the backend. However, this has only been tested on VIODE.
