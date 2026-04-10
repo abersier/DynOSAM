@@ -51,6 +51,10 @@ std::string to_string(const InputImageMode& input_image_mode) {
       status_str = "STEREO";
       break;
     }
+    case InputImageMode::RGBDM: {
+      status_str = "RGBDM";
+      break;
+    }
   }
   return status_str;
 }
@@ -112,7 +116,7 @@ void OnlineDataProviderRos::subscribeImu() {
       imu_sub_options);
 }
 
-RGBDTypeCalibrationHelper::RGBDTypeCalibrationHelper(
+RGBDCalibrationHelper::RGBDCalibrationHelper(
     rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
     : node_(node) {
   if (params.wait_for_camera_params) {
@@ -133,32 +137,26 @@ RGBDTypeCalibrationHelper::RGBDTypeCalibrationHelper(
   }
 }
 
-void RGBDTypeCalibrationHelper::processRGB(const cv::Mat& src, cv::Mat& dst) {
-  cv::remap(src, dst, mapx_, mapy_, cv::INTER_LINEAR);
-  // output will have the same type as mapx/y so covnert back to required type
-  dst.convertTo(dst, src.type());
+void RGBDCalibrationHelper::processRGB(const cv::Mat& src, cv::Mat& dst) {
+  undistortWithMaps(src, dst);
 }
-void RGBDTypeCalibrationHelper::processDepth(const cv::Mat& src, cv::Mat& dst) {
-  cv::remap(src, dst, mapx_, mapy_, cv::INTER_LINEAR);
+void RGBDCalibrationHelper::processDepth(const cv::Mat& src, cv::Mat& dst) {
   CHECK(src.type() == ImageType::Depth::OpenCVType);
-  // output will have the same type as mapx/y so covnert back to required type
-  dst.convertTo(dst, src.type());
-
+  undistortWithMaps(src, dst);
   // convert the depth map to metirc scale
   // data-type shoule match
-  src *= depth_scale_;
+  dst *= depth_scale_;
 }
 
-const CameraParams::Optional&
-RGBDTypeCalibrationHelper::getOriginalCameraParams() const {
+const CameraParams::Optional& RGBDCalibrationHelper::getOriginalCameraParams()
+    const {
   return original_camera_params_;
 }
-const CameraParams::Optional& RGBDTypeCalibrationHelper::getCameraParams()
-    const {
+const CameraParams::Optional& RGBDCalibrationHelper::getCameraParams() const {
   return camera_params_;
 }
 
-void RGBDTypeCalibrationHelper::setupNewCameraParams(
+void RGBDCalibrationHelper::setupNewCameraParams(
     const CameraParams& original_camera_params, CameraParams& new_camera_params,
     const int& rescale_width, const int& rescale_height) {
   const auto original_size = original_camera_params.imageSize();
@@ -183,7 +181,14 @@ void RGBDTypeCalibrationHelper::setupNewCameraParams(
                                    original_camera_params.getExtrinsics());
 }
 
-void RGBDTypeCalibrationHelper::getParamsFromRos(
+void RGBDCalibrationHelper::undistortWithMaps(const cv::Mat& src,
+                                              cv::Mat& dst) const {
+  cv::remap(src, dst, mapx_, mapy_, cv::INTER_LINEAR);
+  // output will have the same type as mapx/y so covnert back to required type
+  dst.convertTo(dst, src.type());
+}
+
+void RGBDCalibrationHelper::getParamsFromRos(
     const CameraParams& original_camera_params, int& rescale_width,
     int& rescale_height, double& depth_scale) {
   rescale_width = ParameterConstructor(node_.get(), "rescale_width",
@@ -216,6 +221,16 @@ void RGBDTypeCalibrationHelper::getParamsFromRos(
                     .get<double>();
 }
 
+RGBDMCalibrationHelper::RGBDMCalibrationHelper(
+    rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
+    : RGBDCalibrationHelper(node, params) {}
+
+void RGBDMCalibrationHelper::processMask(const cv::Mat& src,
+                                         cv::Mat& dst) const {
+  CHECK(src.type() == ImageType::MotionMask::OpenCVType);
+  undistortWithMaps(src, dst);
+}
+
 void updateAndCheckDynoParamsForRawImageInput(DynoParams& dyno_params) {
   auto& tracker_params = dyno_params.frontend_params_.tracker_params;
   if (tracker_params.prefer_provided_optical_flow) {
@@ -237,12 +252,11 @@ AllImagesOnlineProviderRos::AllImagesOnlineProviderRos(
     rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
     : OnlineDataProviderRos(node, params) {
   LOG(INFO) << "Creating AllImagesOnlineProviderRos";
-  calibration_helper_ =
-      std::make_unique<RGBDTypeCalibrationHelper>(node, params);
+  calibration_helper_ = std::make_unique<RGBDCalibrationHelper>(node, params);
 
   // All Images only works with undisroted images as the pre-processing must be
   // done on undistorted
-  //  images particularly for optical flow
+  // images particularly for optical flow
   auto original_camera_params = calibration_helper_->getOriginalCameraParams();
   if (original_camera_params) {
     const cv::Mat distortion = original_camera_params->getDistortionCoeffs();
@@ -324,8 +338,7 @@ RGBDOnlineProviderRos::RGBDOnlineProviderRos(
     rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
     : OnlineDataProviderRos(node, params) {
   LOG(INFO) << "Creating RGBDOnlineProviderRos";
-  calibration_helper_ =
-      std::make_unique<RGBDTypeCalibrationHelper>(node, params);
+  calibration_helper_ = std::make_unique<RGBDCalibrationHelper>(node, params);
 }
 
 void RGBDOnlineProviderRos::subscribeImages() {
@@ -387,6 +400,90 @@ CameraParams::Optional RGBDOnlineProviderRos::getCameraParams() const {
 
 void RGBDOnlineProviderRos::updateAndCheckParams(DynoParams& dyno_params) {
   updateAndCheckDynoParamsForRawImageInput(dyno_params);
+}
+
+RGBDMOnlineProviderRos::RGBDMOnlineProviderRos(
+    rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
+    : OnlineDataProviderRos(node, params) {
+  LOG(INFO) << "Creating RGBDMOnlineProviderRos";
+  calibration_helper_ = std::make_unique<RGBDMCalibrationHelper>(node, params);
+}
+
+void RGBDMOnlineProviderRos::subscribeImages() {
+  rclcpp::Node& node_ref = *node_;
+  static const std::array<std::string, 3>& topics = {"image/rgb", "image/depth",
+                                                     "image/mask"};
+
+  // make multiimage sync and and queue have similar depth
+  // reliable important so we dont drop frames we're quite reliant on frame
+  // to frame tracking!
+  static constexpr size_t queue_size = 1000;
+  auto image_qos = rclcpp::SensorDataQoS().keep_last(queue_size).reliable();
+
+  MultiSyncConfig config;
+  config.queue_size = queue_size;
+  config.subscriber_qos = image_qos;
+  // config.subscriber_options.callback_group =
+  //     node_ref.create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+
+  std::shared_ptr<MultiImageSync3> multi_image_sync =
+      std::make_shared<MultiImageSync3>(node_ref, topics, config);
+  multi_image_sync->registerCallback(
+      [this](const sensor_msgs::msg::Image::ConstSharedPtr& rgb_msg,
+             const sensor_msgs::msg::Image::ConstSharedPtr& depth_msg,
+             const sensor_msgs::msg::Image::ConstSharedPtr& mask_msg) {
+        if (!image_container_callback_) {
+          RCLCPP_ERROR_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+                                "Image Sync callback triggered but "
+                                "image_container_callback_ is not registered!");
+          return;
+        }
+
+        cv::Mat rgb = readRgbRosImage(rgb_msg).clone();
+        cv::Mat depth = readDepthRosImage(depth_msg).clone();
+        cv::Mat mask = readMaskRosImage(mask_msg).clone();
+
+        calibration_helper_->processRGB(rgb, rgb);
+        calibration_helper_->processDepth(depth, depth);
+        // for now do not process and assume all images are undistorted!
+        // calibration_helper_->processMask(mask, mask);
+
+        const Timestamp timestamp = utils::fromRosTime(rgb_msg->header.stamp);
+        const FrameId frame_id = frame_id_;
+        frame_id_++;
+
+        auto image_container =
+            std::make_shared<ImageContainer>(frame_id, timestamp);
+        (*image_container).rgb(rgb).depth(depth).objectMotionMask(mask);
+
+        image_container_callback_(image_container);
+      });
+  CHECK(multi_image_sync->connect());
+  image_subscriber_ = multi_image_sync;
+}
+
+void RGBDMOnlineProviderRos::unsubscribeImages() {
+  if (image_subscriber_) image_subscriber_->shutdown();
+}
+
+CameraParams::Optional RGBDMOnlineProviderRos::getCameraParams() const {
+  return calibration_helper_->getCameraParams();
+}
+
+void RGBDMOnlineProviderRos::updateAndCheckParams(DynoParams& dyno_params) {
+  auto& tracker_params = dyno_params.frontend_params_.tracker_params;
+  if (tracker_params.prefer_provided_optical_flow) {
+    LOG(WARNING)
+        << "InputImageMode not set to ALL but prefer_provided_optical_flow is "
+           "true - param will be updated!";
+    tracker_params.prefer_provided_optical_flow = false;
+  }
+  if (!tracker_params.prefer_provided_object_detection) {
+    LOG(WARNING) << "InputImageMode not set to RGBD but "
+                    "prefer_provided_object_detection "
+                    "is false - param will be updated to true!!!";
+    tracker_params.prefer_provided_object_detection = true;
+  }
 }
 
 }  // namespace dyno

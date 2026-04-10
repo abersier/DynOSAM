@@ -46,13 +46,15 @@ enum InputImageMode : int {
   ALL = 0,
   //! Expects only rgb and depth images to be provided
   RGBD = 1,
-  STEREO = 2
+  STEREO = 2,
+  RGBDM = 3
 };
 
 struct OnlineDataProviderRosParams {
   bool subscribe_imu{true};
   bool wait_for_camera_params{true};
   int32_t camera_params_timeout{-1};
+  size_t image_subscriber_queue_size{1000};
 };
 
 /**
@@ -124,7 +126,7 @@ class OnlineDataProviderRos : public DataProviderRos {
   virtual void unsubscribeImages() = 0;
 
   OnlineDataProviderRosParams params_;
-  //! Driving frame id for the enture dynosam pipeline
+  //! Driving frame id for the entire dynosam pipeline
   FrameId frame_id_;
 
  private:
@@ -147,16 +149,19 @@ class OnlineDataProviderRos : public DataProviderRos {
  * TODO: why not use the UndistortRectifier?!
  *
  */
-class RGBDTypeCalibrationHelper {
+class RGBDCalibrationHelper {
  public:
-  RGBDTypeCalibrationHelper(rclcpp::Node::SharedPtr node,
-                            const OnlineDataProviderRosParams& params);
+  RGBDCalibrationHelper(rclcpp::Node::SharedPtr node,
+                        const OnlineDataProviderRosParams& params);
 
   void processRGB(const cv::Mat& src, cv::Mat& dst);
   void processDepth(const cv::Mat& src, cv::Mat& dst);
 
   const CameraParams::Optional& getOriginalCameraParams() const;
   const CameraParams::Optional& getCameraParams() const;
+
+ protected:
+  void undistortWithMaps(const cv::Mat& src, cv::Mat& dst) const;
 
  private:
   void setupNewCameraParams(const CameraParams& original_camera_params,
@@ -183,6 +188,18 @@ class RGBDTypeCalibrationHelper {
 };
 
 /**
+ * @brief RGBDM (RGB-Depth-Mask helper)
+ *
+ */
+class RGBDMCalibrationHelper : public RGBDCalibrationHelper {
+ public:
+  RGBDMCalibrationHelper(rclcpp::Node::SharedPtr node,
+                         const OnlineDataProviderRosParams& params);
+
+  void processMask(const cv::Mat& src, cv::Mat& dst) const;
+};
+
+/**
  * @brief Updates and checks that all dyno params are set correctly
  * for when only raw image data is providd (ie. RBGD or Stereo) and no
  * object/flow pre-processing has been done
@@ -206,13 +223,12 @@ class AllImagesOnlineProviderRos : public OnlineDataProviderRos {
   CameraParams::Optional getCameraParams() const override;
 
  private:
-  std::unique_ptr<RGBDTypeCalibrationHelper> calibration_helper_;
+  std::unique_ptr<RGBDCalibrationHelper> calibration_helper_;
   MultiSyncBase::Ptr image_subscriber_;
 };
 
 /**
- * @brief Class that subscribes to rgb, depth, motion mask and dense optical
- * flow topics.
+ * @brief Class that subscribes to rgb and depth.
  *
  */
 class RGBDOnlineProviderRos : public OnlineDataProviderRos {
@@ -227,7 +243,27 @@ class RGBDOnlineProviderRos : public OnlineDataProviderRos {
   void updateAndCheckParams(DynoParams& dyno_params) override;
 
  private:
-  std::unique_ptr<RGBDTypeCalibrationHelper> calibration_helper_;
+  std::unique_ptr<RGBDCalibrationHelper> calibration_helper_;
+  MultiSyncBase::Ptr image_subscriber_;
+};
+
+/**
+ * @brief Class that subscribes to rgb, depth and masks
+ *
+ */
+class RGBDMOnlineProviderRos : public OnlineDataProviderRos {
+ public:
+  RGBDMOnlineProviderRos(rclcpp::Node::SharedPtr node,
+                         const OnlineDataProviderRosParams& params);
+
+  void subscribeImages() override;
+  void unsubscribeImages() override;
+  CameraParams::Optional getCameraParams() const override;
+
+  void updateAndCheckParams(DynoParams& dyno_params) override;
+
+ private:
+  std::unique_ptr<RGBDMCalibrationHelper> calibration_helper_;
   MultiSyncBase::Ptr image_subscriber_;
 };
 
