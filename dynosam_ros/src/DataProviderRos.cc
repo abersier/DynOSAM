@@ -30,7 +30,7 @@
 
 #include "dynosam_ros/DataProviderRos.hpp"
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam_cv/ImageTypes.hpp"
 #include "sensor_msgs/image_encodings.hpp"
 #include "sensor_msgs/msg/image.hpp"

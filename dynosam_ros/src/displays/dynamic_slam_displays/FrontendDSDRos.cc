@@ -30,7 +30,7 @@
 
 #include "dynosam_ros/displays/dynamic_slam_displays/FrontendDSDRos.hpp"
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam_ros/RosUtils.hpp"
 #include "rclcpp/qos.hpp"
 

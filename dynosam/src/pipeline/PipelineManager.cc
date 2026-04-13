@@ -38,7 +38,7 @@
 #include "dynosam_common/utils/TimingStats.hpp"
 
 DEFINE_bool(use_backend, false, "If any backend should be initalised");
-DEFINE_bool(use_opencv_display, true,
+DEFINE_bool(use_opencv_display, false,
             "If true, the OpenCVImageDisplayQueue will be processed");
 
 namespace dyno {

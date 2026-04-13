@@ -32,7 +32,7 @@
 
 #include <opencv4/opencv2/opencv.hpp>
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam/dataprovider/DataProvider.hpp"
 #include "dynosam_common/Exceptions.hpp"
 #include "dynosam_cv/ImageTypes.hpp"
