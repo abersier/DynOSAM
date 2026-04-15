@@ -63,6 +63,18 @@ OnlineDataProviderRos::OnlineDataProviderRos(
     rclcpp::Node::SharedPtr node, const OnlineDataProviderRosParams& params)
     : DataProviderRos(node), params_(params), frame_id_(0u) {
   CHECK_EQ(shutdown_, false);
+
+  // NOTE: process only every Nth incoming frame. Use to reduce processing rate
+  // for real-time operation when camera Hz > pipeline throughput (e.g. 10 Hz
+  // camera, ~3 Hz pipeline -> frame_stride=3).
+  frame_stride_ = static_cast<size_t>(
+      ParameterConstructor(node_.get(), "frame_stride", 1)
+          .description(
+              "Process only every Nth incoming frame (1 = all frames, "
+              "3 = process 1 in 3).")
+          .finish()
+          .get<int>());
+  CHECK_GE(frame_stride_, 1u) << "frame_stride must be >= 1";
 }
 
 bool OnlineDataProviderRos::spin() {
@@ -438,6 +450,8 @@ void RGBDMOnlineProviderRos::subscribeImages() {
                                 "image_container_callback_ is not registered!");
           return;
         }
+
+        if (received_frame_count_++ % frame_stride_ != 0) return;
 
         cv::Mat rgb = readRgbRosImage(rgb_msg).clone();
         cv::Mat depth = readDepthRosImage(depth_msg).clone();

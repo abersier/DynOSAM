@@ -128,6 +128,10 @@ class OnlineDataProviderRos : public DataProviderRos {
   OnlineDataProviderRosParams params_;
   //! Driving frame id for the entire dynosam pipeline
   FrameId frame_id_;
+  //! Counter of every frame received (before stride filtering)
+  size_t received_frame_count_{0};
+  //! Process only every Nth received frame (1 = all frames, N = skip N-1)
+  size_t frame_stride_{1};
 
  private:
   void subscribeImu();

@@ -467,7 +467,8 @@ void Frame::updateDepthsFeatureContainer(
     // const Depth d = depth_mat.at<Depth>(y, x);
     const Depth d = functional_keypoint::at<Depth>(feature->keypoint(), depth);
 
-    if (d > max_depth || d <= 0) {
+    // NaN must be checked explicitly: IEEE 754 NaN comparisons always return false (e.g. from Gazebo out-of-range pixels).
+    if (std::isnan(d) || d > max_depth || d <= 0) {
       feature->markInvalid();
       feature->depth(Feature::invalid_depth);
       count++;

@@ -139,7 +139,7 @@ class DynoStatePublisher {
   //! Settings
 
   //! Publish TF for visual odom
-  bool publish_vo_tf_{false};
+  bool publish_vo_tf_{true};
   //! Publish TF for object odometry
   bool publish_oo_tf_{false};
 };
