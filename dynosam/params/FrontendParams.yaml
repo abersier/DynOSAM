@@ -18,7 +18,7 @@ refine_camera_pose_with_joint_of: True
 
 object_motion_solver:
   ransac_threshold_pnp: 1.0
-  refine_motion_with_joint_of: True
+  refine_motion_with_joint_of: False
   refine_motion_with_3d: False
 
   ransac_iterations: 500
@@ -46,12 +46,12 @@ tracker_params:
 
   shrink_row: 0
   shrink_col: 0
-  max_nr_keypoints_before_anms: 1000
-  max_features_per_frame: 800
+  max_nr_keypoints_before_anms: 800 # 1000
+  max_features_per_frame: 400 # 800
   max_feature_track_age: 20
   # currently min_features_per_frame should == max_features_per_frame
   # some internal bug that is yet to be sorted!
-  min_features_per_frame: 800
+  min_features_per_frame: 400 # 800
   # This should be wide to get a good spread.
   # Ideally should be calculated as some function of the input image size
   min_distance_btw_tracked_and_detected_static_features: 15
@@ -63,9 +63,9 @@ tracker_params:
   prefer_provided_optical_flow: false
   prefer_provided_object_detection: true
 
-  max_dynamic_features_per_frame: 300
+  max_dynamic_features_per_frame: 200 # 300
   min_distance_btw_tracked_and_detected_dynamic_features: 2
-  max_dynamic_feature_age: 20 #20
+  max_dynamic_feature_age: 20 # 20
 
 
   # dynamic keyframing criteria

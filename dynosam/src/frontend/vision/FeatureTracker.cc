@@ -35,6 +35,7 @@
 #include <tbb/parallel_for_each.h>
 
 #include <mutex>
+#include <thread>
 #include <opencv4/opencv2/opencv.hpp>
 
 #include "dynosam/frontend/anms/NonMaximumSuppression.h"
@@ -143,15 +144,11 @@ Frame::Ptr FeatureTracker::track(FrameId frame_id, Timestamp timestamp,
     }
   };
 
-  // start tracking threads since we can do this independantly
   FeatureContainer static_features, dynamic_features;
-  std::thread static_track_thread(static_track, std::ref(static_features));
-  // a boolean mask (255 for valid, 0 for invalid) indicating where dynamic
-  // features were detected or tracked
   cv::Mat dynamic_detection_mask;
+  std::thread static_track_thread(static_track, std::ref(static_features));
   std::thread dynamic_track_thread(dynamic_track, std::ref(dynamic_features),
                                    std::ref(dynamic_detection_mask));
-
   static_track_thread.join();
   dynamic_track_thread.join();
 

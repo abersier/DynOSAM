@@ -56,6 +56,7 @@ FrontendInputPacketBase::ConstPtr DataInterfacePipeline::getInputPacket() {
 
   utils::StatsCollector queue_size_stats("data-interface_queue_size #");
   queue_size_stats.AddSample(packet_queue_.size());
+  // LOG_EVERY_N(INFO, 20) << "[DataInterface] packet_queue size: " << packet_queue_.size();
 
   bool queue_state;
   ImageContainer::Ptr packet = nullptr;

@@ -150,6 +150,7 @@ bool MIMOPipelineModule<INPUT, OUTPUT>::pushOutputPacket(
   for (OutputQueue* queue : output_queues_) {
     CHECK(queue);
     queue->push(output_packet);
+    LOG_EVERY_N(INFO, 20) << "[" << this->module_name_ << "] output queue size: " << queue->size();
   }
   for (OutputCallback cb : output_callbacks_) {
     cb(output_packet);

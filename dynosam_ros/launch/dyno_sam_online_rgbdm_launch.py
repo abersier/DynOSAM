@@ -10,7 +10,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("params_path", default_value=get_default_dynosam_params_path()),
         DeclareLaunchArgument("v", default_value="30"),
-        DeclareLaunchArgument("output_path", default_value="/root/results/DynoSAM/"),
+        DeclareLaunchArgument("output_path", default_value="/root/results/"),
         DeclareLaunchArgument("camera_info_topic", default_value="/robot_1/rgbd_camera/camera_info"),
         DeclareLaunchArgument("rgb_cam_topic", default_value="/robot_1/rgbd_camera/image"),
         DeclareLaunchArgument("depth_cam_topic", default_value="/robot_1/rgbd_camera/depth_image"),

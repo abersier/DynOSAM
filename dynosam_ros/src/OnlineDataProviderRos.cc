@@ -429,7 +429,8 @@ void RGBDMOnlineProviderRos::subscribeImages() {
   // make multiimage sync and and queue have similar depth
   // reliable important so we dont drop frames we're quite reliant on frame
   // to frame tracking!
-  static constexpr size_t queue_size = 1000;
+  // NOTE: reduced from 1000 to prevent unbounded memory growth when camera Hz > pipeline throughput.
+  static constexpr size_t queue_size = 100;
   auto image_qos = rclcpp::SensorDataQoS().keep_last(queue_size).reliable();
 
   MultiSyncConfig config;
