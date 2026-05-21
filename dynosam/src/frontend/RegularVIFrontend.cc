@@ -161,17 +161,18 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
   pushImageToDisplayQueue("Tracks",
                           realtime_output->debug_imagery.tracking_image);
 
-  // if (FLAGS_set_dense_labelled_cloud) {
-  //     VLOG(30) << "Setting dense labelled cloud";
-  //     utils::ChronoTimingStats labelled_clout_timer(
-  //         this->moduleName() + ".dense_labelled_cloud");
-  //     const cv::Mat& board_detection_mask =
-  //     tracker_->getBoarderDetectionMask();
-  //     realtime_output->dense_labelled_cloud =
-  //         frame_k->projectToDenseCloud(&board_detection_mask);
-
-  //     //TODO: remove dense labelled cloud from VIOutput!!
-  // }
+  // NOTE: Re-enabled for DynORecon integration (dyno_mpc). Projects depth
+  // image to a labelled PointCloud<PointXYZRGBL> in camera frame; published
+  // by FrontendDSDRos::spinOnce to /dynosam/frontend/dense_labelled_cloud.
+  if (FLAGS_set_dense_labelled_cloud) {
+    VLOG(30) << "Setting dense labelled cloud";
+    utils::ChronoTimingStats labelled_clout_timer(
+        this->moduleName() + ".dense_labelled_cloud");
+    const cv::Mat& board_detection_mask =
+        tracker_->getBoarderDetectionMask();
+    realtime_output->dense_labelled_cloud =
+        frame_k->projectToDenseCloud(&board_detection_mask);
+  }
 
   logRealTimeOutput(realtime_output);
 

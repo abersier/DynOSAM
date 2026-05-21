@@ -42,7 +42,9 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/header.hpp"
+#include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2_ros/transform_listener.h"
 
 namespace dyno {
 
@@ -70,12 +72,13 @@ class DynoStatePublisher {
   DynoStatePublisher& publishObjectOdomTF(bool flag);
 
  private:
-  void publishObjects(FrameId frame_id,
+  void publishObjects(FrameId frame_id, Timestamp timestamp,
                       const MultiObjectTrajectories& object_trajectories);
 
   ObjectOdometry constructObjectOdometry(
       ObjectId object_id, FrameId frame_id,
-      const PoseWithMotionTrajectory& trajectory) const;
+      const PoseWithMotionTrajectory& trajectory,
+      const gtsam::Pose3& T_map_world) const;
 
   void sendObjectOdometryTransform(const ObjectOdometry& object_odom);
 
@@ -126,6 +129,17 @@ class DynoStatePublisher {
   rclcpp::Node::SharedPtr node_;
   //! TF broadcaster for the odometry.
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+
+  // TF buffer/listener and cached map←world transform.
+  // Looked up once on the first publish() call and held thereafter.
+  tf2_ros::Buffer tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  gtsam::Pose3 T_map_world_;
+  bool T_map_world_ready_{false};
+  // Output frame used in all published messages.  Set in constructor:
+  //   physical_camera_frame_id set   → map_frame_id   (Z-up, corrected)
+  //   physical_camera_frame_id empty → world_frame_id (pass-through)
+  std::string output_frame_id_;
 
   OdometryPub::SharedPtr vo_publisher_;
   PathPub::SharedPtr vo_path_publisher_;

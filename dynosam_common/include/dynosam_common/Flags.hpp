@@ -43,6 +43,9 @@ DECLARE_bool(save_frontend_json);
 DECLARE_bool(frontend_from_file);
 DECLARE_bool(use_byte_tracker);
 DECLARE_bool(refine_with_optical_flow);
+// NOTE: Enables dense labelled cloud projection for DynORecon (dyno_mpc).
+// Defined in FrontendParams.cc; set true via frontend.flags.
+DECLARE_bool(set_dense_labelled_cloud);
 
 // for now?
 DECLARE_bool(use_vo_factor);

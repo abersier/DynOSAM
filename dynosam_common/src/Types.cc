@@ -38,6 +38,10 @@
 #include "dynosam_common/Flags.hpp"
 
 // common glags used in multiple modules
+// NOTE: Defined here for DynORecon integration (dyno_mpc). Set true via
+// frontend.flags; declared in Flags.hpp.
+DEFINE_bool(set_dense_labelled_cloud, false,
+            "If true, project depth image to a labelled cloud each frame");
 DEFINE_bool(init_object_pose_from_gt, false,
             "If true, then the viz pose from the frontend/backend will start "
             "from the gt");

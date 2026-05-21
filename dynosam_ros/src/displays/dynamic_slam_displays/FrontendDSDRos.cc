@@ -30,6 +30,8 @@
 
 #include "dynosam_ros/displays/dynamic_slam_displays/FrontendDSDRos.hpp"
 
+#include <pcl_conversions/pcl_conversions.h>
+
 #include "cv_bridge/cv_bridge.h"
 #include "dynosam_ros/RosUtils.hpp"
 #include "rclcpp/qos.hpp"
@@ -39,14 +41,19 @@ namespace dyno {
 FrontendDSDRos::FrontendDSDRos(const DisplayParams& params,
                                rclcpp::Node::SharedPtr node,
                                rclcpp::Node::SharedPtr ground_truth_node)
-    : FrontendDisplay(), dyno_state_publisher_(params, node) {
+    : FrontendDisplay(), dyno_state_publisher_(params, node),
+      camera_frame_id_(params.camera_frame_id) {
   tracking_image_pub_ =
       image_transport::create_publisher(node.get(), "tracking_image");
 
   // const rclcpp::SensorDataQoS sensor_qos;
+  // NOTE: Use RELIABLE QoS (not SensorDataQoS/BEST_EFFORT) so that
+  // DynORecon's message_filters subscriber can receive this cloud.
   dense_dynamic_cloud_pub_ =
       node->create_publisher<sensor_msgs::msg::PointCloud2>(
-          "dense_labelled_cloud", rclcpp::SensorDataQoS());
+          "dense_labelled_cloud", rclcpp::QoS(10));
+
+  background_stride_ = std::max<int>(1, node->declare_parameter<int>("background_stride", 4));
 
   if (ground_truth_node) {
     RCLCPP_INFO_STREAM(node->get_logger(), "Creating ground truth publishers");
@@ -67,6 +74,28 @@ void FrontendDSDRos::spinOnce(const RealtimeOutput::ConstPtr& frontend_output) {
 
   // // // publish ground truth
   tryPublishGroundTruth(frontend_output);
+
+  // NOTE: Publish dense labelled cloud for DynORecon (dyno_mpc). Cloud type is
+  // PointXYZRGBL; DynORecon reads via pcl::fromROSMsg into PointXYZL, matching
+  // fields by name — the extra rgb field is ignored.
+  if (frontend_output->dense_labelled_cloud) {
+    const auto& cloud = frontend_output->dense_labelled_cloud;
+    pcl::PointCloud<pcl::PointXYZRGBL> filtered;
+    filtered.reserve(cloud->size());
+    int bg_counter = 0;
+    for (const auto& p : *cloud) {
+      if (p.x == 0.0f && p.y == 0.0f && p.z == 0.0f) continue;
+      if (p.label == 0 && bg_counter++ % background_stride_ != 0) continue;
+      filtered.push_back(p);
+    }
+    filtered.is_dense = true;
+
+    sensor_msgs::msg::PointCloud2 cloud_msg;
+    pcl::toROSMsg(filtered, cloud_msg);
+    cloud_msg.header.stamp = utils::toRosTime(frontend_output->state.timestamp);
+    cloud_msg.header.frame_id = camera_frame_id_;
+    dense_dynamic_cloud_pub_->publish(cloud_msg);
+  }
 }
 
 void FrontendDSDRos::tryPublishDebugImagery(

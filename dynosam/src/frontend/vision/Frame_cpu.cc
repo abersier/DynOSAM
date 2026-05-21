@@ -37,11 +37,6 @@
 #include "dynosam_common/utils/TimingStats.hpp"
 #include "dynosam_common/viz/Colour.hpp"
 
-#ifdef DYNOSAM_USE_CUDA
-#include "dynosam/frontend/vision/cuda_backproject.cuh"
-#include <vector>
-#endif
-
 namespace dyno {
 
 Frame::Frame(
@@ -194,6 +189,7 @@ PointCloudLabelRGB::Ptr Frame::projectToDenseCloud(
     return nullptr;
   }
 
+  PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
   const cv::Mat& depth_image = image_container_.depth();
   const cv::Mat& motion_mask = image_container_.objectMotionMask();
 
@@ -204,71 +200,12 @@ PointCloudLabelRGB::Ptr Frame::projectToDenseCloud(
   const int rows = depth_image.rows;
   const int cols = depth_image.cols;
 
-#ifdef DYNOSAM_USE_CUDA
-  // ── CUDA path ─────────────────────────────────────────────────────────────
-  // Static scratch + output buffers — allocated once, reused every frame.
-  // Safe: projectToDenseCloud is called from the single frontend thread.
-  static cuda::GpuBackprojectScratch scratch;
-  static std::vector<float>   h_xyz_buf;
-  static std::vector<int32_t> h_label_buf;
-  static bool scratch_ready = false;
-
-  if (!scratch_ready || scratch.rows != rows || scratch.cols != cols) {
-    if (scratch_ready) cuda::gpuBackprojectFree(scratch);
-    cuda::gpuBackprojectAlloc(scratch, rows, cols);
-    h_xyz_buf.resize(3 * scratch.max_pts);
-    h_label_buf.resize(scratch.max_pts);
-    scratch_ready = true;
-  }
-
-  const CameraParams& cam_params = camera_->getParams();
-  const cv::Mat K = cam_params.getCameraMatrix();
-  const float fx = static_cast<float>(K.at<double>(0, 0));
-  const float fy = static_cast<float>(K.at<double>(1, 1));
-  const float cx_f = static_cast<float>(K.at<double>(0, 2));
-  const float cy_f = static_cast<float>(K.at<double>(1, 2));
-
-  const uint8_t* det_ptr = detection_mask
-      ? detection_mask->ptr<uint8_t>(0) : nullptr;
-
-  const int n = cuda::gpuBackproject(
-      scratch,
-      depth_image.ptr<Depth>(0),
-      motion_mask.ptr<int32_t>(0),
-      det_ptr,
-      rows, cols,
-      1.f / fx, 1.f / fy, cx_f, cy_f,
-      static_cast<float>(max_background_threshold_),
-      static_cast<float>(max_object_threshold_),
-      h_xyz_buf.data(), h_label_buf.data());
-
-  // Pack compact (xyz, label) arrays into PointLabelRGB cloud.
-  // Color assignment happens on CPU — only n valid points, not 307k.
-  PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
-  cloud->points.reserve(n);
-  for (int k = 0; k < n; ++k) {
-    const int32_t obj_id = h_label_buf[k];
-    const Color colour = (obj_id == static_cast<int32_t>(background_label))
-                             ? Color::black()
-                             : Color::uniqueId(obj_id);
-    cloud->points.emplace_back(
-        h_xyz_buf[3 * k], h_xyz_buf[3 * k + 1], h_xyz_buf[3 * k + 2],
-        static_cast<std::uint8_t>(colour.r),
-        static_cast<std::uint8_t>(colour.g),
-        static_cast<std::uint8_t>(colour.b),
-        static_cast<std::uint32_t>(obj_id));
-  }
-  cloud->width  = cloud->points.size();
-  cloud->height = 1;
-  cloud->is_dense = true;
-  return cloud;
-
-#else
-  // ── CPU fallback ──────────────────────────────────────────────────────────
-  // Identical to Frame_cpu.cc — kept for comparison and non-CUDA builds.
-  PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
+  // Reserve memory for the cloud (approximate max size)
+  // cloud->points.reserve(rows * cols);
   cloud->points.resize(rows * cols);
 
+  // api needs image ref
+  // in this function we will not actually change the depth image
   cv::Mat& depth_image_ref = const_cast<cv::Mat&>(depth_image);
   FunctionalParallelOpenCVMat process(
       depth_image_ref, [&](cv::Mat& depth_image, int i, int j) {
@@ -294,6 +231,7 @@ PointCloudLabelRGB::Ptr Frame::projectToDenseCloud(
 
         if (depth > depth_thresh || depth <= 0 || !std::isfinite(depth)) return;
 
+        // Back-projection
         const Keypoint kp(j, i);
         Landmark point;
         // this call is probably very slow
@@ -312,7 +250,6 @@ PointCloudLabelRGB::Ptr Frame::projectToDenseCloud(
   cloud->height = 1;
   cloud->is_dense = false;
   return cloud;
-#endif
 }
 
 bool Frame::updateDepths() {

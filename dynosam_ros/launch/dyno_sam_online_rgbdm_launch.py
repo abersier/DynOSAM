@@ -19,20 +19,13 @@ def generate_launch_description():
         DeclareLaunchArgument("rescale_height", default_value="480", description="Image height to rescale to"),
         DeclareLaunchArgument("depth_scale", default_value="1.0", description="Scale factor to convert depth to metres (1.0 for Gazebo float32, 0.001 for mm sensors)"),
         DeclareLaunchArgument("frame_stride", default_value="1", description="Process only every Nth frame (1=all, 3=every 3rd). Set to match camera Hz / pipeline throughput."),
-        DeclareLaunchArgument("ego_namespace", default_value="robot_1", description="Robot namespace used to look up map -> <ego_ns>/optical_frame for world frame init"),
-
-        # Broadcasts a one-time static TF map -> world by looking up map -> <ego_ns>/optical_frame at startup.
-        # This aligns DynOSAM's 'world' frame with Gazebo's 'map' frame for RViz overlay with DynORecon.
-        Node(
-            package="dyno_mpc_sim",
-            executable="dynosam_world_init.py",
-            name="dynosam_world_init",
-            output="screen",
-            parameters=[
-                {"ego_namespace": LaunchConfiguration("ego_namespace")},
-                {"world_frame_id": "world"},
-            ],
-        ),
+        DeclareLaunchArgument("background_stride", default_value="4", description="Keep every Nth background point (label=0) in dense_labelled_cloud; dynamic points always kept (1=all, 4=every 4th)."),
+        DeclareLaunchArgument("ego_namespace", default_value="robot_1", description="Robot namespace (used by callers to parameterise camera topic defaults)."),
+        DeclareLaunchArgument("physical_camera_frame_id", default_value="",
+                              description="Physical TF frame for the camera in the robot TF tree "
+                                          "(e.g. robot_1/optical_frame). Set so DynoStatePublisher "
+                                          "can look up map→camera to cache T_map_world. "
+                                          "Leave empty to publish in world frame without transform."),
 
         DynosamNode(
                 package="dynosam_ros",
@@ -45,7 +38,9 @@ def generate_launch_description():
                     {"online": True},
                     {"input_image_mode": 3}, # Corresponds with InputImageMode::RGBDM
                     {"depth_scale": LaunchConfiguration("depth_scale")},
-                    {"frame_stride": LaunchConfiguration("frame_stride")}
+                    {"frame_stride": LaunchConfiguration("frame_stride")},
+                    {"background_stride": LaunchConfiguration("background_stride")},
+                    {"physical_camera_frame_id": LaunchConfiguration("physical_camera_frame_id")},
                 ],
                 remappings=[
                     ("dataprovider/camera/camera_info",  LaunchConfiguration("camera_info_topic")),

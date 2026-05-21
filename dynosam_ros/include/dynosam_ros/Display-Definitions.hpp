@@ -37,6 +37,13 @@ namespace dyno {
 struct DisplayParams {
   std::string world_frame_id = "world";
   std::string camera_frame_id = "camera";
+  std::string map_frame_id = "map";
+  // Physical TF frame for the camera in the robot's TF tree
+  // (e.g. "robot_1/optical_frame"). When non-empty, DynoStatePublisher looks
+  // up map→this frame once at startup to cache T_map_world and then publishes
+  // all poses in map_frame_id. When empty the transform is skipped and poses
+  // are published in world_frame_id unchanged (backward-compatible default).
+  std::string physical_camera_frame_id = "";
 };
 
 }  // namespace dyno

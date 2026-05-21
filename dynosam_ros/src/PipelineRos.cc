@@ -185,6 +185,16 @@ void DynoPipelineManagerRos::initalisePipeline() {
           .description("ROS frame id for the static workd frame (ie. odometry)")
           .finish()
           .get<std::string>();
+  display_params.physical_camera_frame_id =
+      ParameterConstructor(this, "physical_camera_frame_id",
+                           display_params.physical_camera_frame_id)
+          .description(
+              "Physical TF frame for the camera in the robot TF tree "
+              "(e.g. robot_1/optical_frame). When set, DynoStatePublisher "
+              "looks up map->this frame once to cache T_map_world and "
+              "publishes all poses in map_frame_id.")
+          .finish()
+          .get<std::string>();
 
   auto frontend_display = std::make_shared<dyno::FrontendDisplayRos>(
       display_params, this->create_sub_node("frontend"),

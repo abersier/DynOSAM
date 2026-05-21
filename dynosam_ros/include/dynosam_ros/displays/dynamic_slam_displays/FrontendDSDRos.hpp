@@ -69,6 +69,11 @@ class FrontendDSDRos : public FrontendDisplay {
   image_transport::Publisher tracking_image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
       dense_dynamic_cloud_pub_;
+  // NOTE: Cached from DisplayParams at construction — params_ is protected
+  // inside DynoStatePublisher (composition, not inheritance) so not accessible
+  // later.
+  const std::string camera_frame_id_;
+  int background_stride_;
 
   std::optional<GroundTruthPublishers> ground_truth_publishers_;
 };
