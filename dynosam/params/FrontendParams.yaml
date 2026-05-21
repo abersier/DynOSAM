@@ -43,6 +43,8 @@ camera_motion_solver:
 
 tracker_params:
   feature_detector_type: "GFFT_CUDA"
+  gfft_params:
+    quality_level: 0.01
 
   shrink_row: 0
   shrink_col: 0
