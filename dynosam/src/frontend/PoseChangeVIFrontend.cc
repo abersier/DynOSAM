@@ -1,6 +1,14 @@
 #include "dynosam/frontend/PoseChangeVIFrontend.hpp"
 
 #include <gflags/gflags.h>
+#include "dynosam_common/Flags.hpp"
+#ifdef DYNOSAM_USE_CUDA
+#include "dynosam/frontend/vision/cuda_backproject.cuh"
+#include <limits>
+#include <vector>
+#include "dynosam_common/PointCloudProcess.hpp"
+#include "dynosam_common/viz/Colour.hpp"
+#endif
 
 DEFINE_bool(pc_smoother_allow_backend_updates, false,
             "If updates from the backend should be received.");
@@ -511,6 +519,83 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
   //   pushImageToDisplayQueue("Stereo-Matches", stereo_track);
   // }
 
+  if (FLAGS_set_dense_labelled_cloud) {
+    utils::ChronoTimingStats labelled_cloud_timer(
+        this->moduleName() + ".dense_labelled_cloud");
+    const cv::Mat& border_mask = tracker_.getBoarderDetectionMask();
+
+#ifdef DYNOSAM_USE_CUDA
+    const cv::Mat& depth_image = frame_k->imageContainer().depth();
+    const cv::Mat& motion_mask_raw = frame_k->imageContainer().objectMotionMask();
+    // Gazebo publishes mono8 (CV_8UC1); CUDA kernel expects CV_32SC1.
+    cv::Mat motion_mask;
+    if (!motion_mask_raw.empty() && motion_mask_raw.type() != CV_32SC1)
+      motion_mask_raw.convertTo(motion_mask, CV_32SC1);
+    else
+      motion_mask = motion_mask_raw;
+
+    if (depth_image.empty() || motion_mask.empty()) {
+      realtime_output->dense_labelled_cloud =
+          frame_k->projectToDenseCloud(&border_mask);
+    } else {
+      const int rows = depth_image.rows;
+      const int cols = depth_image.cols;
+
+      static cuda::GpuBackprojectScratch cuda_scratch;
+      if (cuda_scratch.rows != rows || cuda_scratch.cols != cols)
+        cuda::gpuBackprojectAlloc(cuda_scratch, rows, cols);
+
+      const CameraParams& cam_p = frame_k->getCamera()->getParams();
+      const float fx_inv = 1.f / static_cast<float>(cam_p.fx());
+      const float fy_inv = 1.f / static_cast<float>(cam_p.fy());
+      const float cx     = static_cast<float>(cam_p.cu());
+      const float cy     = static_cast<float>(cam_p.cv());
+
+      const uint8_t* det_ptr =
+          border_mask.empty() ? nullptr : border_mask.ptr<uint8_t>(0);
+
+      const int max_pts = rows * cols;
+      static thread_local std::vector<float>   h_xyz;
+      static thread_local std::vector<int32_t> h_label;
+      h_xyz.resize(3 * max_pts);
+      h_label.resize(max_pts);
+
+      const int n = cuda::gpuBackproject(
+          cuda_scratch,
+          depth_image.ptr<double>(0),
+          motion_mask.ptr<int32_t>(0),
+          det_ptr,
+          rows, cols,
+          fx_inv, fy_inv, cx, cy,
+          std::numeric_limits<float>::max(),
+          std::numeric_limits<float>::max(),
+          h_xyz.data(), h_label.data());
+
+      PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
+      cloud->points.resize(n);
+      for (int i = 0; i < n; ++i) {
+        const ObjectId obj_id = static_cast<ObjectId>(h_label[i]);
+        const Color colour =
+            (obj_id == background_label) ? Color::black()
+                                         : Color::uniqueId(obj_id);
+        cloud->points[i] = PointLabelRGB(
+            h_xyz[3 * i], h_xyz[3 * i + 1], h_xyz[3 * i + 2],
+            static_cast<uint8_t>(colour.r),
+            static_cast<uint8_t>(colour.g),
+            static_cast<uint8_t>(colour.b),
+            static_cast<uint32_t>(obj_id));
+      }
+      cloud->width  = static_cast<uint32_t>(n);
+      cloud->height = 1;
+      cloud->is_dense = true;
+      realtime_output->dense_labelled_cloud = cloud;
+    }
+#else
+    realtime_output->dense_labelled_cloud =
+        frame_k->projectToDenseCloud(&border_mask);
+#endif
+  }
+
   logRealTimeOutput(realtime_output);
 
   // after logging update the multi object trajectories to visualise
@@ -845,17 +930,10 @@ void PoseChangeVIFrontend::handleCameraKeyframe(
       formulation_->addStatesPropogate(new_static_values, new_static_factors,
                                        frame_id_k, timestamp_k, T_lk_k, pim);
 
-  map_->setCameraKeyFrame(frame_id_k);
-  pc_input->keyframe_info.camera_keyframe = true;
-
-  // NOTE: this is different from the nav state that is mantained in the
-  // frontend so the initial states may be slightly different (only if IMU)
-  // NOTE: must be after the updateObs -> these create new frames with the
-  // correct attrivutes (ie. timestamp) while setInitialSensorPose
-  // creates a new frame id necessary but does not populdate with timestamp!!
-  // this is a known bufg!!
   map_->setInitialSensorPose(frame_id_k, timestamp_k,
                              Pose3Measurement(predicted_nav_state.pose()));
+  map_->setCameraKeyFrame(frame_id_k);
+  pc_input->keyframe_info.camera_keyframe = true;
 
   post_update_data.static_update_result =
       formulation_->updateStaticObservations(frame_id_k, new_static_values,

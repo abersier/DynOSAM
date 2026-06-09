@@ -11,6 +11,30 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
+# ── Optional CUDA support ────────────────────────────────────────────────────
+# Targets: sm_75 (RTX 2080, desktop dev) and sm_87 (Jetson Orin, robot).
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
+  set(CMAKE_CUDA_STANDARD 17)
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES "75;87")
+  endif()
+  message(STATUS "[dynosam] CUDA found (${CMAKE_CUDA_COMPILER}) — GPU backprojection enabled (sm ${CMAKE_CUDA_ARCHITECTURES})")
+  set(DYNOSAM_USE_CUDA ON)
+  find_package(CUDAToolkit REQUIRED)
+  add_library(cuda_backproject_lib STATIC
+    src/frontend/vision/cuda_backproject.cu)
+  target_include_directories(cuda_backproject_lib PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+  target_link_libraries(cuda_backproject_lib CUDA::cudart)
+  set_property(TARGET cuda_backproject_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
+else()
+  message(STATUS "[dynosam] CUDA not found — CPU-only backprojection")
+  set(DYNOSAM_USE_CUDA OFF)
+endif()
+
 # Must be set **before** find_package(PCL)
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -169,6 +193,11 @@ target_link_libraries(${PROJECT_NAME}
   # PRIVATE
 )
 
+
+if(DYNOSAM_USE_CUDA)
+  target_link_libraries(${PROJECT_NAME} PRIVATE cuda_backproject_lib)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE DYNOSAM_USE_CUDA)
+endif()
 
 ament_export_libraries(${PROJECT_NAME}
   # glog

@@ -80,7 +80,7 @@ inline void waitAndGetMessage(
       rclcpp::Clock::SharedPtr clock = node->get_clock();
 
       const auto start_time = clock->now();
-      rclcpp::Rate rate(1, clock);
+      rclcpp::Rate rate(1.0);  // wall-rate; 2-arg clock ctor is Jazzy+
 
       while (rclcpp::ok() && !done.load()) {
         const auto elapsed = (clock->now() - start_time).seconds();

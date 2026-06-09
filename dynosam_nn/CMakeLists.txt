@@ -53,10 +53,9 @@ string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" SYSTEM_ARCH_LOWER)
 ## --- 1. Detect and Set CUDA Architecture ---
 if (SYSTEM_ARCH_LOWER MATCHES "^(x86_64|amd64)$")
     # Case 1: Standard Desktop/Server (x86_64)
-    # Use 'all' to target the maximum number of modern GPUs, relying on the user
-    # or the CI system to set a more specific list if needed.
-    message("Detected x86_64/AMD64. Setting CUDA Architectures to 'all' (flexible build).")
-    set(CMAKE_CUDA_ARCHITECTURES all)
+    # sm_75 = RTX 2080 (dev desktop); sm_87 = Jetson Orin (robot).
+    message("Detected x86_64/AMD64. Setting CUDA Architectures to 75;87.")
+    set(CMAKE_CUDA_ARCHITECTURES 75 87)
 
 elseif (SYSTEM_ARCH_LOWER MATCHES "^(aarch64|arm64)$")
     # Case 2: 64-bit Embedded/ARM (NVIDIA ORIN, Jetson)

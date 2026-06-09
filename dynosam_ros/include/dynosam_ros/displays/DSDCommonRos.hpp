@@ -79,7 +79,10 @@ class DynoStatePublisher {
   void publish(const DynoState& state);
 
  private:
-  void publishObjects(FrameId frame_id,
+  // timestamp: frame timestamp forwarded from displayOutput, used to stamp the
+  // empty MultiObjectOdometryPath published when no objects are tracked.
+  // See DSDCommonRos.cc publishObjects() for rationale.
+  void publishObjects(FrameId frame_id, Timestamp timestamp,
                       const MultiObjectTrajectories& object_trajectories);
 
   ObjectOdometry constructObjectOdometry(

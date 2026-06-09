@@ -38,6 +38,10 @@
 #include "dynosam_common/Flags.hpp"
 
 // common glags used in multiple modules
+DEFINE_bool(set_dense_labelled_cloud, true,
+            "If true, project depth image to a dense labelled PointCloud "
+            "(PointXYZRGBL) and store in RealtimeOutput for DynORecon "
+            "integration. Published in odom frame by FrontendDisplayRos.");
 DEFINE_bool(init_object_pose_from_gt, false,
             "If true, then the viz pose from the frontend/backend will start "
             "from the gt");

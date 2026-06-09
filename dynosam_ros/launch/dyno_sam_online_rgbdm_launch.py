@@ -44,10 +44,16 @@ def generate_launch_description():
                               description="Parent of camera optical frame in TF tree (Z-up, robotics convention)"),
         DeclareLaunchArgument("odom_frame", default_value="odom",
                               description="Odometry/world frame for DynoSAM output topics and TF"),
-        # DeclareLaunchArgument("depth_scale", default_value="0.001",
-        #                       description="Depth image scale factor: 1.0 for metre sources (Gazebo, ZED), "
-        #                                   "0.001 for millimetre sources (some RealSense configs)."),
-        # robot_state_publisher_node,
+        DeclareLaunchArgument("depth_scale", default_value="1.0",
+                              description="Depth image scale factor: 1.0 for metre sources (Gazebo, ZED), "
+                                          "0.001 for millimetre sources (some RealSense configs)."),
+        DeclareLaunchArgument("labelled_cloud_max_static_points", default_value="2000",
+                              description="Max static points in dense_labelled_cloud (0 = no limit). "
+                                          "Random-sampled before publish. Oracle equivalent: points_static."),
+        DeclareLaunchArgument("labelled_cloud_max_dynamic_points", default_value="800",
+                              description="Max dynamic points per object in dense_labelled_cloud (0 = no limit). "
+                                          "Sampled per-object — budget is fair regardless of object count/size. "
+                                          "Oracle equivalent: points_per_object."),
         DynosamNode(
                 package="dynosam_ros",
                 executable="dynosam_node",
@@ -60,10 +66,11 @@ def generate_launch_description():
                     {"input_image_mode": "rgb+aligned_depth+aligned_mask"},
                     {"base_frame":  LaunchConfiguration("base_frame")},
                     {"odom_frame":  LaunchConfiguration("odom_frame")},
-                    {"rgb_optical_frame": "camera_color_optical_frame"},
-                    # {"depth_scale": LaunchConfiguration("depth_scale")},
-                    # {"baseline": 0.05},
-                    {"v": LaunchConfiguration("v")}
+                    {"depth_scale": LaunchConfiguration("depth_scale")},
+                    {"baseline": 0.05},
+                    {"v": LaunchConfiguration("v")},
+                    {"frontend.labelled_cloud_max_static_points":  LaunchConfiguration("labelled_cloud_max_static_points")},
+                    {"frontend.labelled_cloud_max_dynamic_points": LaunchConfiguration("labelled_cloud_max_dynamic_points")},
                 ],
                 remappings=[
                     ("rgb/camera_info", LaunchConfiguration("camera_info_topic")),

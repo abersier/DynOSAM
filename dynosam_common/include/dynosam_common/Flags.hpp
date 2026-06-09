@@ -38,6 +38,7 @@
  */
 
 // common glags used in multiple modules
+DECLARE_bool(set_dense_labelled_cloud);
 DECLARE_bool(init_object_pose_from_gt);
 DECLARE_bool(save_frontend_json);
 DECLARE_bool(frontend_from_file);

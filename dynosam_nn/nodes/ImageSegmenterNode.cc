@@ -6,7 +6,7 @@
 #include <boost/python.hpp>
 #include <opencv4/opencv2/opencv.hpp>
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam_common/utils/Statistics.hpp"
 #include "dynosam_nn/ModelConfig.hpp"
 #include "dynosam_nn/PyObjectDetector.hpp"

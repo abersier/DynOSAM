@@ -132,11 +132,12 @@ void DynoStatePublisher::publish(const DynoState& state) {
   DisplayCommon::publishPointCloud(dynamic_points_pub_, state.dynamic_map,
                                    reference_frames.odom_frame, T_RC);
 
-  publishObjects(frame_id, state.object_trajectories);
+  publishObjects(frame_id, timestamp, state.object_trajectories);
 }
 
 void DynoStatePublisher::publishObjects(
-    FrameId frame_id, const MultiObjectTrajectories& object_trajectories) {
+    FrameId frame_id, Timestamp timestamp,
+    const MultiObjectTrajectories& object_trajectories) {
   // get subset of trajectories that has an object observed at k
   // TODO: for now!
   // auto object_trajectories_k =
@@ -147,11 +148,18 @@ void DynoStatePublisher::publishObjects(
   // }
   MultiObjectTrajectories object_trajectories_k = object_trajectories;
 
+  const auto reference_frames = sensor_rig_->getReferenceFrames();
+
+  // Always publish — even empty — so DynORecon's 3-topic sync fires every frame.
+  // See memory/theory/dynosam-update.md for rationale (2026-06-05).
   if (object_trajectories_k.empty()) {
+    MultiObjectOdometryPath empty_msg;
+    empty_msg.header.stamp = ros::toRosTime(timestamp);
+    empty_msg.header.frame_id = reference_frames.odom_frame;
+    multi_object_odom_path_publisher_->publish(empty_msg);
     return;
   }
 
-  const auto reference_frames = sensor_rig_->getReferenceFrames();
   const gtsam::Pose3 T_RC = sensor_rig_->getCanonicalExtrinsics();
 
   // camera (optical) frame to robot (base) frame

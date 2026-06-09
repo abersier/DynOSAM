@@ -3,7 +3,7 @@
 #include <dynosam/dataprovider/DataProvider.hpp>
 #include <mutex>
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam_ros/CameraSystem.hpp"
 #include "dynosam_ros/adaptors/ImuMeasurementAdaptor.hpp"
 #include "image_transport/image_transport.hpp"

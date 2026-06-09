@@ -64,11 +64,13 @@ class FrontendDisplayRos : public FrontendDisplay {
     GroundTruthPublishers(const CanonicalSensorRig::ConstPtr& sensor_rig,
                           rclcpp::Node::SharedPtr ground_truth_node);
   };
+  CanonicalSensorRig::ConstPtr sensor_rig_;
   DynoStatePublisher dyno_state_publisher_;
-  //! Image Transport for tracking image
   image_transport::Publisher tracking_image_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
       dense_dynamic_cloud_pub_;
+  int labelled_cloud_max_static_points_;
+  int labelled_cloud_max_dynamic_points_;
 
   std::optional<GroundTruthPublishers> ground_truth_publishers_;
 };

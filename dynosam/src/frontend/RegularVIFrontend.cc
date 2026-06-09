@@ -1,4 +1,13 @@
 #include "dynosam/frontend/RegularVIFrontend.hpp"
+#include "dynosam_common/Flags.hpp"
+
+#ifdef DYNOSAM_USE_CUDA
+#include "dynosam/frontend/vision/cuda_backproject.cuh"
+#include <limits>
+#include <vector>
+#include "dynosam_common/PointCloudProcess.hpp"
+#include "dynosam_common/viz/Colour.hpp"
+#endif
 
 namespace dyno {
 
@@ -142,17 +151,76 @@ RegularVIFrontend::SpinReturn RegularVIFrontend::nominalSpin(
   pushImageToDisplayQueue("Tracks",
                           realtime_output->debug_imagery.tracking_image);
 
-  // if (FLAGS_set_dense_labelled_cloud) {
-  //     VLOG(30) << "Setting dense labelled cloud";
-  //     utils::ChronoTimingStats labelled_clout_timer(
-  //         this->moduleName() + ".dense_labelled_cloud");
-  //     const cv::Mat& board_detection_mask =
-  //     tracker_->getBoarderDetectionMask();
-  //     realtime_output->dense_labelled_cloud =
-  //         frame_k->projectToDenseCloud(&board_detection_mask);
+  if (FLAGS_set_dense_labelled_cloud) {
+    VLOG(30) << "Setting dense labelled cloud";
+    utils::ChronoTimingStats labelled_cloud_timer(
+        this->moduleName() + ".dense_labelled_cloud");
+    const cv::Mat& border_mask = tracker_.getBoarderDetectionMask();
 
-  //     //TODO: remove dense labelled cloud from VIOutput!!
-  // }
+#ifdef DYNOSAM_USE_CUDA
+    const cv::Mat& depth_image = frame_k->imageContainer().depth();
+    const cv::Mat& motion_mask = frame_k->imageContainer().objectMotionMask();
+    if (depth_image.empty() || motion_mask.empty()) {
+      realtime_output->dense_labelled_cloud =
+          frame_k->projectToDenseCloud(&border_mask);
+    } else {
+      const int rows = depth_image.rows;
+      const int cols = depth_image.cols;
+
+      static cuda::GpuBackprojectScratch cuda_scratch;
+      if (cuda_scratch.rows != rows || cuda_scratch.cols != cols)
+        cuda::gpuBackprojectAlloc(cuda_scratch, rows, cols);
+
+      const CameraParams& cam_p = frame_k->getCamera()->getParams();
+      const float fx_inv = 1.f / static_cast<float>(cam_p.fx());
+      const float fy_inv = 1.f / static_cast<float>(cam_p.fy());
+      const float cx     = static_cast<float>(cam_p.cu());
+      const float cy     = static_cast<float>(cam_p.cv());
+
+      const uint8_t* det_ptr =
+          border_mask.empty() ? nullptr : border_mask.ptr<uint8_t>(0);
+
+      const int max_pts = rows * cols;
+      static thread_local std::vector<float>   h_xyz;
+      static thread_local std::vector<int32_t> h_label;
+      h_xyz.resize(3 * max_pts);
+      h_label.resize(max_pts);
+
+      const int n = cuda::gpuBackproject(
+          cuda_scratch,
+          depth_image.ptr<double>(0),
+          motion_mask.ptr<int32_t>(0),
+          det_ptr,
+          rows, cols,
+          fx_inv, fy_inv, cx, cy,
+          std::numeric_limits<float>::max(),
+          std::numeric_limits<float>::max(),
+          h_xyz.data(), h_label.data());
+
+      PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
+      cloud->points.resize(n);
+      for (int i = 0; i < n; ++i) {
+        const ObjectId obj_id = static_cast<ObjectId>(h_label[i]);
+        const Color colour =
+            (obj_id == background_label) ? Color::black()
+                                         : Color::uniqueId(obj_id);
+        cloud->points[i] = PointLabelRGB(
+            h_xyz[3 * i], h_xyz[3 * i + 1], h_xyz[3 * i + 2],
+            static_cast<uint8_t>(colour.r),
+            static_cast<uint8_t>(colour.g),
+            static_cast<uint8_t>(colour.b),
+            static_cast<uint32_t>(obj_id));
+      }
+      cloud->width  = static_cast<uint32_t>(n);
+      cloud->height = 1;
+      cloud->is_dense = true;
+      realtime_output->dense_labelled_cloud = cloud;
+    }
+#else
+    realtime_output->dense_labelled_cloud =
+        frame_k->projectToDenseCloud(&border_mask);
+#endif
+  }
 
   logRealTimeOutput(realtime_output);
 

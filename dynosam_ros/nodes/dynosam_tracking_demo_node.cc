@@ -1,6 +1,6 @@
 #include <opencv4/opencv2/opencv.hpp>
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 #include "dynosam/frontend/vision/FeatureTracker.hpp"
 #include "dynosam_ros/RosUtils.hpp"
 #include "dynosam_sensors/Camera.hpp"
