@@ -216,7 +216,8 @@ DistortionModel CameraParams::stringToDistortion(
       return DistortionModel::NONE;
     } else if ((lower_case_distortion_model == "plumb_bob") ||
                (lower_case_distortion_model == "radial_tangential") ||
-               (lower_case_distortion_model == "radtan")) {
+               (lower_case_distortion_model == "radtan") ||
+               (lower_case_distortion_model == "rational_polynomial")) {
       return DistortionModel::RADTAN;
     } else if (lower_case_distortion_model == "equidistant") {
       return DistortionModel::EQUIDISTANT;

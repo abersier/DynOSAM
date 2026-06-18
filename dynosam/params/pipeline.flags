@@ -24,3 +24,7 @@
 --frontend_from_file=false
 
 --use_opencv_display=false
+
+# true: reproject depth → dense_labelled_cloud (required for DynORecon).
+# false: skip backprojection entirely (timing comparison, or visualization-only runs).
+--set_dense_labelled_cloud=true
