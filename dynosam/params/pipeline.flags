@@ -27,4 +27,4 @@
 
 # true: reproject depth → dense_labelled_cloud (required for DynORecon).
 # false: skip backprojection entirely (timing comparison, or visualization-only runs).
---set_dense_labelled_cloud=true
+--set_dense_labelled_cloud=false
