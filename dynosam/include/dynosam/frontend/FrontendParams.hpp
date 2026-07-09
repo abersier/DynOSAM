@@ -57,6 +57,13 @@ struct FrontendParams {
   double max_background_depth = 40.0;
   double max_object_depth = 25.0;
 
+  // per-label point budget for dense_labelled_cloud (0 = unlimited)
+  int labelled_cloud_max_static_points  = 500;
+  int labelled_cloud_max_dynamic_points = 300;
+  // false = CPU oracle (sample pixels first, backproject ~800 pts; default).
+  // true  = GPU path (backproject all depth-filtered pixels, D2H, then sample).
+  bool labelled_cloud_use_gpu = false;
+
   RegularObjectMotionSolverParams regular_object_motion_solver_params;
   HybridObjectMotionSolverParams hybrid_object_motion_solver_params;
   CameraPoseSolver camera_pose_solver_params;

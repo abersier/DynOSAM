@@ -1,6 +1,6 @@
 #include "dynosam_ros/Subscriber.hpp"
 
-#include "cv_bridge/cv_bridge.hpp"
+#include "cv_bridge/cv_bridge.h"
 
 namespace dyno {
 

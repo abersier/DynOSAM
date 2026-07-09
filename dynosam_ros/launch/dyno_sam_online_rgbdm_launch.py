@@ -2,34 +2,10 @@ from dynosam_ros.dynosam_node import DynosamNode
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument
 from launch import LaunchDescription
-from launch_ros.actions import Node
 from dynosam_ros.launch_utils import get_default_dynosam_params_path
-from ament_index_python.packages import get_package_share_directory
-import xacro
-
-import os
 
 
 def generate_launch_description():
-    # pkg_dir = get_package_share_directory('realsense2_description')
-    # xacro_file = os.path.join(pkg_dir, 'urdf', 'test_d435i_camera.urdf.xacro')
-
-    # # Process xacro to string
-    # robot_description_raw = xacro.process_file(
-    #     xacro_file,
-    #     mappings={'use_nominal_extrinsics': 'true'}
-    # ).toxml()
-    # print(robot_description_raw)
-
-    # # 2. Configure robot_state_publisher
-    # robot_state_publisher_node = Node(
-    #     package='robot_state_publisher',
-    #     executable='robot_state_publisher',
-    #     name='robot_state_publisher',
-    #     output='screen',
-    #     parameters=[{'robot_description': robot_description_raw}]
-    # )
-
     return LaunchDescription([
         DeclareLaunchArgument("params_path", default_value=get_default_dynosam_params_path()),
         DeclareLaunchArgument("v", default_value="30"),

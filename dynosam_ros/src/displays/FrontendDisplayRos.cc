@@ -31,8 +31,6 @@
 #include "dynosam_ros/displays/FrontendDisplayRos.hpp"
 
 #include <pcl/common/transforms.h>
-#include <pcl/filters/random_sample.h>
-#include <unordered_map>
 
 #include "cv_bridge/cv_bridge.h"
 #include "dynosam_ros/RosUtils.hpp"
@@ -55,25 +53,6 @@ FrontendDisplayRos::FrontendDisplayRos(
   dense_dynamic_cloud_pub_ =
       node->create_publisher<sensor_msgs::msg::PointCloud2>(
           "dense_labelled_cloud", rclcpp::QoS(10));
-
-  labelled_cloud_max_static_points_ =
-      ros::Parameter::Builder(node, "labelled_cloud_max_static_points", 2000)
-          .description(
-              "Max static points published in dense_labelled_cloud (0 = no "
-              "limit). Random-sampled before publish. Matches oracle "
-              "points_static semantics — tune to match DynORecon throughput.")
-          .finish()
-          .get<int>();
-
-  labelled_cloud_max_dynamic_points_ =
-      ros::Parameter::Builder(node, "labelled_cloud_max_dynamic_points", 800)
-          .description(
-              "Max dynamic points per object in dense_labelled_cloud (0 = no "
-              "limit). Random-sampled per object before publish — object count "
-              "and size are unknown so per-object budget is the only fair "
-              "limit. Matches oracle points_per_object semantics.")
-          .finish()
-          .get<int>();
 
   if (ground_truth_node) {
     RCLCPP_INFO_STREAM(node->get_logger(), "Creating ground truth publishers");
@@ -103,58 +82,6 @@ void FrontendDisplayRos::spinOnce(
     PointCloudLabelRGB cloud_odom;
     pcl::transformPointCloud(*frontend_output->dense_labelled_cloud, cloud_odom,
                              (T_RC * T_WC).matrix().cast<float>());
-
-    // Downsample static and dynamic points independently before publishing.
-    // DynoSAM reprojects every depth pixel (~300k pts); oracle sends only
-    // ~2000 static pts. Without this, DynORecon's VDB integration is ~150x
-    // heavier per frame than in oracle mode, pinning one CPU core.
-    // Static = background_label (0); dynamic = any non-zero label.
-    if (labelled_cloud_max_static_points_ > 0 ||
-        labelled_cloud_max_dynamic_points_ > 0) {
-      PointCloudLabelRGB static_cloud, dynamic_cloud;
-      static_cloud.reserve(cloud_odom.size());
-      dynamic_cloud.reserve(cloud_odom.size());
-      for (const auto& pt : cloud_odom) {
-        if (pt.label == background_label) static_cloud.push_back(pt);
-        else                               dynamic_cloud.push_back(pt);
-      }
-
-      cloud_odom.clear();
-
-      auto sample = [](const PointCloudLabelRGB& in, int max_pts,
-                       PointCloudLabelRGB& out) {
-        if (max_pts > 0 && static_cast<int>(in.size()) > max_pts) {
-          pcl::RandomSample<PointLabelRGB> rs;
-          rs.setInputCloud(in.makeShared());
-          rs.setSample(static_cast<unsigned int>(max_pts));
-          rs.filter(out);
-        } else {
-          out = in;
-        }
-      };
-
-      // Static: single pool, sample globally.
-      PointCloudLabelRGB static_sampled;
-      sample(static_cloud, labelled_cloud_max_static_points_, static_sampled);
-
-      // Dynamic: sample per-object so every object gets the same budget
-      // regardless of how many objects exist or how large they are.
-      // Mirrors oracle's points_per_object semantics.
-      PointCloudLabelRGB dynamic_sampled;
-      if (labelled_cloud_max_dynamic_points_ > 0 && !dynamic_cloud.empty()) {
-        std::unordered_map<uint32_t, PointCloudLabelRGB> per_object;
-        for (const auto& pt : dynamic_cloud) per_object[pt.label].push_back(pt);
-        for (auto& [label, obj_cloud] : per_object) {
-          PointCloudLabelRGB obj_sampled;
-          sample(obj_cloud, labelled_cloud_max_dynamic_points_, obj_sampled);
-          dynamic_sampled += obj_sampled;
-        }
-      } else {
-        dynamic_sampled = dynamic_cloud;
-      }
-
-      cloud_odom = static_sampled + dynamic_sampled;
-    }
 
     sensor_msgs::msg::PointCloud2 pc2_msg;
     pcl::toROSMsg(cloud_odom, pc2_msg);

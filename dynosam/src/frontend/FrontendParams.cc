@@ -57,6 +57,10 @@ void declare_config(FrontendParams& config) {
   field(config.max_background_depth, "max_background_depth");
   field(config.max_object_depth, "max_object_depth");
 
+  field(config.labelled_cloud_max_static_points,  "labelled_cloud_max_static_points");
+  field(config.labelled_cloud_max_dynamic_points, "labelled_cloud_max_dynamic_points");
+  field(config.labelled_cloud_use_gpu,            "labelled_cloud_use_gpu");
+
   field(config.regular_object_motion_solver_params,
         "regular_object_motion_solver");
   field(config.hybrid_object_motion_solver_params,

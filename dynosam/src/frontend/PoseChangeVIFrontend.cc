@@ -4,7 +4,9 @@
 #include "dynosam_common/Flags.hpp"
 #ifdef DYNOSAM_USE_CUDA
 #include "dynosam/frontend/vision/cuda_backproject.cuh"
+#include <algorithm>
 #include <limits>
+#include <random>
 #include <vector>
 #include "dynosam_common/PointCloudProcess.hpp"
 #include "dynosam_common/viz/Colour.hpp"
@@ -540,55 +542,152 @@ PoseChangeVIFrontend::SpinReturn PoseChangeVIFrontend::nominalSpin(
     } else {
       const int rows = depth_image.rows;
       const int cols = depth_image.cols;
-
-      static cuda::GpuBackprojectScratch cuda_scratch;
-      if (cuda_scratch.rows != rows || cuda_scratch.cols != cols)
-        cuda::gpuBackprojectAlloc(cuda_scratch, rows, cols);
-
       const CameraParams& cam_p = frame_k->getCamera()->getParams();
       const float fx_inv = 1.f / static_cast<float>(cam_p.fx());
       const float fy_inv = 1.f / static_cast<float>(cam_p.fy());
       const float cx     = static_cast<float>(cam_p.cu());
       const float cy     = static_cast<float>(cam_p.cv());
-
       const uint8_t* det_ptr =
           border_mask.empty() ? nullptr : border_mask.ptr<uint8_t>(0);
 
-      const int max_pts = rows * cols;
-      static thread_local std::vector<float>   h_xyz;
-      static thread_local std::vector<int32_t> h_label;
-      h_xyz.resize(3 * max_pts);
-      h_label.resize(max_pts);
+      const auto& fp = dyno_params_.frontend_params_;
+      const int max_static  = fp.labelled_cloud_max_static_points;
+      const int max_dynamic = fp.labelled_cloud_max_dynamic_points;
 
-      const int n = cuda::gpuBackproject(
-          cuda_scratch,
-          depth_image.ptr<double>(0),
-          motion_mask.ptr<int32_t>(0),
-          det_ptr,
-          rows, cols,
-          fx_inv, fy_inv, cx, cy,
-          std::numeric_limits<float>::max(),
-          std::numeric_limits<float>::max(),
-          h_xyz.data(), h_label.data());
+      static thread_local std::vector<int> static_pool, dynamic_pool;
+      static thread_local std::mt19937 rng{42};
+      static_pool.clear();
+      dynamic_pool.clear();
+      std::array<int32_t, 32> seen_labels{};
+      int n_objects = 0;
 
-      PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
-      cloud->points.resize(n);
-      for (int i = 0; i < n; ++i) {
-        const ObjectId obj_id = static_cast<ObjectId>(h_label[i]);
-        const Color colour =
-            (obj_id == background_label) ? Color::black()
-                                         : Color::uniqueId(obj_id);
-        cloud->points[i] = PointLabelRGB(
-            h_xyz[3 * i], h_xyz[3 * i + 1], h_xyz[3 * i + 2],
-            static_cast<uint8_t>(colour.r),
-            static_cast<uint8_t>(colour.g),
-            static_cast<uint8_t>(colour.b),
-            static_cast<uint32_t>(obj_id));
+      const auto partial_sample = [&rng](std::vector<int>& pool, int limit) {
+        if (limit <= 0 || static_cast<int>(pool.size()) <= limit) return;
+        const int total = static_cast<int>(pool.size());
+        for (int j = 0; j < limit; ++j) {
+          const int k = j + static_cast<int>(
+              rng() % static_cast<unsigned>(total - j));
+          std::swap(pool[j], pool[k]);
+        }
+        pool.resize(limit);
+      };
+
+      if (fp.labelled_cloud_use_gpu) {
+        // GPU path: backproject all depth-filtered pixels, D2H, then sample on CPU.
+        static cuda::GpuBackprojectScratch cuda_scratch;
+        if (cuda_scratch.rows != rows || cuda_scratch.cols != cols)
+          cuda::gpuBackprojectAlloc(cuda_scratch, rows, cols);
+
+        const int max_pts = rows * cols;
+        static thread_local std::vector<float>   h_xyz;
+        static thread_local std::vector<int32_t> h_label;
+        h_xyz.resize(3 * max_pts);
+        h_label.resize(max_pts);
+
+        const int n = cuda::gpuBackproject(
+            cuda_scratch,
+            depth_image.ptr<double>(0),
+            motion_mask.ptr<int32_t>(0),
+            det_ptr,
+            rows, cols,
+            fx_inv, fy_inv, cx, cy,
+            static_cast<float>(fp.max_background_depth),
+            static_cast<float>(fp.max_object_depth),
+            h_xyz.data(), h_label.data());
+
+        for (int i = 0; i < n; ++i) {
+          const int32_t lbl = h_label[i];
+          if (static_cast<ObjectId>(lbl) == background_label) {
+            static_pool.push_back(i);
+          } else {
+            dynamic_pool.push_back(i);
+            bool found = false;
+            for (int j = 0; j < n_objects; ++j)
+              if (seen_labels[j] == lbl) { found = true; break; }
+            if (!found && n_objects < static_cast<int>(seen_labels.size()))
+              seen_labels[n_objects++] = lbl;
+          }
+        }
+
+        partial_sample(static_pool,  max_static);
+        partial_sample(dynamic_pool, max_dynamic * std::max(1, n_objects));
+
+        PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
+        cloud->points.reserve(static_pool.size() + dynamic_pool.size());
+        const auto add_point = [&](int src) {
+          const ObjectId obj_id = static_cast<ObjectId>(h_label[src]);
+          const Color colour =
+              (obj_id == background_label) ? Color::black()
+                                           : Color::uniqueId(obj_id);
+          cloud->points.push_back(PointLabelRGB(
+              h_xyz[3 * src], h_xyz[3 * src + 1], h_xyz[3 * src + 2],
+              static_cast<uint8_t>(colour.r),
+              static_cast<uint8_t>(colour.g),
+              static_cast<uint8_t>(colour.b),
+              static_cast<uint32_t>(obj_id)));
+        };
+        for (int idx : static_pool)  add_point(idx);
+        for (int idx : dynamic_pool) add_point(idx);
+        cloud->width  = static_cast<uint32_t>(cloud->points.size());
+        cloud->height = 1;
+        cloud->is_dense = true;
+        realtime_output->dense_labelled_cloud = cloud;
+
+      } else {
+        // CPU oracle: scan mask+depth on CPU, sample pixel indices, then
+        // backproject only the selected ~800 pixels. Eliminates ~6ms D2H transfer.
+        const double*  depth_ptr = depth_image.ptr<double>(0);
+        const int32_t* mask_ptr  = motion_mask.ptr<int32_t>(0);
+        const int n_pixels = rows * cols;
+        const float max_bg_d  = static_cast<float>(fp.max_background_depth);
+        const float max_obj_d = static_cast<float>(fp.max_object_depth);
+
+        for (int i = 0; i < n_pixels; ++i) {
+          if (det_ptr && det_ptr[i] == 0) continue;
+          const float d = static_cast<float>(depth_ptr[i]);
+          if (d <= 0.f) continue;
+          const int32_t lbl = mask_ptr[i];
+          if (static_cast<ObjectId>(lbl) == background_label) {
+            if (d > max_bg_d) continue;
+            static_pool.push_back(i);
+          } else {
+            if (d > max_obj_d) continue;
+            dynamic_pool.push_back(i);
+            bool found = false;
+            for (int j = 0; j < n_objects; ++j)
+              if (seen_labels[j] == lbl) { found = true; break; }
+            if (!found && n_objects < static_cast<int>(seen_labels.size()))
+              seen_labels[n_objects++] = lbl;
+          }
+        }
+
+        partial_sample(static_pool,  max_static);
+        partial_sample(dynamic_pool, max_dynamic * std::max(1, n_objects));
+
+        PointCloudLabelRGB::Ptr cloud = pcl::make_shared<PointCloudLabelRGB>();
+        cloud->points.reserve(static_pool.size() + dynamic_pool.size());
+        const auto add_point = [&](int src) {
+          const float d = static_cast<float>(depth_ptr[src]);
+          const float x = (static_cast<float>(src % cols) - cx) * fx_inv * d;
+          const float y = (static_cast<float>(src / cols) - cy) * fy_inv * d;
+          const ObjectId obj_id = static_cast<ObjectId>(mask_ptr[src]);
+          const Color colour =
+              (obj_id == background_label) ? Color::black()
+                                           : Color::uniqueId(obj_id);
+          cloud->points.push_back(PointLabelRGB(
+              x, y, d,
+              static_cast<uint8_t>(colour.r),
+              static_cast<uint8_t>(colour.g),
+              static_cast<uint8_t>(colour.b),
+              static_cast<uint32_t>(obj_id)));
+        };
+        for (int idx : static_pool)  add_point(idx);
+        for (int idx : dynamic_pool) add_point(idx);
+        cloud->width  = static_cast<uint32_t>(cloud->points.size());
+        cloud->height = 1;
+        cloud->is_dense = true;
+        realtime_output->dense_labelled_cloud = cloud;
       }
-      cloud->width  = static_cast<uint32_t>(n);
-      cloud->height = 1;
-      cloud->is_dense = true;
-      realtime_output->dense_labelled_cloud = cloud;
     }
 #else
     realtime_output->dense_labelled_cloud =

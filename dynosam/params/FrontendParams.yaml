@@ -6,7 +6,15 @@ scene_flow_dist_threshold: 0.5
 # max_object_depth: 20.0
 # max_background_depth: 40.0
 max_background_depth: 20 # 200.0
-max_object_depth: 8.0 # 15.0
+max_object_depth: 8.0 # 8.0 for sim; 30.0 for KITTI outdoor
+
+# max points in dense_labelled_cloud, sampled before PCL build (0 = unlimited)
+# dynamic budget = labelled_cloud_max_dynamic_points * n_tracked_objects (per-object semantics)
+labelled_cloud_max_static_points:  500
+labelled_cloud_max_dynamic_points: 300
+# false = CPU oracle (scan mask on CPU, backproject ~800 pts only; no D2H transfer).
+# true  = GPU path (backproject all depth-filtered pixels D2H, then sample on CPU).
+labelled_cloud_use_gpu: false
 
 # max_object_depth: 8.0 #indoors
 
@@ -14,7 +22,7 @@ max_object_depth: 8.0 # 15.0
 use_ego_motion_pnp: True
 # When using rgbd-pipeline, camera-motion will be solved using 3d-2d pnp, not stereo (3d-3d) pnp
 use_object_motion_pnp: True
-refine_camera_pose_with_joint_of: True
+# refine_camera_pose_with_joint_of: True
 
 camera_pose_solver:
   pnp_ransac:
@@ -35,7 +43,7 @@ regular_object_motion_solver:
     use_robust: True
     outlier_reject: False
   refine_with_flow: True
-  refine_with_3d: False
+  refine_with_3d: True
 
 hybrid_object_motion_solver:
   pnp_ransac:
@@ -78,7 +86,7 @@ tracker_params:
   prefer_provided_optical_flow: false
   prefer_provided_object_detection: true
 
-  max_dynamic_features_per_frame: 150 # was 50; increased in Updates parameters commit
+  max_dynamic_features_per_frame: 150 
   min_distance_btw_tracked_and_detected_dynamic_features: 2
   # max_dynamic_feature_age: 20 #20
   # for KF should be unlimited
