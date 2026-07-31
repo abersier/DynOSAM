@@ -74,6 +74,7 @@ void declare_config(TrackerParams::GFFTParams& config) {
   field(config.block_size, "block_size");
   field(config.use_harris_corner_detector, "use_harris_corner_detector");
   field(config.k, "k");
+  field(config.dynamic_gfft_quality_level, "dynamic_gfft_quality_level");
 }
 
 void declare_config(TrackerParams::OrbParams& config) {

@@ -77,6 +77,10 @@ struct TrackerParams {
     //! always be false...
     bool use_harris_corner_detector = false;
     double k = 0.04;
+    //! quality_level used for per-object dynamic feature detection instead
+    //! (FeatureTracker.cc). Independent of quality_level above, which only
+    //! feeds the static background detector (FeatureDetector.cc).
+    double dynamic_gfft_quality_level = 0.01;
   };
 
   //! Orb features to track params

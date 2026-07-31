@@ -1,3 +1,5 @@
+# STALE — not loaded by the real robot's actual params_path. See README.md in this directory
+# before editing anything here expecting it to take effect.
 
 scene_flow_mag_threshold: 0.12
 scene_flow_dist_threshold: 0.5
@@ -40,6 +42,12 @@ hybrid_object_motion_solver:
     outlier_reject: False
     k_huber: 0.1
   refine_with_flow: True
+  # Minimum post-RANSAC inlier correspondences to accept an object's motion
+  # solve for a frame. Was hardcoded to 10 in HybridObjectMotionSolver.cc
+  # ("just for testing on real"); code's own history notes it started at 4
+  # before being raised for testing. Lowered back to 4 here for the
+  # low-feature real-robot case (small/distant objects at VGA resolution).
+  min_dynamic_pnp_inliers: 10
 
 
 tracker_params:
@@ -49,6 +57,8 @@ tracker_params:
 # SUPER IMPORTANT for good optical flow!
   gfft_params:
     quality_level: 0.01
+    # Dynamic-object equivalent of quality_level above - independent, static path unaffected.
+    dynamic_gfft_quality_level: 0.01
 
   shrink_row: 0
   shrink_col: 0

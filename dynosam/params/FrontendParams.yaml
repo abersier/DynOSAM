@@ -55,6 +55,7 @@ hybrid_object_motion_solver:
     outlier_reject: False
     k_huber: 0.01
   refine_with_flow: True
+  min_dynamic_pnp_inliers: 10
 
 tracker_params:
   feature_detector_type: "GFFT_CUDA"
@@ -62,6 +63,8 @@ tracker_params:
   # SUPER IMPORTANT for good optical flow!
   gfft_params:
     quality_level: 0.01
+    # Dynamic-object equivalent of quality_level above - independent, static path unaffected.
+    dynamic_gfft_quality_level: 0.01
 
   shrink_row: 0
   shrink_col: 0
@@ -86,7 +89,7 @@ tracker_params:
   prefer_provided_optical_flow: false
   prefer_provided_object_detection: true
 
-  max_dynamic_features_per_frame: 150 
+  max_dynamic_features_per_frame: 150
   min_distance_btw_tracked_and_detected_dynamic_features: 2
   # max_dynamic_feature_age: 20 #20
   # for KF should be unlimited

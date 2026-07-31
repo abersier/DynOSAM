@@ -18,6 +18,7 @@ void declare_config(HybridObjectMotionSolverParams& config) {
   field(config.pnp_ransac_params, "pnp_ransac");
   field(config.optical_flow_solver_params, "optical_flow_solver");
   field(config.refine_with_flow, "refine_with_flow");
+  field(config.min_dynamic_pnp_inliers, "min_dynamic_pnp_inliers");
 }
 
 bool isWellTracked(
@@ -265,11 +266,7 @@ bool HybridObjectMotionSolver::solveImpl(
               << " inliers= " << inlier_tracklets.size();
   }
 
-  // TODO: for now - this will break on small objects like dynopets!
-  //  just for testing on real!
-  //  originally 4!
-  // TODO: new param 'min_dynamic_pnp_inliers'
-  if (inlier_tracklets.size() < 10 ||
+  if (inlier_tracklets.size() < params_.min_dynamic_pnp_inliers ||
       geometric_result.status != TrackingStatus::VALID) {
     LOG(WARNING) << "Could not make initial frame for object " << object_id
                  << " as not enough inlier tracks!";

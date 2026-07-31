@@ -20,6 +20,10 @@ struct HybridObjectMotionSolverParams {
   PnPRansacSolverParams pnp_ransac_params;
   OpticalFlowAndPoseSolverParams optical_flow_solver_params;
   bool refine_with_flow{true};
+  //! Minimum post-RANSAC inlier correspondences required to accept an
+  //! object's motion solve for a frame; below this the object is marked
+  //! PoorlyTracked instead. See HybridObjectMotionSolver::solveImpl.
+  size_t min_dynamic_pnp_inliers{10u};
 };
 
 void declare_config(HybridObjectMotionSolverParams& config);

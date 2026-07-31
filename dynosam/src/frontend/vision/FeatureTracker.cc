@@ -726,7 +726,6 @@ void FeatureTracker::DynamicTrackerImpl::detectNewFeatures(
   const int min_feature_distance =
       params.min_distance_btw_tracked_and_detected_dynamic_features;
 
-  static constexpr double kGfftQualityLevel = 0.01;
   // for ANMS
   static constexpr float kTolerance = 0.01;
   static Eigen::MatrixXd binning_mask;
@@ -797,7 +796,8 @@ void FeatureTracker::DynamicTrackerImpl::detectNewFeatures(
       // we have some nice logic
       //  to prune with NMS? If we extract more is the compute time worth it?
       cv::goodFeaturesToTrack(current_mono, detected_points,
-                              nr_corners_needed[object_id], kGfftQualityLevel,
+                              nr_corners_needed[object_id],
+                              params.gfft_params.dynamic_gfft_quality_level,
                               min_feature_distance, combined_mask);
     }
 
